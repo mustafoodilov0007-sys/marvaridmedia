@@ -34,7 +34,7 @@ def main() -> None:
         print("❌ Python 3.8 yoki undan yangi versiya kerak. https://www.python.org/downloads/")
         sys.exit(2)
 
-    from config import Config
+    from app.config import Config
 
     config = Config()
     errors = config.validate()
