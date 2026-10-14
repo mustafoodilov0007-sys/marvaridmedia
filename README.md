@@ -137,7 +137,37 @@ top-5 kino va **❓ topilmagan so'rovlar** (qaysi kinoni qo'shish kerakligini ko
 
 ---
 
-## 🖥 Serverga joylash (24/7)
+## 🚂 Railway'ga joylash (24/7)
+
+Railway uchun `marvarid_kino_bot_railway` papkasidan foydalaning — unda `.env` yo'q (token GitHub'ga
+chiqib ketmasligi uchun), `Dockerfile` esa bor.
+
+1. **GitHub** → `+` → **New repository** → nomi `marvarid-kino-bot` → **Private** → **Create repository**.
+2. Repozitoriy sahifasida **uploading an existing file** → papka ichidagi **hamma** fayl va `app` papkasini
+   sudrab tashlang → **Commit changes**.
+3. **Railway** → **New Project** → **GitHub Repository** → `marvarid-kino-bot` ni tanlang
+   (birinchi marta GitHub'ga ruxsat berish so'raladi).
+4. Servis → **Variables** → **Raw Editor** → quyidagini qo'ying → **Update Variables**:
+   ```
+   BOT_TOKEN=...
+   ADMINS=7741577083,8843883500
+   CHANNELS=https://t.me/tarjimakino_va_multfilimlar
+   CARD_NUMBER=5614681215325527
+   CARD_HOLDER=A.O.
+   BRAND_NAME=Marvarid Media
+   ```
+5. **Volume (majburiy!):** loyiha maydonida bo'sh joyda o'ng tugma (yoki `Ctrl+K`) → **Volume** →
+   servisni tanlang → Mount path: **`/app/data`**. Busiz har yangilanishda baza o'chib ketadi
+   (bot bu holatda adminlarga ogohlantirish yuboradi).
+6. Servis → **Settings** → **Restart Policy: Always**. **Serverless** o'chiq qolsin.
+7. Yuqorida chiqqan **Deploy** tugmasini bosing → **Deployments → View Logs** da
+   `✅ Bot ishga tushdi` chiqishi kerak.
+
+⚠️ Bir token bilan faqat **bitta** nusxa ishlashi kerak — Railway'da ishga tushgach, kompyuterdagi
+`start.bat` oynasini yoping. Kodni yangilash: GitHub'ga yangi fayllarni yuklang — Railway o'zi qayta joylaydi,
+baza Volume'da saqlanib qoladi.
+
+## 🖥 Boshqa serverga joylash (VPS)
 
 Istalgan Linux VPS'da (Python 3.8+ bor):
 
@@ -170,9 +200,6 @@ systemctl daemon-reload && systemctl enable --now marvarid
 journalctl -u marvarid -f     # loglarni ko'rish
 ```
 
-> Railway/Render kabi platformalar uchun `Procfile` bor, lekin ularda doimiy disk (volume) ulanmasa,
-> qayta deploy qilinganda `data/bot.db` bazasi o'chib ketadi.
-
 ---
 
 ## ❓ Muammolar
@@ -193,6 +220,7 @@ bot.py            — ishga tushirish
 .env              — sozlamalar (token, adminlar, kanal, karta)
 start.bat         — Windows uchun ishga tushirish
 start.sh          — Linux uchun ishga tushirish
+Dockerfile        — Railway / Docker uchun
 app/              — bot kodi (handlers/ — bo'limlar)
 data/             — baza va loglar (avtomatik yaratiladi)
 ```

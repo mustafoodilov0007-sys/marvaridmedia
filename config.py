@@ -39,9 +39,15 @@ class Config:
         self.card_holder = os.getenv("CARD_HOLDER", "").strip()
         self.brand = os.getenv("BRAND_NAME", "").strip() or "Marvarid Media"
 
-        db_path = Path(os.getenv("DB_PATH", "data/bot.db"))
+        # Railway: hosting avtomatik qo'yadigan o'zgaruvchilar
+        self.on_railway = any(os.getenv(k) for k in ("RAILWAY_PROJECT_ID", "RAILWAY_SERVICE_ID",
+                                                     "RAILWAY_ENVIRONMENT"))
+        self.volume_path = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "").strip() or None
+        data_dir = self.volume_path or "data"  # volume ulangan bo'lsa — baza o'sha diskda saqlanadi
+
+        db_path = Path(os.getenv("DB_PATH", "").strip() or f"{data_dir}/bot.db")
         self.db_path = db_path if db_path.is_absolute() else BASE_DIR / db_path
-        log_path = Path(os.getenv("LOG_FILE", "data/bot.log"))
+        log_path = Path(os.getenv("LOG_FILE", "").strip() or f"{data_dir}/bot.log")
         self.log_path = log_path if log_path.is_absolute() else BASE_DIR / log_path
 
         self.api_url = (os.getenv("TELEGRAM_API", "") or "https://api.telegram.org").rstrip("/")
@@ -54,7 +60,9 @@ class Config:
     def validate(self) -> List[str]:
         errors = []
         if not re.fullmatch(r"\d{5,}:[A-Za-z0-9_-]{30,}", self.token):
-            errors.append("BOT_TOKEN noto'g'ri yoki kiritilmagan (.env faylini tekshiring)")
+            errors.append("BOT_TOKEN noto'g'ri yoki kiritilmagan "
+                          "(.env faylini yoki Railway → Variables bo'limini tekshiring)")
         if not self.owners:
-            errors.append("ADMINS — kamida bitta admin ID raqami kiritilishi kerak")
+            errors.append("ADMINS — kamida bitta admin ID raqami kiritilishi kerak "
+                          "(.env faylida yoki Railway → Variables bo'limida)")
         return errors

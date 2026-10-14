@@ -3,6 +3,7 @@
 
 import logging
 import sys
+import time
 from logging.handlers import RotatingFileHandler
 
 
@@ -15,9 +16,23 @@ def utf8_console() -> None:
             pass
 
 
+def handle_sigterm() -> None:
+    """Hosting (Railway, systemd) botni SIGTERM bilan to'xtatadi — bot to'g'ri yopilishi uchun."""
+    import signal
+
+    def _stop(signum, frame):
+        raise KeyboardInterrupt
+
+    try:
+        signal.signal(signal.SIGTERM, _stop)
+    except (ValueError, AttributeError, OSError):
+        pass
+
+
 def setup_logging(path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fmt =logging.Formatter("%(asctime)s | %(levelname)-7s | %(name)s | %(message)s", "%d.%m.%Y %H:%M:%S")
+    fmt = logging.Formatter("%(asctime)s | %(levelname)-7s | %(name)s | %(message)s", "%d.%m.%Y %H:%M:%S")
+    fmt.converter = lambda ts: time.gmtime(ts + 5 * 3600)  # loglarda doim Toshkent vaqti (serverda ham)
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     console = logging.StreamHandler(sys.stdout)
@@ -34,7 +49,7 @@ def main() -> None:
         print("❌ Python 3.8 yoki undan yangi versiya kerak. https://www.python.org/downloads/")
         sys.exit(2)
 
-   from config import Config
+    from app.config import Config
 
     config = Config()
     errors = config.validate()
@@ -49,6 +64,7 @@ def main() -> None:
     import app.handlers  # noqa: F401  — barcha bo'limlarni ro'yxatdan o'tkazadi
     from app.core import App
 
+    handle_sigterm()
     try:
         App(config).run()
     except KeyboardInterrupt:
