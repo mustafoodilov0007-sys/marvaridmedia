@@ -1,2 +1,0 @@
-# Bot faqat Python'ning standart kutubxonalari bilan ishlaydi —
-# qo'shimcha paket o'rnatish shart emas (Python 3.8+).
