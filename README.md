@@ -167,6 +167,17 @@ chiqib ketmasligi uchun), `Dockerfile` esa bor.
 `start.bat` oynasini yoping. Kodni yangilash: GitHub'ga yangi fayllarni yuklang — Railway o'zi qayta joylaydi,
 baza Volume'da saqlanib qoladi.
 
+## 🔄 Botni yangilash (yangi versiya kelganda)
+
+Yangilanish arxivida `.env` bo'lmaydi — tokeningiz va bazangiz o'zgarmaydi.
+
+- **Railway:** GitHub'dagi repozitoriy → **Add file → Upload files** → yangi papka ichidagi hamma narsani
+  sudrab tashlang → **Commit changes**. Railway 1–2 daqiqada o'zi qayta joylaydi, kinolar Volume'da saqlanib qoladi.
+- **Kompyuter:** `start.bat` oynasini yoping → yangi fayllarni eski papkaga nusxalang («Almashtirish») →
+  `start.bat` ni qayta ishga tushiring.
+
+So'ng Telegram'da **/start** (adminlar **/admin**) bosing — yangi menyu chiqadi.
+
 ## 🖥 Boshqa serverga joylash (VPS)
 
 Istalgan Linux VPS'da (Python 3.8+ bor):
