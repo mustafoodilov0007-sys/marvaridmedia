@@ -1,5 +1,0 @@
-# Token va baza GitHub'ga yuklanmasin
-.env
-data/
-__pycache__/
-*.pyc
