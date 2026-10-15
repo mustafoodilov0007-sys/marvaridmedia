@@ -61,9 +61,9 @@ def donate_view(app: App):
         rows.append([btn("📋 Karta raqamini nusxalash", copy=digits, style=SUCCESS)])
     rows.append([btn("🧾 Chek yuborish", "dn:receipt", style=PRIMARY)])
     if app.setting_bool("donate_stars"):
-        rows.append([btn("⭐ Telegram Stars bilan", "dn:stars")])
+        rows.append([btn("⭐ Telegram Stars bilan", "dn:stars", style=DANGER)])
     if app.setting_bool("premium_enabled"):
-        rows.append([btn("💎 Premium olish", "pr:menu")])
+        rows.append([btn("💎 Premium olish", "pr:menu", style=SUCCESS)])
     return text, ikb(*rows)
 
 
@@ -96,7 +96,7 @@ def cb_donate(ctx: Ctx) -> None:
         ctx.answer()
         amounts = [btn(f"⭐ {a}", f"dn:s:{a}", style=SUCCESS) for a in STAR_AMOUNTS]
         ctx.edit("⭐ <b>Telegram Stars bilan qo'llab-quvvatlash</b>\n\nQancha Stars yubormoqchisiz? 👇",
-                 ikb(amounts[:3], amounts[3:], [btn("⬅️ Orqaga", "dn:menu")]))
+                 ikb(amounts[:3], amounts[3:], [btn("⬅️ Orqaga", "dn:menu", style=DANGER)]))
     elif action == "s" and len(parts) > 2 and parts[2].isdigit():
         amount = int(parts[2])
         if amount not in STAR_AMOUNTS or not app.setting_bool("donate_stars"):
@@ -186,7 +186,7 @@ def cb_premium(ctx: Ctx) -> None:
             rows.append([btn(f"⭐ Telegram Stars — {plan['stars']} ⭐", f"pr:stars:{plan['id']}",
                              style=SUCCESS)])
         lines += ["", "To'lov usulini tanlang 👇"]
-        rows.append([btn("⬅️ Orqaga", "pr:menu")])
+        rows.append([btn("⬅️ Orqaga", "pr:menu", style=DANGER)])
         ctx.edit("\n".join(lines), ikb(*rows))
 
     elif action == "card":
@@ -204,7 +204,7 @@ def cb_premium(ctx: Ctx) -> None:
             "⏱ Admin chekni tekshirgach, Premium avtomatik faollashadi.\n"
             "ℹ️ To'lov qilish orqali /terms shartlariga rozilik bildirasiz.",
             ikb([btn("📋 Karta raqamini nusxalash", copy=digits, style=SUCCESS)] if digits else None,
-                [btn("⬅️ Orqaga", f"pr:plan:{plan['id']}")]))
+                [btn("⬅️ Orqaga", f"pr:plan:{plan['id']}", style=DANGER)]))
 
     elif action == "stars":
         if not (stars_on and plan["stars"] > 0):

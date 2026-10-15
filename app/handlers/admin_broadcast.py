@@ -115,10 +115,10 @@ def control_text(ctx: Ctx) -> str:
 
 def control_kb(ctx: Ctx) -> dict:
     d = ctx.sdata
-    rows = [[btn("🎯 Auditoriya", "bc:aud"), btn("📤 Usul", "bc:mode")],
+    rows = [[btn("🎯 Auditoriya", "bc:aud", style=PRIMARY), btn("📤 Usul", "bc:mode", style=SUCCESS)],
             [btn("🔘 Tugma qo'shish", "bc:btn", style=PRIMARY)]]
     if d["buttons"]:
-        rows[1].append(btn("🧹 Tugmalarni o'chirish", "bc:clr"))
+        rows[1].append(btn("🧹 Tugmalarni o'chirish", "bc:clr", style=DANGER))
     rows.append([btn("✅ Yuborish", "bc:go", style=SUCCESS), btn("❌ Bekor qilish", "cancel", style=DANGER)])
     return ikb(*rows)
 

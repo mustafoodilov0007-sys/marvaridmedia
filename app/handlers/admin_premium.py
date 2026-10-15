@@ -22,6 +22,12 @@ def _on(ctx: Ctx, key: str) -> str:
     return "✅" if ctx.app.setting_bool(key) else "❌"
 
 
+def _toggle(ctx: Ctx, label: str, key: str) -> dict:
+    """Yoqilgan — yashil, o'chirilgan — qizil."""
+    on = ctx.app.setting_bool(key)
+    return btn(f"{label}: {'✅' if on else '❌'}", f"pa:tog:{key}", style=SUCCESS if on else DANGER)
+
+
 def premium_admin_view(ctx: Ctx):
     db = ctx.db
     totals = db.payment_totals()
@@ -41,11 +47,9 @@ def premium_admin_view(ctx: Ctx):
     rows = [
         [btn("📋 Tariflar", "pa:plans", style=PRIMARY), btn("👥 Premiumlar", "pa:list:0", style=PRIMARY)],
         [btn("🎁 Premium berish", "pa:give", style=SUCCESS), btn("🚫 Premiumni olish", "pa:take", style=DANGER)],
-        [btn(f"⚙️ Tizim: {_on(ctx, 'premium_enabled')}", "pa:tog:premium_enabled"),
-         btn(f"🚪 Obunasiz kirish: {_on(ctx, 'premium_skip_sub')}", "pa:tog:premium_skip_sub")],
-        [btn(f"💳 Karta: {_on(ctx, 'premium_card')}", "pa:tog:premium_card"),
-         btn(f"⭐ Stars: {_on(ctx, 'premium_stars')}", "pa:tog:premium_stars")],
-        [btn(f"💝 Stars donat: {_on(ctx, 'donate_stars')}", "pa:tog:donate_stars")],
+        [_toggle(ctx, "⚙️ Tizim", "premium_enabled"), _toggle(ctx, "🚪 Obunasiz kirish", "premium_skip_sub")],
+        [_toggle(ctx, "💳 Karta", "premium_card"), _toggle(ctx, "⭐ Stars", "premium_stars")],
+        [_toggle(ctx, "💝 Stars donat", "donate_stars")],
     ]
     return text, ikb(*rows)
 
@@ -61,7 +65,7 @@ def plans_view(ctx: Ctx):
                      f"💳 {fmt_num(p['price'])} so'm • ⭐ {p['stars']}")
         rows.append([btn(f"🗑 {i}. {plan_name(p['days'])} — o'chirish", f"pa:pdel:{p['id']}", style=DANGER)])
     lines += ["", "ℹ️ Narx 0 bo'lsa, o'sha usulda sotilmaydi."]
-    rows.append([btn("⬅️ Orqaga", "pa:menu")])
+    rows.append([btn("⬅️ Orqaga", "pa:menu", style=DANGER)])
     return "\n".join(lines), ikb(*rows)
 
 
@@ -80,7 +84,7 @@ def premium_list_view(ctx: Ctx, page: int):
     rows = []
     if pages > 1:
         rows.append(nav_row("pa:list", page, pages))
-    rows.append([btn("⬅️ Orqaga", "pa:menu")])
+    rows.append([btn("⬅️ Orqaga", "pa:menu", style=DANGER)])
     return "\n".join(lines), ikb(*rows)
 
 

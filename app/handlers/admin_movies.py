@@ -124,7 +124,7 @@ def st_title(ctx: Ctx) -> None:
     rows = []
     if ctx.sdata.get("caption"):
         rows.append([btn("📄 Video izohidan olish", "am:usecap", style=PRIMARY)])
-    rows.append([btn("⏭ O'tkazib yuborish", "am:skip")])
+    rows.append([btn("⏭ O'tkazib yuborish", "am:skip", style=SUCCESS)])
     rows.append([btn("❌ Bekor qilish", "cancel", style=DANGER)])
     ctx.send("4️⃣ Kino haqida <b>qisqacha ma'lumot</b> yuboring:\n"
              "💡 Masalan: janr, yil, davlat, til, sifat.\n\nYoki bu bosqichni o'tkazib yuboring 👇", ikb(*rows))
@@ -146,7 +146,7 @@ def ask_poster(ctx: Ctx, desc: str) -> None:
     ctx.goto("am:poster", desc=desc)
     ctx.send("5️⃣ Kino <b>posterini</b> (rasm) yuboring 🖼\n"
              "Poster kanal e'loni va seriyalar ro'yxatini chiroyli qiladi.\n\nYoki o'tkazib yuboring 👇",
-             ikb([btn("⏭ O'tkazib yuborish", "am:skip")], [btn("❌ Bekor qilish", "cancel", style=DANGER)]))
+             ikb([btn("⏭ O'tkazib yuborish", "am:skip", style=SUCCESS)], [btn("❌ Bekor qilish", "cancel", style=DANGER)]))
 
 
 @router.state("am:poster", admin=True)
@@ -200,7 +200,7 @@ def save_movie(ctx: Ctx, premium: bool) -> None:
              f"🔗 Havola: {esc(ctx.app.deep_link(d['code']))}",
              ikb([btn("📢 Kanalga e'lon qilish", f"an:{movie_id}", style=SUCCESS)],
                  [btn("➕ Keyingi qismni qo'shish", f"am:addpart:{movie_id}", style=PRIMARY)],
-                 [btn("🎬 Yana kino qo'shish", "am:new")]))
+                 [btn("🎬 Yana kino qo'shish", "am:new", style=SUCCESS)]))
 
 
 def throttled_status(ctx: Ctx, state: str, text: str, kb, interval: float) -> None:
@@ -489,14 +489,14 @@ def manage_view(ctx: Ctx, movie):
     rows = [[btn("🗑 Butunlay o'chirish", f"dm:del:{mid}", style=DANGER)]]
     if n > 1:
         rows.append([btn("🎞 Qismni o'chirish", f"dm:parts:{mid}", style=DANGER)])
-    rows.append([btn("✏️ Nomi", f"dm:et:{mid}"), btn("📝 Ma'lumoti", f"dm:ed:{mid}"),
-                 btn("🖼 Poster", f"dm:ep:{mid}")])
+    rows.append([btn("✏️ Nomi", f"dm:et:{mid}", style=PRIMARY), btn("📝 Ma'lumoti", f"dm:ed:{mid}", style=PRIMARY),
+                 btn("🖼 Poster", f"dm:ep:{mid}", style=PRIMARY)])
     if ctx.app.setting_bool("premium_enabled") or movie["is_premium"]:
         rows.append([btn("🆓 Oddiy kino qilish" if movie["is_premium"] else "💎 Premium kino qilish",
                          f"dm:prem:{mid}", style=PRIMARY)])
     rows.append([btn("➕ Qism qo'shish", f"am:addpart:{mid}", style=SUCCESS),
-                 btn("📢 E'lon qilish", f"an:{mid}")])
-    rows.append([btn("❌ Yopish", "x")])
+                 btn("📢 E'lon qilish", f"an:{mid}", style=PRIMARY)])
+    rows.append([btn("❌ Yopish", "x", style=DANGER)])
     return text, ikb(*rows)
 
 
@@ -563,7 +563,7 @@ def cb_manage(ctx: Ctx) -> None:
             ctx.edit(f"⚠️ <b>{esc(movie['title'])}</b> — <b>{esc(part_label(part))}</b> o'chirilsinmi?\n\n"
                      "Qolgan qismlar avtomatik qayta raqamlanadi.",
                      ikb([btn("✅ Ha, o'chirilsin", f"dm:pdelok:{part['id']}", style=DANGER)],
-                         [btn("⬅️ Orqaga", f"dm:parts:{movie['id']}")]))
+                         [btn("⬅️ Orqaga", f"dm:parts:{movie['id']}", style=PRIMARY)]))
             return
         left = db.delete_part(part["id"])
         ctx.answer("🗑 Qism o'chirildi")
@@ -600,7 +600,7 @@ def cb_manage(ctx: Ctx) -> None:
         for p in plist[:50]:
             lines.append(f"<b>{p['part_no']}.</b> {esc(part_label(p))}")
         rows = number_rows([(p["part_no"], f"dm:pdel:{p['id']}") for p in plist[:50]], style=DANGER)
-        rows.append([btn("⬅️ Orqaga", f"dm:open:{mid}")])
+        rows.append([btn("⬅️ Orqaga", f"dm:open:{mid}", style=DANGER)])
         ctx.edit("\n".join(lines), {"inline_keyboard": rows})
     elif action == "prem":
         db.update_movie(mid, is_premium=not movie["is_premium"])

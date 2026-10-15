@@ -38,10 +38,14 @@ def settings_menu(app: App):
             "🔒 <b>Kontent himoyasi</b> yoqilganda oddiy foydalanuvchilar kinolarni saqlay olmaydi va "
             "forward qila olmaydi (Premium a'zolar va adminlar bundan mustasno).")
     rows = [
-        [btn(t["start_text"][0], "st:k:start_text"), btn(t["sub_text"][0], "st:k:sub_text")],
-        [btn(t["caption_footer"][0], "st:k:caption_footer"), btn(t["donate_text"][0], "st:k:donate_text")],
-        [btn(t["premium_text"][0], "st:k:premium_text"), btn(OTHER_TITLES["card_number"], "st:k:card_number")],
-        [btn(OTHER_TITLES["card_holder"], "st:k:card_holder"), btn(OTHER_TITLES["post_channel"], "st:k:post_channel")],
+        [btn(t["start_text"][0], "st:k:start_text", style=PRIMARY),
+         btn(t["sub_text"][0], "st:k:sub_text", style=SUCCESS)],
+        [btn(t["caption_footer"][0], "st:k:caption_footer", style=SUCCESS),
+         btn(t["donate_text"][0], "st:k:donate_text", style=PRIMARY)],
+        [btn(t["premium_text"][0], "st:k:premium_text", style=PRIMARY),
+         btn(OTHER_TITLES["card_number"], "st:k:card_number", style=SUCCESS)],
+        [btn(OTHER_TITLES["card_holder"], "st:k:card_holder", style=SUCCESS),
+         btn(OTHER_TITLES["post_channel"], "st:k:post_channel", style=PRIMARY)],
         [btn("🔒 Kontent himoyasi: " + ("✅ Yoqilgan" if protect else "❌ O'chiq"),
              "st:tog:protect_content", style=SUCCESS if protect else DANGER)],
     ]
@@ -66,7 +70,7 @@ def item_view(app: App, key: str):
     rows = [[btn("✏️ O'zgartirish", f"st:edit:{key}", style=PRIMARY)]]
     if custom:
         rows.append([btn("♻️ Standart holatga qaytarish", f"st:reset:{key}", style=DANGER)])
-    rows.append([btn("⬅️ Orqaga", "st:menu")])
+    rows.append([btn("⬅️ Orqaga", "st:menu", style=DANGER)])
     return text, ikb(*rows)
 
 
@@ -127,7 +131,7 @@ def cb_settings(ctx: Ctx) -> None:
 def st_edit(ctx: Ctx) -> None:
     app, msg = ctx.app, ctx.message
     key = ctx.sdata.get("key")
-    back = ikb([btn("⬅️ Sozlamalarga qaytish", "st:menu")])
+    back = ikb([btn("⬅️ Sozlamalarga qaytish", "st:menu", style=PRIMARY)])
 
     if key in TEXT_TITLES:
         if not msg.get("text"):

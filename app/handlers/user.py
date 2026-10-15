@@ -177,7 +177,7 @@ def handle_query(ctx: Ctx, raw: str) -> None:
 
 def not_found_kb() -> dict:
     return ikb([btn("🔥 Top kinolar", "tp:0", style=SUCCESS), btn("🆕 Yangi kinolar", "np:0", style=PRIMARY)],
-               [btn("✍️ Kino so'rash", "ct:start")])
+               [btn("✍️ Kino so'rash", "ct:start", style=DANGER)])
 
 
 def search_ids(app, norm: str):
@@ -379,7 +379,7 @@ def part_kb(app, movie, part, total: int, extra_rows=None) -> dict:
         next_part = app.db.get_part_by_no(movie["id"], no + 1) if no < total else None
         if prev_part:
             nav.append(btn(f"⬅️ {no - 1}-qism", f"pt:{prev_part['id']}", style=SUCCESS))
-        nav.append(btn("📋 Qismlar", f"pl:{movie['id']}:{(no - 1) // PER_PAGE}"))
+        nav.append(btn("📋 Qismlar", f"pl:{movie['id']}:{(no - 1) // PER_PAGE}", style=PRIMARY))
         if next_part:
             nav.append(btn(f"{no + 1}-qism ➡️", f"pt:{next_part['id']}", style=SUCCESS))
         rows.append(nav)
