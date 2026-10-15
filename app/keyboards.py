@@ -16,7 +16,7 @@ DANGER = "danger"     # qizil
 
 
 def btn(text: str, data: Optional[str] = None, *, url: Optional[str] = None,
-        style: Optional[str] = None, copy: Optional[str] = None) -> dict:
+        style: Optional[str] = PRIMARY, copy: Optional[str] = None) -> dict:
     b = {"text": text}
     if data is not None:
         b["callback_data"] = data
@@ -33,7 +33,7 @@ def ikb(*rows) -> dict:
     return {"inline_keyboard": [list(r) for r in rows if r]}
 
 
-def rbtn(text: str, style: Optional[str] = None) -> dict:
+def rbtn(text: str, style: Optional[str] = PRIMARY) -> dict:
     b = {"text": text}
     if style:
         b["style"] = style
@@ -41,7 +41,9 @@ def rbtn(text: str, style: Optional[str] = None) -> dict:
 
 
 def rkb(rows: Sequence[Sequence[dict]], placeholder: Optional[str] = None) -> dict:
-    kb = {"keyboard": [list(r) for r in rows if r], "resize_keyboard": True, "is_persistent": True}
+    # is_persistent qo'yilmaydi: telefonda «orqaga» tugmasi menyuni yopa olsin,
+    # qayta ochish — yozish maydonidagi ⌨️ belgisi orqali
+    kb = {"keyboard": [list(r) for r in rows if r], "resize_keyboard": True}
     if placeholder:
         kb["input_field_placeholder"] = placeholder[:64]
     return kb
@@ -63,7 +65,7 @@ def nav_row(prefix: str, page: int, pages: int) -> List[dict]:
     next_page = (page + 1) % pages
     return [
         btn("⬅️", f"{prefix}:{prev_page}", style=SUCCESS),
-        btn(f"{page + 1}/{pages}", "noop"),
+        btn(f"{page + 1}/{pages}", "noop", style=PRIMARY),
         btn("➡️", f"{prefix}:{next_page}", style=SUCCESS),
     ]
 
@@ -71,9 +73,9 @@ def nav_row(prefix: str, page: int, pages: int) -> List[dict]:
 def user_menu(is_admin: bool, premium_on: bool) -> dict:
     rows = [
         [rbtn(B.SEARCH, PRIMARY)],
-        [rbtn(B.TOP), rbtn(B.NEW)],
-        [rbtn(B.RANDOM), rbtn(B.PREMIUM, SUCCESS)] if premium_on else [rbtn(B.RANDOM)],
-        [rbtn(B.DONATE), rbtn(B.CONTACT)],
+        [rbtn(B.TOP, DANGER), rbtn(B.NEW, SUCCESS)],
+        [rbtn(B.RANDOM, PRIMARY), rbtn(B.PREMIUM, SUCCESS)] if premium_on else [rbtn(B.RANDOM, PRIMARY)],
+        [rbtn(B.DONATE, DANGER), rbtn(B.CONTACT, PRIMARY)],
     ]
     if is_admin:
         rows.append([rbtn(B.ADMIN, DANGER)])
@@ -83,8 +85,8 @@ def user_menu(is_admin: bool, premium_on: bool) -> dict:
 def admin_menu() -> dict:
     return rkb([
         [rbtn(B.ADD_MOVIE, SUCCESS), rbtn(B.DEL_MOVIE, DANGER)],
-        [rbtn(B.STATS), rbtn(B.CHANNELS)],
-        [rbtn(B.BROADCAST), rbtn(B.ADMINS)],
-        [rbtn(B.PREMIUMS), rbtn(B.TEXTS)],
+        [rbtn(B.STATS, PRIMARY), rbtn(B.CHANNELS, SUCCESS)],
+        [rbtn(B.BROADCAST, DANGER), rbtn(B.ADMINS, PRIMARY)],
+        [rbtn(B.PREMIUMS, SUCCESS), rbtn(B.TEXTS, DANGER)],
         [rbtn(B.HOME, PRIMARY)],
     ], "👨‍💻 Admin panel")

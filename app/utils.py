@@ -331,7 +331,7 @@ def parse_url_buttons(text: str) -> Tuple[Optional[List[List[dict]]], str]:
                 url = "https://t.me/" + url[1:]
             if not re.match(r"^(https?://|tg://)", url):
                 url = "https://" + url
-            row.append({"text": label[:64], "url": url})
+            row.append({"text": label[:64], "url": url, "style": "success"})
         if row:
             rows.append(row[:8])
     if not rows:
