@@ -10,12 +10,19 @@ from ..core import NEXT, Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, number_rows
 from ..telegram import TelegramError
 from ..texts import B, CATEGORIES, cat_icon, cat_name
-from ..utils import esc, extract_media, fmt_date, fmt_num, normalize, post_link, truncate, visible_len
+from ..utils import (entities_to_html, esc, extract_media, fmt_date, fmt_num, message_html, normalize, post_link,
+                     truncate, visible_len)
 from .user import build_list, fmt_item, part_label, search_ids
 
 log = logging.getLogger("admin.movies")
 
 CODE_RE = re.compile(r"#?(\d{1,9})")
+
+
+def _cap_html(msg) -> str:
+    """Fayl izohi formatlash bilan (premium emoji, qalin...) — HTML ko'rinishda."""
+    cap = (msg or {}).get("caption") or ""
+    return entities_to_html(cap, msg.get("caption_entities")) if cap else ""
 
 
 def _stale(ctx: Ctx) -> None:
@@ -70,7 +77,8 @@ def ask_category(ctx: Ctx, prefill=None) -> None:
     """Fayl qabul qilingach — turini tanlash: kino yoki multfilm (musiqa — alohida bo'lim)."""
     data = {}
     if prefill:
-        data = {"file_id": prefill[0], "file_type": prefill[1], "caption": prefill[2]}
+        data = {"file_id": prefill[0], "file_type": prefill[1], "caption": prefill[2],
+                "caption_html": _cap_html(ctx.message)}
     ctx.set_state("am:cat", **data)
     if prefill:
         head = "📹 <b>Fayl qabul qilindi!</b>"
@@ -83,7 +91,8 @@ def start_add(ctx: Ctx, prefill=None, category: str = "movie") -> None:
     code = ctx.db.next_code()
     data = {"cat": category if category in CATEGORIES else "movie"}
     if prefill:
-        data.update({"file_id": prefill[0], "file_type": prefill[1], "caption": prefill[2]})
+        data.update({"file_id": prefill[0], "file_type": prefill[1], "caption": prefill[2],
+                     "caption_html": ctx.sdata.get("caption_html", "")})
     ctx.set_state("am:code", **data)
     icon, name = cat_icon(data["cat"]), cat_name(data["cat"])
     noun = name.lower()
@@ -197,7 +206,7 @@ def st_video(ctx: Ctx) -> None:
             ctx.send(f"❗️ Iltimos, {_noun(ctx)}ni <b>video</b> yoki <b>fayl</b> ko'rinishida yuboring.",
                      cancel_kb())
         return
-    ctx.goto("am:title", file_id=media[0], file_type=media[1], caption=media[2])
+    ctx.goto("am:title", file_id=media[0], file_type=media[1], caption=media[2], caption_html=_cap_html(ctx.message))
     ask_title(ctx, ctx.sdata["code"])
 
 
@@ -234,11 +243,11 @@ def st_desc(ctx: Ctx) -> None:
     if len(desc) > 800:
         ctx.send("❗️ Ma'lumot juda uzun — 800 belgigacha qisqartiring.")
         return
-    ask_poster(ctx, desc)
+    ask_poster(ctx, desc, message_html(ctx.message).strip())
 
 
-def ask_poster(ctx: Ctx, desc: str) -> None:
-    ctx.goto("am:poster", desc=desc)
+def ask_poster(ctx: Ctx, desc: str, desc_html: str = "") -> None:
+    ctx.goto("am:poster", desc=desc, desc_html=desc_html)
     what = "muqovasini" if _is_music(ctx) else "posterini"
     ctx.send(f"5️⃣ {cat_name(_cat(ctx))} <b>{what}</b> (rasm) yuboring 🖼\n"
              "Rasm saytda, kanal e'lonida va qismlar ro'yxatida chiroyli ko'rinadi.\n\nYoki o'tkazib yuboring 👇",
@@ -289,7 +298,7 @@ def save_movie(ctx: Ctx, premium: bool) -> None:
         return
     cat = _cat(ctx)
     movie_id = db.add_movie(d["code"], d["title"], d.get("desc") or "", d.get("poster"), premium,
-                            ctx.user_id, d["file_id"], d["file_type"], cat)
+                            ctx.user_id, d["file_id"], d["file_type"], cat, d.get("desc_html") or "")
     ctx.clear_state()
     ctx.answer("✅ Saqlandi!")
     code = db.get_movie(movie_id)["code"]
@@ -517,7 +526,9 @@ def cb_add_movie(ctx: Ctx) -> None:
             _stale(ctx)
             return
         ctx.answer()
-        ask_poster(ctx, (ctx.sdata.get("caption") or "")[:800])
+        cap = ctx.sdata.get("caption") or ""
+        cap_html = ctx.sdata.get("caption_html") or ""
+        ask_poster(ctx, cap[:800], cap_html if len(cap) <= 800 else "")
     elif action == "skip":
         if state == "am:desc":
             ctx.answer()
@@ -563,7 +574,10 @@ def announce_text(app, movie, parts: int) -> str:
     budget = 1000 - visible_len(head) - visible_len(meta) - visible_len(tail) - 12
     blocks = [head]
     desc = (movie["description"] or "").strip()
-    if desc and budget > 30:
+    desc_html = (movie["desc_html"] if "desc_html" in movie.keys() else "") or ""
+    if desc_html and visible_len(desc_html) <= min(budget, 700):
+        blocks.append("📝 " + desc_html)  # premium emoji va formatlash saqlanadi
+    elif desc and budget > 30:
         blocks.append("📝 " + esc(truncate(desc, min(budget, 700))))
     blocks += [b for b in (meta, tail) if b]
     return "\n\n".join(blocks)
@@ -915,7 +929,10 @@ def st_edit_desc(ctx: Ctx) -> None:
         ctx.send("❗️ Ma'lumot 1–800 belgidan iborat matn bo'lishi kerak (o'chirish uchun <code>-</code>).",
                  cancel_kb())
         return
-    ctx.db.update_movie(movie["id"], description="" if desc == "-" else desc)
+    if desc == "-":
+        ctx.db.update_movie(movie["id"], description="", desc_html="")
+    else:
+        ctx.db.update_movie(movie["id"], description=desc, desc_html=message_html(ctx.message).strip())
     ctx.clear_state()
     ctx.send("✅ Ma'lumot yangilandi!")
     send_manage(ctx, ctx.db.get_movie(movie["id"]))

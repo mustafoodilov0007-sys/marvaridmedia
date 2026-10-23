@@ -486,7 +486,10 @@ def build_caption(app, movie, part, total: int) -> str:
     blocks = [head]
     budget = 1000 - visible_len(head) - visible_len(meta) - visible_len(footer) - 12
     desc = (movie["description"] or "").strip()
-    if desc and budget > 30:
+    desc_html = (movie["desc_html"] if "desc_html" in movie.keys() else "") or ""
+    if desc_html and visible_len(desc_html) <= budget - 3:
+        blocks.append("📝 " + desc_html)  # premium emoji va formatlash saqlanadi
+    elif desc and budget > 30:
         blocks.append("📝 " + esc(truncate(desc, budget - 3)))
     blocks.append(meta)
     if footer:

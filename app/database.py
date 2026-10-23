@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS movies (
     views       INTEGER NOT NULL DEFAULT 0,
     added_by    INTEGER,
     created_at  INTEGER NOT NULL,
-    category    TEXT    NOT NULL DEFAULT 'movie'
+    category    TEXT    NOT NULL DEFAULT 'movie',
+    desc_html   TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_movies_views   ON movies(views);
 CREATE INDEX IF NOT EXISTS idx_movies_created ON movies(created_at);
@@ -167,6 +168,9 @@ class Database:
         if "category" not in cols:
             # eski kinolarning hammasi «kino» turida qoladi
             self.conn.execute("ALTER TABLE movies ADD COLUMN category TEXT NOT NULL DEFAULT 'movie'")
+        if "desc_html" not in cols:
+            # izohning formatlangan nusxasi (premium emoji, qalin/kursiv) — kino yuborilganda shu ishlatiladi
+            self.conn.execute("ALTER TABLE movies ADD COLUMN desc_html TEXT NOT NULL DEFAULT ''")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_movies_category ON movies(category, created_at)")
         # musiqalar kodsiz: avval kod bilan qo'shilganlari ichki (manfiy) raqamga o'tkaziladi
         rows = self.conn.execute("SELECT id FROM movies WHERE category='music' AND code>0 ORDER BY id").fetchall()
@@ -355,7 +359,7 @@ class Database:
 
     def add_movie(self, code: int, title: str, description: str, poster_id: Optional[str],
                   is_premium: bool, added_by: int, file_id: str, file_type: str,
-                  category: str = "movie") -> int:
+                  category: str = "movie", desc_html: str = "") -> int:
         t = now()
         if category not in CATEGORIES:
             category = "movie"
@@ -364,9 +368,9 @@ class Database:
                 code = (c.execute("SELECT MIN(code) FROM movies WHERE code<0").fetchone()[0] or 0) - 1
             cur = c.execute(
                 "INSERT INTO movies(code, title, description, poster_id, is_premium, norm_title, norm_desc,"
-                " added_by, created_at, category) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                " added_by, created_at, category, desc_html) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (code, title, description or "", poster_id, 1 if is_premium else 0, normalize(title),
-                 normalize(description or ""), added_by, t, category))
+                 normalize(description or ""), added_by, t, category, desc_html or ""))
             movie_id = cur.lastrowid
             c.execute("INSERT INTO parts(movie_id, part_no, file_id, file_type, created_at) VALUES (?,?,?,?,?)",
                       (movie_id, 1, file_id, file_type, t))
