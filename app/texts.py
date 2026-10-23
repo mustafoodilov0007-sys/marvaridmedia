@@ -14,6 +14,9 @@ class B:
     CONTACT = "✍️ Murojaat"
     ADMIN = "👨‍💻 Admin panel"
     SITE = "🌐 Sayt"
+    MOVIES = "🎬 Kinolar"
+    CARTOONS = "🧸 Multfilmlar"
+    MUSIC = "🎵 Musiqalar"
 
     # admin menyusi
     ADD_MOVIE = "🎬 Kino qo'shish"

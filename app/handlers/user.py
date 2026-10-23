@@ -325,6 +325,43 @@ def list_page(ctx: Ctx, kind: str, page: int):
     return build_list(header, chunk, page * PER_PAGE, page, pages, kind, fmt)
 
 
+# ═════════════════════════ 🎬 Kinolar / 🧸 Multfilmlar / 🎵 Musiqalar ═════════════════════════
+
+CAT_BUTTONS = {B.MOVIES: "movie", B.CARTOONS: "cartoon", B.MUSIC: "music"}
+CAT_TITLES = {"movie": "🎬 <b>Kinolar</b>", "cartoon": "🧸 <b>Multfilmlar</b>", "music": "🎵 <b>Musiqalar</b>"}
+
+
+def category_page(ctx: Ctx, cat: str, page: int):
+    rows = ctx.db.catalog(cat, "new", None, LIST_LIMIT * 4)
+    if not rows:
+        return f"{CAT_TITLES[cat]}\n\n📭 Bu bo'limda hozircha hech narsa yo'q. Tez orada qo'shiladi!", None
+    pages = max(1, math.ceil(len(rows) / PER_PAGE))
+    page %= pages
+    chunk = rows[page * PER_PAGE:(page + 1) * PER_PAGE]
+    header = f"{CAT_TITLES[cat]} — yangi qo'shilganlar"
+    hint = "👇 Tanlang:" if cat == "music" else "👇 Kerakli raqamni tanlang:"
+    return build_list(header, chunk, page * PER_PAGE, page, pages, f"cl:{cat}",
+                      lambda r: fmt_item(r, f"👁 {fmt_compact(r['views'])}"), hint=hint)
+
+
+@router.button(B.MOVIES, B.CARTOONS, B.MUSIC)
+def btn_category(ctx: Ctx) -> None:
+    key = ctx.text.replace("\ufe0f", "").strip()
+    cat = next((v for k, v in CAT_BUTTONS.items() if k.replace("\ufe0f", "") == key), "movie")
+    text, kb = category_page(ctx, cat, 0)
+    ctx.send(text, kb)
+
+
+@router.callback("cl", gate=True)
+def cb_category_page(ctx: Ctx) -> None:
+    parts = ctx.data.split(":")
+    cat = parts[1] if len(parts) > 1 and parts[1] in CAT_TITLES else "movie"
+    page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
+    text, kb = category_page(ctx, cat, page)
+    ctx.answer()
+    edit_or_send(ctx, text, kb)
+
+
 @router.callback("tp", "np", gate=True)
 def cb_list_page(ctx: Ctx) -> None:
     parts = ctx.data.split(":")

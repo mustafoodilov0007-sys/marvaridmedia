@@ -78,6 +78,7 @@ def user_menu(is_admin: bool, premium_on: bool, site: Optional[bool] = None) -> 
     site = SITE_ON if site is None else site
     rows = [
         [rbtn(B.SEARCH, PRIMARY), rbtn(B.SITE, SUCCESS)] if site else [rbtn(B.SEARCH, PRIMARY)],
+        [rbtn(B.MOVIES, SUCCESS), rbtn(B.CARTOONS, PRIMARY), rbtn(B.MUSIC, DANGER)],
         [rbtn(B.TOP, DANGER), rbtn(B.NEW, SUCCESS)],
         [rbtn(B.RANDOM, PRIMARY), rbtn(B.PREMIUM, SUCCESS)] if premium_on else [rbtn(B.RANDOM, PRIMARY)],
         [rbtn(B.DONATE, DANGER), rbtn(B.CONTACT, PRIMARY)],
