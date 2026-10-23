@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import keyboards
-from .core import App, Ctx, router
+from .core import App, Ctx, router, start_payload
 from .database import CATEGORIES
 from .telegram import Forbidden, TelegramError
 from .utils import normalize, truncate
@@ -198,7 +198,7 @@ def api_watch(app: App, user: dict, body: dict) -> dict:
         return {"ok": False, "reason": "not_found"}
     uid = user["id"]
     update = {"message": {"message_id": 0, "date": int(time.time()), "from": user,
-                          "chat": {"id": uid, "type": "private"}, "text": str(movie["code"])}}
+                          "chat": {"id": uid, "type": "private"}, "text": start_payload(movie["code"])}}
     ctx = Ctx(app, update)
     app.db.upsert_user(user)
     if not ctx.is_admin and app.flooding(uid):

@@ -22,6 +22,7 @@ PER_PAGE = 10        # ro'yxatda bir sahifadagi kinolar soni
 MAX_RESULTS = 100    # qidiruvdagi eng ko'p natija
 LIST_LIMIT = 50      # Top / Yangi ro'yxatlari uzunligi
 CODE_RE = re.compile(r"#?\s*(\d{1,9})")
+MUSIC_RE = re.compile(r"m(\d{1,9})")  # musiqa havolasi: ?start=m3
 
 _reported_parts = set()
 
@@ -38,7 +39,7 @@ def send_welcome(ctx: Ctx) -> None:
 @router.command("start")
 def cmd_start(ctx: Ctx) -> None:
     payload = ctx.args.strip()
-    code = CODE_RE.fullmatch(payload) if payload else None
+    code = (CODE_RE.fullmatch(payload) or MUSIC_RE.fullmatch(payload)) if payload else None
     user = ctx.db.get_user(ctx.user_id)
     is_new = user is None or now() - user["joined_at"] < 15
     if not code or is_new:
@@ -160,6 +161,14 @@ def on_any_message(ctx: Ctx) -> None:
 def handle_query(ctx: Ctx, raw: str) -> None:
     app, db = ctx.app, ctx.db
     text = (raw or "").strip()
+    mm = MUSIC_RE.fullmatch(text)
+    if mm:
+        movie = db.get_movie_by_code(-int(mm.group(1)))
+        if movie:
+            open_movie(ctx, movie)
+        else:
+            ctx.send("😔 Bu musiqa topilmadi (o'chirilgan bo'lishi mumkin).")
+        return
     m = CODE_RE.fullmatch(text)
     if m:
         code = int(m.group(1))
@@ -411,7 +420,7 @@ def build_caption(app, movie, part, total: int) -> str:
     head = f"{cat_icon(movie['category'])} <b>{esc(movie['title'])}</b>"
     if total > 1:
         head += f"\n📺 <b>{esc(part_label(part))}</b>  <i>({total} qismdan)</i>"
-    meta = f"🔢 Kod: <code>{movie['code']}</code>  •  👁 {fmt_num(movie['views'] + 1)}"
+    meta = (f"🔢 Kod: <code>{movie['code']}</code>  •  " if movie["code"] > 0 else "") + f"👁 {fmt_num(movie['views'] + 1)}"
     if movie["is_premium"]:
         meta += "  •  💎 Premium"
     footer = render(app.setting("caption_footer"), brand=esc(app.brand), bot=app.bot_username).strip()

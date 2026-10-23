@@ -84,6 +84,16 @@ Eski kinolar yangilanishdan keyin avtomatik **🎬 Kino** turida qoladi. Turini 
 yuboring (birdaniga forward qilsa ham bo'ladi) — avtomatik 2-, 3-, 4-qism bo'lib saqlanadi → **🏁 Tugatish**.
 Band kodni yuborsangiz ham bot o'sha kinoga qism qo'shishni taklif qiladi.
 
+### 🎵 Musiqa qo'shish (birdaniga ko'p)
+Admin paneldagi **🎵 Musiqa qo'shish** → 10, 20, 50 ta musiqani birdaniga tashlang (yoki kanaldan forward qiling)
+→ **🏁 Tugatish**. Har biri avtomatik saqlanadi:
+- **Nomi** — fayldagi ijrochi va qo'shiq nomi, bo'lmasa fayl nomi (`01_Shahzoda_-_Yoningdaman_(sayt.uz).mp3` → `Shahzoda - Yoningdaman`);
+- qo'shiq ichida **muqova** bo'lsa — saytda rasm sifatida chiqadi;
+- bazada bor qo'shiq qayta qo'shilmaydi.
+
+**Musiqalar kodsiz** — kino/multfilm kodlari (1, 2, 3...) bilan aralashmaydi, nomi bo'yicha topiladi.
+Ichki havola: `t.me/BOT?start=m5`. Turini o'zgartirish (🏷) da kino ↔ multfilm kodi saqlanadi.
+
 ### 🎞 Shorts (saytda)
 **🗑️ Kino o'chirish** → kod → **🎞 Shorts qo'shish** → qisqa **video** (treyler, parcha) yoki **rasm** yuboring
 (bir nechtasini ketma-ket ham bo'ladi) → **🏁 Tugatish**. Kino saqlangandan keyin chiqadigan tugma orqali ham qo'shsa bo'ladi.

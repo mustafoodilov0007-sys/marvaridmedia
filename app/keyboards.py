@@ -91,6 +91,7 @@ def user_menu(is_admin: bool, premium_on: bool, site: Optional[bool] = None) -> 
 def admin_menu() -> dict:
     return rkb([
         [rbtn(B.ADD_MOVIE, SUCCESS), rbtn(B.DEL_MOVIE, DANGER)],
+        [rbtn(B.ADD_MUSIC, PRIMARY)],
         [rbtn(B.STATS, PRIMARY), rbtn(B.CHANNELS, SUCCESS)],
         [rbtn(B.BROADCAST, DANGER), rbtn(B.ADMINS, PRIMARY)],
         [rbtn(B.PREMIUMS, SUCCESS), rbtn(B.TEXTS, DANGER)],

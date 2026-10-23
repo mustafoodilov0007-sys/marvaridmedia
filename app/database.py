@@ -168,6 +168,13 @@ class Database:
             # eski kinolarning hammasi «kino» turida qoladi
             self.conn.execute("ALTER TABLE movies ADD COLUMN category TEXT NOT NULL DEFAULT 'movie'")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_movies_category ON movies(category, created_at)")
+        # musiqalar kodsiz: avval kod bilan qo'shilganlari ichki (manfiy) raqamga o'tkaziladi
+        rows = self.conn.execute("SELECT id FROM movies WHERE category='music' AND code>0 ORDER BY id").fetchall()
+        if rows:
+            low = self.conn.execute("SELECT MIN(code) FROM movies WHERE code<0").fetchone()[0] or 0
+            for r in rows:
+                low -= 1
+                self.conn.execute("UPDATE movies SET code=? WHERE id=?", (low, r[0]))
 
     # ───────── yordamchilar ─────────
 
@@ -333,7 +340,12 @@ class Database:
     # ───────── kinolar ─────────
 
     def next_code(self) -> int:
-        return int(self.val("SELECT MAX(code) FROM movies")) + 1
+        """Kino/multfilm uchun keyingi kod (musiqalar kodlari manfiy — ularga ta'sir qilmaydi)."""
+        return int(self.val("SELECT MAX(code) FROM movies WHERE code>0")) + 1
+
+    def next_music_code(self) -> int:
+        """Musiqalar kodsiz: ichki raqami manfiy (-1, -2, ...) — kino kodlari bilan aralashmaydi."""
+        return int(self.val("SELECT MIN(code) FROM movies WHERE code<0")) - 1
 
     def get_movie(self, movie_id: int) -> Optional[sqlite3.Row]:
         return self.q1("SELECT * FROM movies WHERE id=?", (movie_id,))
@@ -348,6 +360,8 @@ class Database:
         if category not in CATEGORIES:
             category = "movie"
         with self.tx() as c:
+            if category == "music":
+                code = (c.execute("SELECT MIN(code) FROM movies WHERE code<0").fetchone()[0] or 0) - 1
             cur = c.execute(
                 "INSERT INTO movies(code, title, description, poster_id, is_premium, norm_title, norm_desc,"
                 " added_by, created_at, category) VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -430,6 +444,10 @@ class Database:
         where = " AND ".join(["(norm_title || ' ' || norm_desc) LIKE ? ESCAPE '\\'"] * len(tokens))
         params = [f"%{escape_like(t)}%" for t in tokens] + [limit]
         return self.q(f"SELECT id, norm_title, views FROM movies WHERE {where} LIMIT ?", params)
+
+    def find_title(self, norm_title: str, category: str) -> Optional[sqlite3.Row]:
+        return self.q1("SELECT id, code, title FROM movies WHERE norm_title=? AND category=? LIMIT 1",
+                       (norm_title, category))
 
     def all_titles(self) -> List[sqlite3.Row]:
         return self.q("SELECT id, norm_title FROM movies")

@@ -581,7 +581,7 @@
     if (!PUB && tg && tg.openTelegramLink) { try { tg.openTelegramLink(url); return; } catch (e) {} }
     window.location.href = url;  // ilovada Telegram ilovasida ochiladi
   }
-  function botLink(it) { return "https://t.me/" + me.bot + "?start=" + it.code; }
+  function botLink(it) { return "https://t.me/" + me.bot + "?start=" + (it.code < 0 ? "m" + (-it.code) : it.code); }
   function share(it) {
     haptic();
     if (!me.bot) return;
@@ -811,7 +811,7 @@
       var bits = [NAMES[it.cat] || "Kino"];
       if (it.year) bits.push(it.year);
       if (it.parts > 1) bits.push(it.parts + " qism");
-      bits.push("Kod: " + it.code);
+      if (it.code > 0) bits.push("Kod: " + it.code);
       var go = h("button", "go" + (it.locked ? " lock" : ""),
         [icon(it.locked ? "lock" : "play"), it.locked ? "Premium" : (it.cat === "music" ? "To'liq tinglash" : "To'liq ko'rish")]);
       go.onclick = function () { watch(it, go); };
@@ -908,7 +908,7 @@
     if (it.poster) bg.style.backgroundImage = "url('" + posterUrl(it) + "')";
     var closeBtn = h("button", "ibtn close", [icon("x")]);
     closeBtn.onclick = closeSheet;
-    var chips = h("div", "chips", [h("span", "chip", NAMES[it.cat] || "Kino"), h("span", "chip", "Kod: " + it.code)]);
+    var chips = h("div", "chips", [h("span", "chip", NAMES[it.cat] || "Kino"), it.code > 0 ? h("span", "chip", "Kod: " + it.code) : null]);
     if (it.year) chips.appendChild(h("span", "chip", String(it.year)));
     if (it.parts > 1) chips.appendChild(h("span", "chip", it.parts + " qism"));
     chips.appendChild(h("span", "chip", fmt(it.views) + " ko'rish"));

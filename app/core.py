@@ -22,6 +22,12 @@ NEXT = object()  # holat handleri xabarni oddiy qayta ishlashga uzatishi uchun
 ALLOWED_UPDATES = ["message", "callback_query", "pre_checkout_query", "chat_join_request", "my_chat_member"]
 
 
+def start_payload(code) -> str:
+    """Kino: «15»; musiqa (kodsiz, ichki raqam -3): «m3»."""
+    code = int(code)
+    return f"m{-code}" if code < 0 else str(code)
+
+
 # ═════════════════════════ Router ═════════════════════════
 
 def button_key(text: str) -> str:
@@ -268,7 +274,7 @@ class App:
         return self.config.brand
 
     def deep_link(self, code) -> str:
-        return f"https://t.me/{self.bot_username}?start={code}"
+        return f"https://t.me/{self.bot_username}?start={start_payload(code)}"
 
     # ───────── sozlamalar ─────────
 

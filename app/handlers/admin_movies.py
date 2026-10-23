@@ -92,6 +92,17 @@ def start_add(ctx: Ctx, prefill=None, category: str = "movie") -> None:
         head += f"  •  {icon} {name}"
     else:
         head = f"{icon} <b>Yangi {noun} qo'shish</b>"
+    if data["cat"] == "music":
+        # musiqalar kodsiz — kod so'ralmaydi
+        if prefill:
+            ctx.goto("am:title", code=None)
+            ask_title(ctx, None)
+        else:
+            ctx.goto("am:video", code=None)
+            ctx.send(f"{head}\n\n📤 Musiqani yuboring (audio yoki fayl).\n"
+                     f"💡 Ko'p musiqani birdaniga qo'shish uchun admin paneldagi «{B.ADD_MUSIC}» tugmasi qulay.",
+                     cancel_kb())
+        return
     rows = [[btn(f"🆕 Avtomatik kod: {code}", "am:auto", style=SUCCESS)]]
     if not prefill:
         rows.append([btn("⚡️ Ommaviy qo'shish (forward)", "am:bulk", style=PRIMARY)])
@@ -158,7 +169,8 @@ def ask_title(ctx: Ctx, code: int) -> None:
         example = "Shrek 2 (2004)"
     else:
         example = "Avatar: Suv yo'li (2022)"
-    ctx.send(f"✅ Kod: <b>{code}</b>, fayl tayyor.\n\n"
+    ready = f"✅ Kod: <b>{code}</b>, fayl tayyor." if code else "✅ Fayl tayyor."
+    ctx.send(f"{ready}\n\n"
              f"3️⃣ {cat_name(_cat(ctx))} <b>nomini</b> yuboring:\n💡 Masalan: <code>{esc(example)}</code>",
              cancel_kb())
 
@@ -247,7 +259,7 @@ def show_confirm(ctx: Ctx, poster) -> None:
     cat = _cat(ctx)
     text = ("✅ <b>Hammasi tayyor! Tekshirib chiqing:</b>\n\n"
             f"🏷 Turi: <b>{cat_icon(cat)} {cat_name(cat)}</b>\n"
-            f"🔢 Kod: <code>{d['code']}</code>\n"
+            + (f"🔢 Kod: <code>{d['code']}</code>\n" if d.get("code") else "") +
             f"{cat_icon(cat)} Nomi: <b>{esc(d['title'])}</b>\n"
             f"📝 Ma'lumot: {esc(truncate(d.get('desc') or '—', 300))}\n"
             f"📹 Fayl: {file_txt}\n"
@@ -268,7 +280,7 @@ def st_confirm(ctx: Ctx) -> None:
 def save_movie(ctx: Ctx, premium: bool) -> None:
     d = ctx.sdata
     db = ctx.db
-    if db.get_movie_by_code(d["code"]):
+    if d.get("code") and db.get_movie_by_code(d["code"]):
         ctx.answer("⚠️ Bu kod band bo'lib qoldi! Boshqa kod tanlang.", alert=True)
         start_add(ctx, prefill=(d["file_id"], d["file_type"], d.get("caption", "")), category=_cat(ctx))
         return
@@ -277,11 +289,12 @@ def save_movie(ctx: Ctx, premium: bool) -> None:
                             ctx.user_id, d["file_id"], d["file_type"], cat)
     ctx.clear_state()
     ctx.answer("✅ Saqlandi!")
+    code = db.get_movie(movie_id)["code"]
     ctx.edit(f"🎉 <b>{cat_name(cat)} muvaffaqiyatli saqlandi!</b>\n\n"
              f"{cat_icon(cat)} <b>{esc(d['title'])}</b>\n"
-             f"🔢 Kod: <code>{d['code']}</code>\n"
+             + (f"🔢 Kod: <code>{code}</code>\n" if code > 0 else "") +
              f"{'💎 Turi: Premium' if premium else '🆓 Turi: Oddiy'}\n"
-             f"🔗 Havola: {esc(ctx.app.deep_link(d['code']))}",
+             f"🔗 Havola: {esc(ctx.app.deep_link(code))}",
              ikb([btn("📢 Kanalga e'lon qilish", f"an:{movie_id}", style=SUCCESS)],
                  [btn("➕ Keyingi qismni qo'shish", f"am:addpart:{movie_id}", style=PRIMARY)],
                  [btn("🎞 Shorts qo'shish (saytda)", f"dm:shadd:{movie_id}", style=PRIMARY)],
@@ -401,6 +414,10 @@ def st_bulk(ctx: Ctx) -> None:
     db = ctx.db
     file_id, file_type, caption = media
     code, title, desc = parse_caption(caption)
+    if _is_music(ctx):
+        code = None  # musiqalar kodsiz
+        if file_type == "audio" and not title:
+            title = (caption or "").strip().split("\n")[0][:150]
     existing = db.get_movie_by_code(code) if code else None
     if existing:
         no = db.add_part(existing["id"], file_id, file_type)
@@ -409,8 +426,9 @@ def st_bulk(ctx: Ctx) -> None:
         code = code or db.next_code()
         cat = _cat(ctx)
         title = title or f"{cat_name(cat)} {code}"
-        db.add_movie(code, title, desc, None, False, ctx.user_id, file_id, file_type, cat)
-        line = f"{cat_icon(cat)} <code>{code}</code> — {esc(truncate(title, 40))}"
+        mid = db.add_movie(code, title, desc, None, False, ctx.user_id, file_id, file_type, cat)
+        line = (f"{cat_icon(cat)} {esc(truncate(title, 40))}" if cat == "music" else
+                f"{cat_icon(cat)} <code>{code}</code> — {esc(truncate(title, 40))}")
     saved = list(ctx.sdata.get("saved", [])) + [line]
     ctx.goto("am:bulk", ttl=6 * 3600, saved=saved)
     throttled_status(ctx, "am:bulk",
@@ -515,7 +533,8 @@ def cb_add_movie(ctx: Ctx) -> None:
         ctx.answer("🏁 Tayyor!")
         if movie:
             n = ctx.db.count_parts(movie["id"])
-            ctx.send(f"🏁 <b>Tayyor!</b>\n\n🎬 {esc(movie['title'])}\n🔢 Kod: <code>{movie['code']}</code>\n"
+            code_txt = f"🔢 Kod: <code>{movie['code']}</code>\n" if movie["code"] > 0 else ""
+            ctx.send(f"🏁 <b>Tayyor!</b>\n\n🎬 {esc(movie['title'])}\n{code_txt}"
                      f"➕ Bu safar qo'shildi: <b>{added}</b> qism\n🎞 Jami: <b>{n}</b> qism",
                      ikb([btn("📢 Kanalga e'lon qilish", f"an:{movie['id']}", style=SUCCESS)]))
         else:
@@ -529,9 +548,9 @@ def announce_text(app, movie, parts: int) -> str:
     head = f"{cat_icon(cat)} <b>{esc(movie['title'])}</b>"
     if parts > 1:
         head += f"\n📺 <b>{parts} qism</b>"
-    meta = f"🔢 {cat_name(cat)} kodi: <code>{movie['code']}</code>"
+    meta = f"🔢 {cat_name(cat)} kodi: <code>{movie['code']}</code>" if movie["code"] > 0 else ""
     if movie["is_premium"]:
-        meta += "\n💎 Premium"
+        meta = (meta + "\n💎 Premium").strip()
     action = "Tinglash" if cat == "music" else "Tomosha qilish"
     tail = f"🤖 @{esc(app.bot_username)}\n👇 {action} uchun pastdagi tugmani bosing"
     budget = 1000 - visible_len(head) - visible_len(meta) - visible_len(tail) - 12
@@ -539,7 +558,7 @@ def announce_text(app, movie, parts: int) -> str:
     desc = (movie["description"] or "").strip()
     if desc and budget > 30:
         blocks.append("📝 " + esc(truncate(desc, min(budget, 700))))
-    blocks += [meta, tail]
+    blocks += [b for b in (meta, tail) if b]
     return "\n\n".join(blocks)
 
 
@@ -593,7 +612,7 @@ def manage_view(ctx: Ctx, movie):
     cat = movie["category"]
     text = (f"{cat_icon(cat)} <b>{esc(movie['title'])}</b>\n\n"
             f"🏷 Turi: <b>{cat_name(cat)}</b>\n"
-            f"🔢 Kod: <code>{movie['code']}</code>\n"
+            + (f"🔢 Kod: <code>{movie['code']}</code>\n" if movie["code"] > 0 else "") +
             f"🎞 Qismlar: <b>{n}</b>\n"
             f"👁 Ko'rishlar: <b>{fmt_num(movie['views'])}</b>\n"
             f"💎 Premium: <b>{premium_txt}</b>\n"
@@ -716,7 +735,7 @@ def cb_manage(ctx: Ctx) -> None:
     elif action == "delok":
         db.delete_movie(mid)
         ctx.answer("🗑 O'chirildi")
-        ctx.edit(f"🗑 <b>{esc(movie['title'])}</b> (kod {movie['code']}) o'chirildi.")
+        ctx.edit(f"🗑 <b>{esc(movie['title'])}</b> o'chirildi.")
     elif action == "parts":
         ctx.answer()
         plist = db.get_parts(mid)
@@ -751,10 +770,23 @@ def cb_manage(ctx: Ctx) -> None:
         ctx.answer(f"🗑 {len(ids)} ta shorts o'chirildi")
         send_manage(ctx, db.get_movie(mid), edit=True)
     elif action == "cat":
-        order = list(CATEGORIES)
-        cur = movie["category"] if movie["category"] in order else "movie"
-        new = order[(order.index(cur) + 1) % len(order)]
-        db.update_movie(mid, category=new)
+        ctx.answer()
+        cur = movie["category"]
+        rows = [[btn(("✅ " if c == cur else "") + f"{cat_icon(c)} {cat_name(c)}", f"dm:to{c}:{mid}",
+                     style=SUCCESS if c == cur else PRIMARY) for c in CATEGORIES],
+                [btn("⬅️ Orqaga", f"dm:open:{mid}", style=DANGER)]]
+        warn = ("\n\n⚠️ Musiqaga o'tkazilsa, <b>kodi olib tashlanadi</b> (musiqalar kodsiz)."
+                if cur != "music" and movie["code"] > 0 else "")
+        ctx.edit(f"🏷 <b>{esc(movie['title'])}</b> — turini tanlang:{warn}", ikb(*rows))
+    elif action.startswith("to") and action[2:] in CATEGORIES:
+        new = action[2:]
+        fields = {"category": new}
+        if new == "music" and movie["code"] > 0:
+            fields["code"] = db.next_music_code()
+        elif new != "music" and movie["code"] < 0:
+            fields["code"] = db.next_code()
+        if new != movie["category"]:
+            db.update_movie(mid, **fields)
         ctx.answer(f"🏷 Turi: {cat_icon(new)} {cat_name(new)}")
         send_manage(ctx, db.get_movie(mid), edit=True)
     elif action == "prem":
@@ -889,3 +921,108 @@ def st_edit_poster(ctx: Ctx) -> None:
     ctx.clear_state()
     ctx.send("✅ Poster yangilandi!")
     send_manage(ctx, ctx.db.get_movie(movie["id"]))
+
+
+# ═════════════════════════ 🎵 Musiqa qo'shish (birdaniga ko'p fayl) ═════════════════════════
+
+_JUNK = re.compile(r"[\[(][^\])]*(?:\.[a-z]{2,4}|www|http|t\.me|@)[^\])]*[\])]", re.I)
+_TRACK_NO = re.compile(r"^\s*(?:0\d|\d{1,3}\s*[.)\-–])\s*")  # «01 », «3.», «12)» — «50 Cent» emas
+_AUDIO_EXT = (".mp3", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".wav", ".flac", ".wma", ".amr")
+
+
+def clean_file_name(name: str) -> str:
+    """«01_Shahzoda_-_Yoningdaman_(uzhits.net).mp3» → «Shahzoda - Yoningdaman»."""
+    base = re.sub(r"\.[A-Za-z0-9]{2,5}$", "", name or "")
+    base = _JUNK.sub(" ", base)
+    base = re.sub(r"(?:https?://|www\.)\S+|\b\S+\.(?:uz|ru|com|net|org|me)\b|@\w+", " ", base, flags=re.I)
+    base = base.replace("_", " ")
+    base = _TRACK_NO.sub("", base)
+    base = re.sub(r"\s*[-–—]\s*", " - ", base)
+    return re.sub(r"\s{2,}", " ", base).strip(" -.")
+
+
+def music_from_message(msg: dict):
+    """Xabardan musiqa: (file_id, file_type, nomi, ma'lumot, muqova_id) yoki None."""
+    a = msg.get("audio")
+    doc = msg.get("document") or {}
+    if a:
+        performer, title = (a.get("performer") or "").strip(), (a.get("title") or "").strip()
+        if performer and title:
+            name = f"{performer} - {title}"
+        else:
+            name = title or performer or clean_file_name(a.get("file_name") or "")
+        thumb = (a.get("thumbnail") or a.get("thumb") or {}).get("file_id")
+        desc = f"Ijrochi: {performer}" if performer else ""
+        return a["file_id"], "audio", name, desc, thumb
+    if doc and ((doc.get("mime_type") or "").startswith("audio/")
+                or (doc.get("file_name") or "").lower().endswith(_AUDIO_EXT)):
+        return doc["file_id"], "document", clean_file_name(doc.get("file_name") or ""), "", None
+    if msg.get("voice"):
+        return msg["voice"]["file_id"], "audio", "", "", None
+    return None
+
+
+def music_done_kb() -> dict:
+    return ikb([btn("🏁 Tugatish", "mu:done", style=SUCCESS)])
+
+
+@router.button(B.ADD_MUSIC, admin=True)
+def btn_add_music(ctx: Ctx) -> None:
+    sent = ctx.send("🎵 <b>Musiqa qo'shish</b>\n\n"
+                    "Musiqalarni yuboring — <b>bir nechtasini birdaniga</b> (10, 20, 50 ta...) tashlashingiz yoki "
+                    "kanaldan forward qilishingiz mumkin. Har biri avtomatik saqlanadi:\n\n"
+                    "• <b>Nomi</b> — fayldagi ijrochi va qo'shiq nomi (bo'lmasa — fayl nomi)\n"
+                    "• <b>Kod</b> berilmaydi — musiqalar nomi bo'yicha topiladi\n"
+                    "• <b>Muqova</b> — qo'shiq ichida rasm bo'lsa, saytda chiqadi\n"
+                    "• Bazada bor qo'shiq qayta qo'shilmaydi\n\n"
+                    "Tugatgach «🏁 Tugatish» ni bosing.", music_done_kb())
+    ctx.set_state("mu:bulk", ttl=6 * 3600, saved=[], skipped=[], status=None, intro=sent["message_id"], last=0.0)
+
+
+@router.state("mu:bulk", admin=True)
+def st_music_bulk(ctx: Ctx) -> None:
+    db = ctx.db
+    found = music_from_message(ctx.message)
+    if not found:
+        ctx.send("❗️ Musiqa <b>fayl</b> ko'rinishida yuboring (audio yoki mp3 fayl). "
+                 "Tugatish uchun «🏁 Tugatish».", music_done_kb())
+        return
+    file_id, file_type, name, desc, thumb = found
+    if not name:
+        name = (ctx.message.get("caption") or "").strip().split("\n")[0][:150]
+    name = (name or f"Nomsiz musiqa {db.count_by_category()['music'] + 1}")[:150]
+    saved = list(ctx.sdata.get("saved", []))
+    skipped = list(ctx.sdata.get("skipped", []))
+    dup = db.find_title(normalize(name), "music")
+    if dup:
+        skipped.append(f"♻️ {esc(truncate(name, 45))} — bazada bor")
+    else:
+        db.add_movie(0, name, desc, thumb, False, ctx.user_id, file_id, file_type, "music")
+        saved.append(f"🎵 {esc(truncate(name, 45))}")
+    ctx.goto("mu:bulk", ttl=6 * 3600, saved=saved, skipped=skipped)
+    lines = (saved + skipped)[-6:]
+    extra = f"  •  ♻️ takror: <b>{len(skipped)}</b>" if skipped else ""
+    throttled_status(ctx, "mu:bulk",
+                     f"🎵 <b>Musiqa qo'shish</b> — saqlandi: <b>{len(saved)}</b> ta{extra}\n\n"
+                     + "\n".join(lines) + "\n\nDavom eting yoki «🏁 Tugatish» ni bosing.",
+                     music_done_kb(), 2.5)
+
+
+@router.callback("mu", admin=True)
+def cb_music(ctx: Ctx) -> None:
+    if ctx.data != "mu:done":
+        return
+    data = ctx.sdata if ctx.state == "mu:bulk" else {}
+    saved, skipped = data.get("saved", []), data.get("skipped", [])
+    ctx.clear_state()
+    ctx.answer("🏁 Tayyor!")
+    if not saved and not skipped:
+        ctx.send("🏁 Musiqa qo'shish yakunlandi — hech narsa qo'shilmadi.")
+        return
+    shown = saved[-40:]
+    more = f"\n… va yana {len(saved) - len(shown)} ta" if len(saved) > len(shown) else ""
+    text = (f"🏁 <b>Musiqa qo'shish yakunlandi!</b>\n\n✅ Saqlandi: <b>{len(saved)}</b> ta\n"
+            + (f"♻️ Bazada bor edi: <b>{len(skipped)}</b> ta\n" if skipped else "")
+            + ("\n" + "\n".join(shown) + more if shown else "")
+            + "\n\nℹ️ Nomini o'zgartirish: «🗑️ Kino o'chirish» → kod → «✏️ Nomi».")
+    ctx.send(text[:4000])
