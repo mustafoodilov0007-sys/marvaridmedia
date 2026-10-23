@@ -452,17 +452,18 @@ class Database:
     def all_titles(self) -> List[sqlite3.Row]:
         return self.q("SELECT id, norm_title FROM movies")
 
+    # Top / Yangi / Tasodifiy — faqat kino va multfilmlar (musiqa alohida bo'limda)
     def top_movies(self, limit: int, include_premium: bool = True) -> List[sqlite3.Row]:
-        return self.q(_MOVIE_ROW + " WHERE (? OR m.is_premium=0) ORDER BY m.views DESC, m.id DESC LIMIT ?",
-                      (1 if include_premium else 0, limit))
+        return self.q(_MOVIE_ROW + " WHERE (? OR m.is_premium=0) AND m.category<>'music'"
+                      " ORDER BY m.views DESC, m.id DESC LIMIT ?", (1 if include_premium else 0, limit))
 
     def new_movies(self, limit: int, include_premium: bool = True) -> List[sqlite3.Row]:
-        return self.q(_MOVIE_ROW + " WHERE (? OR m.is_premium=0) ORDER BY m.created_at DESC, m.id DESC LIMIT ?",
-                      (1 if include_premium else 0, limit))
+        return self.q(_MOVIE_ROW + " WHERE (? OR m.is_premium=0) AND m.category<>'music'"
+                      " ORDER BY m.created_at DESC, m.id DESC LIMIT ?", (1 if include_premium else 0, limit))
 
     def random_movie(self, include_premium: bool = True) -> Optional[sqlite3.Row]:
-        return self.q1("SELECT * FROM movies WHERE (? OR is_premium=0) ORDER BY RANDOM() LIMIT 1",
-                       (1 if include_premium else 0,))
+        return self.q1("SELECT * FROM movies WHERE (? OR is_premium=0) AND category<>'music'"
+                       " ORDER BY RANDOM() LIMIT 1", (1 if include_premium else 0,))
 
     def count_movies(self) -> int:
         return self.val("SELECT COUNT(*) FROM movies")

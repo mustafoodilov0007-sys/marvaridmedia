@@ -65,8 +65,9 @@ Telegram'ning yangi rangli tugmalari. Eski Telegram versiyalarida tugmalar oddiy
 ## 👨‍💻 Admin panel
 
 ### 🎬 Kino qo'shish
-1. **Faylni** yuboring: video, audio yoki fayl (kanaldan forward qilsangiz ham bo'ladi).
-2. Bot so'raydi: **🎬 Kino**, **🧸 Multfilm** yoki **🎵 Musiqa** — tanlang (saytda va menyuda shu bo'limda chiqadi).
+1. **Video** yoki **fayl** yuboring (kanaldan forward qilsangiz ham bo'ladi).
+2. Bot so'raydi: **🎬 Kino** yoki **🧸 Multfilm** — tanlang (saytda va menyuda shu bo'limda chiqadi).
+   Musiqa — alohida **🎵 Musiqa qo'shish** bo'limida (audio yuborilsa bot o'zi o'sha yerga o'tkazadi).
 3. **Kod** yuboring (yoki «🆕 Avtomatik kod» tugmasi).
 4. **Nomi** → 5. **Ma'lumot** (janr, yil, til; o'tkazib yuborsa bo'ladi) → 6. **Poster** (ixtiyoriy).
 7. **✅ Saqlash** yoki **💎 Premium kino sifatida saqlash**.

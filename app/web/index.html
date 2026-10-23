@@ -266,7 +266,8 @@
     background: var(--grad); color: #fff; }
   .pl-cover img { width: 100%; height: 100%; object-fit: cover; }
   .pl-cover svg { width: 22px; height: 22px; }
-  .pl-meta { flex: 1; min-width: 0; }
+  .pl-meta { flex: 1; min-width: 0; cursor: pointer; }
+  .pl-cover { cursor: pointer; }
   .pl-meta b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pl-meta span { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pl-btn { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--text); }
@@ -1032,6 +1033,10 @@
     el("plNext").onclick = function () { haptic(); self.next(); };
     el("plPrev").onclick = function () { haptic(); self.prev(); };
     el("plClose").onclick = function () { haptic(); self.close(); };
+    // nomi yoki muqovasi bosilsa — batafsil oyna (u yerda «botga yuborish» tugmasi bor)
+    document.querySelector(".pl-meta").onclick = el("plCover").onclick = function () {
+      if (self.current) openSheet(self.current);
+    };
     el("plPlay").appendChild(icon("play"));
     el("plNext").appendChild(icon("next"));
     el("plPrev").appendChild(icon("prev"));

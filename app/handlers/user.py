@@ -12,7 +12,7 @@ from ..core import Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, ikb, nav_row, number_rows, user_menu
 from ..subscription import all_joined, channel_statuses, gate_view, needs_gate
 from ..telegram import BadRequest
-from ..texts import B, HELP_TEXT, cat_icon
+from ..texts import B, HELP_TEXT, cat_icon, cat_name
 from ..utils import (esc, fmt_compact, fmt_num, fmt_short_date, fuzzy_match, normalize, now, render,
                      truncate, visible_len)
 
@@ -388,9 +388,10 @@ def premium_locked(ctx: Ctx, movie) -> bool:
 
 
 def send_premium_lock(ctx: Ctx, movie) -> None:
-    ctx.send("🔒 <b>Bu kino faqat Premium a'zolar uchun!</b>\n\n"
-             f"🎬 <b>{esc(movie['title'])}</b>\n\n"
-             "💎 Premium obuna bilan ushbu va boshqa maxsus kinolarni cheklovsiz tomosha qiling.",
+    what = cat_name(movie["category"]).lower()
+    ctx.send(f"🔒 <b>Bu {what} faqat Premium a'zolar uchun!</b>\n\n"
+             f"{cat_icon(movie['category'])} <b>{esc(movie['title'])}</b>\n\n"
+             "💎 Premium obuna bilan ushbu va boshqa maxsus kontentdan cheklovsiz foydalaning.",
              ikb([btn("💎 Premium olish", "pr:menu", style=SUCCESS)]))
 
 
@@ -450,7 +451,8 @@ def part_kb(app, movie, part, total: int, extra_rows=None) -> dict:
         rows.append(nav)
     share = "https://t.me/share/url?" + urllib.parse.urlencode({
         "url": app.deep_link(movie["code"]),
-        "text": f"🎬 {movie['title']} — {app.brand} botida tomosha qiling!",
+        "text": (f"🎵 {movie['title']} — {app.brand} botida tinglang!" if movie["category"] == "music"
+                 else f"🎬 {movie['title']} — {app.brand} botida tomosha qiling!"),
     })
     rows.append([btn("📤 Do'stlarga ulashish", url=share, style=PRIMARY)])
     if extra_rows:
@@ -478,7 +480,9 @@ def send_part(ctx: Ctx, movie, part, total: int, extra_rows=None) -> None:
             _reported_parts.add(part["id"])
             app.notify_admins(
                 "⚠️ <b>Kino faylida muammo!</b>\n\n"
-                f"🎬 {esc(movie['title'])}\n🔢 Kod: <code>{movie['code']}</code> • {part['part_no']}-qism\n"
+                f"{cat_icon(movie['category'])} {esc(movie['title'])}\n"
+                + (f"🔢 Kod: <code>{movie['code']}</code> • " if movie["code"] > 0 else "")
+                + f"{part['part_no']}-qism\n"
                 f"❗️ {esc(exc.description)}\n\nFaylni qayta yuklash tavsiya etiladi.")
         return
     ctx.db.inc_views(movie["id"], part["id"])

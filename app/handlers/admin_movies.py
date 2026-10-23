@@ -6,7 +6,7 @@ import logging
 import re
 import time
 
-from ..core import Ctx, router
+from ..core import NEXT, Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, number_rows
 from ..telegram import TelegramError
 from ..texts import B, CATEGORIES, cat_icon, cat_name
@@ -41,38 +41,38 @@ def _is_music(ctx: Ctx) -> bool:
 def ask_file(ctx: Ctx) -> None:
     """«🎬 Kino qo'shish» bosilganda — avval fayl so'raladi, turi keyin tanlanadi."""
     ctx.set_state("am:file")
-    ctx.send("➕ <b>Yangi qo'shish</b>\n\n"
-             "📤 Faylni yuboring: <b>video</b>, <b>audio</b> yoki <b>fayl</b>.\n"
-             "Kanaldan forward qilsangiz ham bo'ladi.\n\n"
-             "So'ng bot turini so'raydi: 🎬 Kino, 🧸 Multfilm yoki 🎵 Musiqa.",
+    ctx.send("➕ <b>Kino yoki multfilm qo'shish</b>\n\n"
+             "📤 <b>Video</b> yoki <b>fayl</b> yuboring (kanaldan forward qilsangiz ham bo'ladi).\n"
+             "So'ng bot turini so'raydi: 🎬 Kino yoki 🧸 Multfilm.\n\n"
+             f"🎵 Musiqa uchun — admin paneldagi «{B.ADD_MUSIC}» tugmasi.",
              ikb([btn("⚡️ Ommaviy qo'shish (forward)", "am:bulk", style=PRIMARY)],
                  [btn("❌ Bekor qilish", "cancel", style=DANGER)]))
 
 
 @router.state("am:file", admin=True)
 def st_file(ctx: Ctx) -> None:
-    media = extract_media(ctx.message, audio=True)
+    if music_from_message(ctx.message):
+        begin_music(ctx)  # audio yuborilsa — musiqa bo'limiga o'tamiz
+        return
+    media = extract_media(ctx.message)
     if not media:
-        ctx.send("❗️ Iltimos, <b>video</b>, <b>audio</b> yoki <b>fayl</b> yuboring.", cancel_kb())
+        ctx.send("❗️ Iltimos, kino <b>videosini</b> yoki <b>fayl</b> yuboring.", cancel_kb())
         return
     ask_category(ctx, prefill=media)
 
 
 def category_rows(prefix: str) -> list:
-    return [[btn("🎬 Kino", f"{prefix}:movie", style=SUCCESS), btn("🧸 Multfilm", f"{prefix}:cartoon", style=PRIMARY),
-             btn("🎵 Musiqa", f"{prefix}:music", style=DANGER)],
+    return [[btn("🎬 Kino", f"{prefix}:movie", style=SUCCESS), btn("🧸 Multfilm", f"{prefix}:cartoon", style=PRIMARY)],
             [btn("❌ Bekor qilish", "cancel", style=DANGER)]]
 
 
 def ask_category(ctx: Ctx, prefill=None) -> None:
-    """Fayl qabul qilingach — turini tanlash: kino, multfilm yoki musiqa."""
+    """Fayl qabul qilingach — turini tanlash: kino yoki multfilm (musiqa — alohida bo'lim)."""
     data = {}
     if prefill:
         data = {"file_id": prefill[0], "file_type": prefill[1], "caption": prefill[2]}
     ctx.set_state("am:cat", **data)
-    if prefill and prefill[1] == "audio":
-        head = "🎵 <b>Audio qabul qilindi!</b>"
-    elif prefill:
+    if prefill:
         head = "📹 <b>Fayl qabul qilindi!</b>"
     else:
         head = "➕ <b>Yangi qo'shish</b>"
@@ -121,8 +121,11 @@ def btn_add_movie(ctx: Ctx) -> None:
 
 
 def admin_media_shortcut(ctx: Ctx) -> bool:
-    """Admin hech qanday bo'limsiz video/audio yuborsa — darhol qo'shishni taklif qilamiz."""
-    media = extract_media(ctx.message, audio=True)
+    """Admin hech qanday bo'limsiz fayl yuborsa: audio — musiqaga, video — kino/multfilm qo'shishga."""
+    if music_from_message(ctx.message):
+        begin_music(ctx)
+        return True
+    media = extract_media(ctx.message)
     if not media:
         return False
     ask_category(ctx, prefill=media)
@@ -580,9 +583,15 @@ def cb_announce(ctx: Ctx) -> None:
     label = "🎵 Tinglash" if movie["category"] == "music" else "🎬 Tomosha qilish"
     kb = ikb([btn(label, url=app.deep_link(movie["code"]), style=SUCCESS)])
     try:
+        sent = None
         if movie["poster_id"]:
-            sent = ctx.bot.send_photo(channel, movie["poster_id"], text, kb)
-        else:
+            try:
+                sent = ctx.bot.send_photo(channel, movie["poster_id"], text, kb)
+            except TelegramError as exc:
+                if not exc.has("file", "photo", "identifier", "wrong type"):
+                    raise
+                log.info("Poster yuborilmadi, e'lon rasmsiz chiqadi: %s", exc)
+        if sent is None:
             sent = ctx.bot.send_message(channel, text, kb)
     except TelegramError as exc:
         log.warning("E'lon yuborilmadi: %s", exc)
@@ -703,6 +712,8 @@ def cb_manage(ctx: Ctx) -> None:
                      ikb([btn("✅ Ha, o'chirilsin", f"dm:pdelok:{part['id']}", style=DANGER)],
                          [btn("⬅️ Orqaga", f"dm:parts:{movie['id']}", style=PRIMARY)]))
             return
+        if db.count_parts(movie["id"]) <= 1:  # oxirgi qism — kino ham o'chadi
+            _drop_short_files(ctx, db.delete_shorts(movie["id"]))
         left = db.delete_part(part["id"])
         ctx.answer("🗑 Qism o'chirildi")
         movie = db.get_movie(movie["id"])
@@ -733,6 +744,7 @@ def cb_manage(ctx: Ctx) -> None:
                  ikb([btn("✅ Ha, o'chirilsin", f"dm:delok:{mid}", style=DANGER)],
                      [btn("⬅️ Yo'q, orqaga", f"dm:open:{mid}", style=PRIMARY)]))
     elif action == "delok":
+        _drop_short_files(ctx, db.delete_shorts(mid))
         db.delete_movie(mid)
         ctx.answer("🗑 O'chirildi")
         ctx.edit(f"🗑 <b>{esc(movie['title'])}</b> o'chirildi.")
@@ -791,7 +803,7 @@ def cb_manage(ctx: Ctx) -> None:
         send_manage(ctx, db.get_movie(mid), edit=True)
     elif action == "prem":
         db.update_movie(mid, is_premium=not movie["is_premium"])
-        ctx.answer("💎 Premium kino qilindi" if not movie["is_premium"] else "🆓 Oddiy kino qilindi")
+        ctx.answer("💎 Premium qilindi" if not movie["is_premium"] else "🆓 Oddiy qilindi")
         send_manage(ctx, db.get_movie(mid), edit=True)
     elif action in ("et", "ed", "ep"):
         ctx.answer()
@@ -966,6 +978,12 @@ def music_done_kb() -> dict:
     return ikb([btn("🏁 Tugatish", "mu:done", style=SUCCESS)])
 
 
+def begin_music(ctx: Ctx) -> None:
+    """Audio kelganda musiqa rejimini yoqib, shu faylni ham saqlaydi (keyingilari ham qabul qilinadi)."""
+    ctx.set_state("mu:bulk", ttl=6 * 3600, saved=[], skipped=[], status=None, last=0.0)
+    st_music_bulk(ctx)
+
+
 @router.button(B.ADD_MUSIC, admin=True)
 def btn_add_music(ctx: Ctx) -> None:
     sent = ctx.send("🎵 <b>Musiqa qo'shish</b>\n\n"
@@ -983,6 +1001,8 @@ def btn_add_music(ctx: Ctx) -> None:
 def st_music_bulk(ctx: Ctx) -> None:
     db = ctx.db
     found = music_from_message(ctx.message)
+    if not found and ctx.text:
+        return NEXT  # matn yozilsa — musiqa rejimi tugaydi, matn odatdagidek ishlanadi (qidiruv va h.k.)
     if not found:
         ctx.send("❗️ Musiqa <b>fayl</b> ko'rinishida yuboring (audio yoki mp3 fayl). "
                  "Tugatish uchun «🏁 Tugatish».", music_done_kb())
@@ -1024,5 +1044,5 @@ def cb_music(ctx: Ctx) -> None:
     text = (f"🏁 <b>Musiqa qo'shish yakunlandi!</b>\n\n✅ Saqlandi: <b>{len(saved)}</b> ta\n"
             + (f"♻️ Bazada bor edi: <b>{len(skipped)}</b> ta\n" if skipped else "")
             + ("\n" + "\n".join(shown) + more if shown else "")
-            + "\n\nℹ️ Nomini o'zgartirish: «🗑️ Kino o'chirish» → kod → «✏️ Nomi».")
+            + "\n\nℹ️ Nomini o'zgartirish: «🗑️ Kino o'chirish» → qo'shiq nomini yozing → «✏️ Nomi».")
     ctx.send(text[:4000])
