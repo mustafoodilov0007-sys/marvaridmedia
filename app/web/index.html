@@ -1365,6 +1365,18 @@
     if (d.channel) $("bChannel").classList.remove("hidden");
   });
   show("home");
+  // 🔗 kanal postidagi havola: ?k=15 (kino) yoki ?k=m3 (musiqa) — shu kino oynasi darhol ochiladi
+  (function () {
+    var k = "";
+    try { k = new URLSearchParams(location.search).get("k") || ""; } catch (e) {}
+    if (!k && tg && tg.initDataUnsafe && /^k/.test(tg.initDataUnsafe.start_param || "")) k = tg.initDataUnsafe.start_param.slice(1);
+    if (!/^m?\d{1,9}$/.test(k)) return;
+    api("/api/catalog?k=" + k).then(function (d) {
+      if (d.ok && d.items && d.items.length) openSheet(d.items[0]);
+      else toast("😔 Bu kino topilmadi yoki o'chirilgan");
+    }).catch(function () {});
+    try { history.replaceState(null, "", location.pathname); } catch (e) {}
+  })();
 })();
 </script>
 </body>

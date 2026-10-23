@@ -92,7 +92,13 @@ def api_catalog(app: App, user: dict, qs: dict) -> dict:
     _, vip = _user_flags(app, user["id"])
     premium_on = app.setting_bool("premium_enabled")
 
-    if re.fullmatch(r"#?\d{1,9}", query):
+    link = (qs.get("k") or "").strip()  # kanal postidagi havola: ?k=15 (kino) yoki ?k=m3 (musiqa)
+    if re.fullmatch(r"m?\d{1,9}", link):
+        code = -int(link[1:]) if link.startswith("m") else int(link)
+        movie = app.db.get_movie_by_code(code)
+        rows = app.db.catalog(movie["category"], movie_id=movie["id"], limit=1) if movie else []
+        more = False
+    elif re.fullmatch(r"#?\d{1,9}", query):
         movie = app.db.get_movie_by_code(int(query.lstrip("#")))
         rows = []
         if movie and offset == 0:

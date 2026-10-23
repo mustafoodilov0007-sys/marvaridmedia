@@ -276,6 +276,11 @@ class App:
     def deep_link(self, code) -> str:
         return f"https://t.me/{self.bot_username}?start={start_payload(code)}"
 
+    def site_link(self, code) -> Optional[str]:
+        """Saytda shu kinoni to'g'ridan-to'g'ri ochadigan havola (sayt sozlangan bo'lsa)."""
+        url = self.config.webapp_url
+        return f"{url}/?k={start_payload(code)}" if url else None
+
     # ───────── sozlamalar ─────────
 
     def load_settings(self) -> None:

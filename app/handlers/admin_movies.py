@@ -711,16 +711,39 @@ def cb_add_movie(ctx: Ctx) -> None:
 
 # ═════════════════════════ 📢 Kanalga e'lon ═════════════════════════
 
+LINE = "━━━━━━━━━━━━━━━"
+
+
+def _short_url(url: str) -> str:
+    return url.split("://", 1)[-1]
+
+
 def announce_text(app, movie, parts: int) -> str:
     cat = movie["category"]
+    music = cat == "music"
     head = f"{cat_icon(cat)} <b>{esc(movie['title'])}</b>"
+    info = []
     if parts > 1:
-        head += f"\n📺 <b>{parts} qism</b>"
+        info.append(f"📺 {parts} qism")
+    if not music:
+        g = genres.line(movie["genres"])
+        if g:
+            info.append(g)
+        if movie["year"]:
+            info.append(f"📅 {movie['year']}")
+    if info:
+        head += "\n" + "  •  ".join(info)
     meta = f"🔢 {cat_name(cat)} kodi: <code>{movie['code']}</code>" if movie["code"] > 0 else ""
     if movie["is_premium"]:
         meta = (meta + "\n💎 Premium").strip()
-    action = "Tinglash" if cat == "music" else "Tomosha qilish"
-    tail = f"🤖 @{esc(app.bot_username)}\n👇 {action} uchun pastdagi tugmani bosing"
+    verb = "tinglash" if music else "tomosha qilish"
+    bot_url = app.deep_link(movie["code"])
+    links = [LINE, f"🤖 <b>Botda {verb}:</b>", f"👉 <a href=\"{esc(bot_url)}\">{esc(_short_url(bot_url))}</a>"]
+    site_url = app.site_link(movie["code"])
+    if site_url:
+        links += [LINE, f"🌐 <b>Saytda {verb}:</b>", f"👉 <a href=\"{esc(site_url)}\">{esc(_short_url(site_url))}</a>"]
+    links.append(LINE)
+    tail = "\n".join(links)
     budget = 1000 - visible_len(head) - visible_len(meta) - visible_len(tail) - 12
     blocks = [head]
     desc = (movie["description"] or "").strip()
@@ -731,6 +754,16 @@ def announce_text(app, movie, parts: int) -> str:
         blocks.append("📝 " + esc(truncate(desc, min(budget, 700))))
     blocks += [b for b in (meta, tail) if b]
     return "\n\n".join(blocks)
+
+
+def announce_kb(app, movie) -> dict:
+    music = movie["category"] == "music"
+    rows = [[btn("🎵 Botda tinglash" if music else "🎬 Botda tomosha qilish", url=app.deep_link(movie["code"]),
+                 style=SUCCESS)]]
+    site_url = app.site_link(movie["code"])
+    if site_url:
+        rows.append([btn("🌐 Saytda tinglash" if music else "🌐 Saytda tomosha qilish", url=site_url, style=PRIMARY)])
+    return ikb(*rows)
 
 
 @router.callback("an", admin=True)
@@ -748,8 +781,7 @@ def cb_announce(ctx: Ctx) -> None:
         ctx.answer("❗️ E'lon kanali sozlanmagan. ⚙️ Matnlar → 📣 E'lon kanali", alert=True)
         return
     text = announce_text(app, movie, ctx.db.count_parts(movie["id"]))
-    label = "🎵 Tinglash" if movie["category"] == "music" else "🎬 Tomosha qilish"
-    kb = ikb([btn(label, url=app.deep_link(movie["code"]), style=SUCCESS)])
+    kb = announce_kb(app, movie)
     try:
         sent = None
         if movie["poster_id"]:
