@@ -170,7 +170,7 @@ def cb_stats(ctx: Ctx) -> None:
         ctx.clear_state()
         if action == "restno" or not path or not Path(path).exists():
             if path:
-                Path(path).unlink(missing_ok=True)
+                _drop_restore_files(Path(path))
             ctx.answer("❌ Bekor qilindi")
             ctx.edit("❌ Bazani tiklash bekor qilindi.")
             return
@@ -180,7 +180,7 @@ def cb_stats(ctx: Ctx) -> None:
         try:
             ctx.db.restore_from(Path(path))
         finally:
-            Path(path).unlink(missing_ok=True)
+            _drop_restore_files(Path(path))
         app = ctx.app
         app.load_settings()
         app.invalidate_admins()
@@ -194,10 +194,46 @@ def cb_stats(ctx: Ctx) -> None:
                  f"👥 Foydalanuvchilar: <b>{fmt_num(ctx.db.count_users())}</b>")
 
 
+def _drop_restore_files(path: Path) -> None:
+    for suffix in ("", "-wal", "-shm"):
+        Path(str(path) + suffix).unlink(missing_ok=True)
+
+
+def _download(ctx: Ctx, doc: dict, target: Path) -> bool:
+    if (doc.get("file_size") or 0) > 20 * 1024 * 1024:
+        ctx.send("❌ Fayl 20 MB dan katta — Telegram bot orqali yuklab bo'lmaydi.", cancel_kb())
+        return False
+    try:
+        info = ctx.bot.call("getFile", {"file_id": doc["file_id"]})
+        target.write_bytes(ctx.bot.download_file(info["file_path"]))
+    except (TelegramError, KeyError, OSError) as exc:
+        ctx.send(f"❌ Faylni yuklab bo'lmadi: {esc(str(exc))}", cancel_kb())
+        return False
+    return True
+
+
+def _confirm_restore(ctx: Ctx, path: Path, movies: int, users: int, with_wal: bool) -> None:
+    ctx.set_state("db:confirm", path=str(path), wal=with_wal, started=True)
+    wal_line = ("✅ <code>bot.db-wal</code> fayli ham qo'shildi.\n\n" if with_wal else
+                "💡 Kompyuterdagi <code>data</code> papkasida <code>bot.db</code> yonida "
+                "<code>bot.db-wal</code> fayli ham bo'lsa — uni ham hozir yuboring "
+                "(unda oxirgi qo'shilgan kinolar bo'lishi mumkin).\n\n")
+    ctx.send("📦 <b>Fayl tekshirildi:</b>\n\n"
+             f"🎬 Kinolar: <b>{fmt_num(movies)}</b>\n"
+             f"👥 Foydalanuvchilar: <b>{fmt_num(users)}</b>\n\n"
+             + wal_line +
+             f"Hozirgi bazada: 🎬 <b>{fmt_num(ctx.db.count_movies())}</b> kino, "
+             f"👥 <b>{fmt_num(ctx.db.count_users())}</b> foydalanuvchi.\n\n"
+             "⚠️ Tiklasangiz, hozirgi baza shu fayl bilan <b>almashtiriladi</b> "
+             "(hozirgisining zaxira nusxasi avval sizga yuboriladi). Davom etamizmi?",
+             ikb([btn("✅ Ha, tiklash", "stat:restok", style=SUCCESS)],
+                 [btn("❌ Yo'q", "stat:restno", style=DANGER)]))
+
+
 def inspect_db(path: Path):
     """Faylni SQLite baza sifatida ochib, (kinolar, foydalanuvchilar) sonini qaytaradi. Yaroqsiz — None."""
     try:
-        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        conn = sqlite3.connect(str(path))  # yonidagi -wal fayl ham hisobga olinadi
         try:
             tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             if not {"movies", "parts", "users"} <= tables:
@@ -211,47 +247,49 @@ def inspect_db(path: Path):
         return None
 
 
-@router.state("db:restore", admin=True)
+@router.state("db:restore", "db:confirm", admin=True)
 def st_restore(ctx: Ctx) -> None:
+    """bot.db va (bo'lsa) bot.db-wal fayllarini istalgan tartibda qabul qiladi."""
     if not ctx.is_owner:
         ctx.clear_state()
         return
     doc = ctx.message.get("document")
     if not doc:
-        ctx.send("❗️ Baza faylini <b>fayl (document)</b> ko'rinishida yuboring.", cancel_kb())
+        if ctx.state == "db:confirm":
+            ctx.send("👆 Yuqoridagi tugmalardan birini tanlang: «✅ Ha, tiklash» yoki «❌ Yo'q».")
+        else:
+            ctx.send("❗️ Baza faylini <b>fayl (document)</b> ko'rinishida yuboring.", cancel_kb())
         return
-    if (doc.get("file_size") or 0) > 20 * 1024 * 1024:
-        ctx.send("❌ Fayl 20 MB dan katta — Telegram bot orqali yuklab bo'lmaydi.", cancel_kb())
+    name = doc.get("file_name") or ""
+    if name.endswith("-shm"):
+        ctx.send("ℹ️ <code>-shm</code> fayl kerak emas — faqat <code>bot.db</code> va <code>bot.db-wal</code>.")
         return
     path = ctx.db.path.with_name(f"restore_{ctx.user_id}.db")
-    try:
-        info = ctx.bot.call("getFile", {"file_id": doc["file_id"]})
-        path.write_bytes(ctx.bot.download_file(info["file_path"]))
-    except (TelegramError, KeyError, OSError) as exc:
-        ctx.send(f"❌ Faylni yuklab bo'lmadi: {esc(str(exc))}", cancel_kb())
+    is_wal = name.endswith("-wal")
+    if not ctx.sdata.get("started"):
+        _drop_restore_files(path)  # yangi tiklash — eski qoldiqlarni tozalaymiz
+    target = Path(str(path) + "-wal") if is_wal else path
+    if not _download(ctx, doc, target):
         return
-    found = inspect_db(path)
-    if not found:
-        path.unlink(missing_ok=True)
-        ctx.send("❌ Bu fayl bot bazasi emas (yoki buzilgan). To'g'ri <code>.db</code> faylni yuboring.",
+    has_main = path.exists()
+    has_wal = Path(str(path) + "-wal").exists()
+    ctx.set_state("db:restore", started=True)
+    if not has_main:
+        ctx.send("✅ <code>bot.db-wal</code> qabul qilindi. Endi asosiy <code>bot.db</code> faylini yuboring.",
                  cancel_kb())
         return
-    movies, users = found
-    ctx.set_state("db:confirm", path=str(path))
-    ctx.send("📦 <b>Fayl tekshirildi:</b>\n\n"
-             f"🎬 Kinolar: <b>{fmt_num(movies)}</b>\n"
-             f"👥 Foydalanuvchilar: <b>{fmt_num(users)}</b>\n\n"
-             f"Hozirgi bazada: 🎬 <b>{fmt_num(ctx.db.count_movies())}</b> kino, "
-             f"👥 <b>{fmt_num(ctx.db.count_users())}</b> foydalanuvchi.\n\n"
-             "⚠️ Tiklasangiz, hozirgi baza shu fayl bilan <b>almashtiriladi</b> "
-             "(hozirgisining zaxira nusxasi avval sizga yuboriladi). Davom etamizmi?",
-             ikb([btn("✅ Ha, tiklash", "stat:restok", style=SUCCESS)],
-                 [btn("❌ Yo'q", "stat:restno", style=DANGER)]))
-
-
-@router.state("db:confirm", admin=True)
-def st_restore_confirm(ctx: Ctx) -> None:
-    ctx.send("👆 Yuqoridagi tugmalardan birini tanlang: «✅ Ha, tiklash» yoki «❌ Yo'q».")
+    found = inspect_db(path)
+    if not found and has_wal:
+        Path(str(path) + "-wal").unlink(missing_ok=True)  # mos kelmagan wal — usiz urinib ko'ramiz
+        Path(str(path) + "-shm").unlink(missing_ok=True)
+        has_wal = False
+        found = inspect_db(path)
+    if not found:
+        ctx.send("⚠️ Bu fayldan kinolarni o'qib bo'lmadi.\n\n"
+                 "Agar papkada <code>bot.db-wal</code> fayli ham bo'lsa — uni yuboring (ma'lumotlar unda "
+                 "bo'lishi mumkin). Bo'lmasa, to'g'ri <code>bot.db</code> faylini yuboring.", cancel_kb())
+        return
+    _confirm_restore(ctx, path, found[0], found[1], has_wal)
 
 
 def send_backup(ctx: Ctx) -> None:
