@@ -21,6 +21,7 @@ ADMIN_COMMANDS = [
     {"command": "new", "description": "🆕 Yangi kinolar"},
     {"command": "premium", "description": "💎 Premium obuna"},
     {"command": "id", "description": "🆔 ID raqamni bilish"},
+    {"command": "emoji", "description": "💎 Premium emoji tekshiruvi"},
     {"command": "cancel", "description": "❌ Amalni bekor qilish"},
 ]
 
@@ -41,10 +42,12 @@ def _channels_without_admin(ctx: Ctx) -> int:
 
 def panel_text(ctx: Ctx) -> str:
     db = ctx.db
+    c = db.count_by_category()
     text = ("👨‍💻 <b>Admin panel</b> — " + esc(ctx.app.brand) + "\n\n"
             f"👥 Foydalanuvchilar: <b>{fmt_num(db.count_users())}</b> "
             f"(+{fmt_num(db.count_joined_since(day_start()))} bugun)\n"
-            f"🎬 Kinolar: <b>{fmt_num(db.count_movies())}</b>\n"
+            f"🎬 Kontent: <b>{fmt_num(db.count_movies())}</b>"
+            f" (🎬 {c['movie']} • 🧸 {c['cartoon']} • 🎵 {c['music']})\n"
             f"💎 Premiumlar: <b>{fmt_num(db.count_premium())}</b>\n"
             f"⏳ Tekshirilmagan cheklar: <b>{fmt_num(db.count_pending())}</b>\n\n")
     bad = _channels_without_admin(ctx)
@@ -79,6 +82,7 @@ def stats_text(ctx: Ctx) -> str:
     prem_stars = totals.get("premium:stars", zero)
     don_card = totals.get("donate:card", zero)
     don_stars = totals.get("donate:stars", zero)
+    cats = db.count_by_category()
 
     lines = [
         "📊 <b>Bot statistikasi</b>", "",
@@ -90,7 +94,10 @@ def stats_text(ctx: Ctx) -> str:
         f"├ 🗓 Oxirgi 7 kun: {fmt_num(db.count_joined_since(t - 7 * 86400))}",
         f"└ 📆 Oxirgi 30 kun: {fmt_num(db.count_joined_since(t - 30 * 86400))}",
         "",
-        f"🎬 <b>Kinolar:</b> {fmt_num(db.count_movies())}",
+        f"🎬 <b>Kontent:</b> {fmt_num(db.count_movies())}",
+        f"├ 🎬 Kinolar: {fmt_num(cats['movie'])}",
+        f"├ 🧸 Multfilmlar: {fmt_num(cats['cartoon'])}",
+        f"├ 🎵 Musiqalar: {fmt_num(cats['music'])}",
         f"├ 📺 Seriallar: {fmt_num(db.count_serials())}",
         f"├ 💎 Premium kinolar: {fmt_num(db.count_premium_movies())}",
         f"├ 🎞 Jami fayllar (qismlar): {fmt_num(db.count_parts_total())}",

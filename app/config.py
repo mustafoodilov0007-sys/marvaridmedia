@@ -50,6 +50,18 @@ class Config:
         log_path = Path(os.getenv("LOG_FILE", "").strip() or f"{data_dir}/bot.log")
         self.log_path = log_path if log_path.is_absolute() else BASE_DIR / log_path
 
+        # 🌐 Sayt (Telegram Mini App). Railway'da: Settings → Networking → Generate Domain —
+        # shunda PORT va RAILWAY_PUBLIC_DOMAIN avtomatik qo'yiladi.
+        port = (os.getenv("PORT", "") or os.getenv("WEB_PORT", "")).strip()
+        self.web_port = int(port) if port.isdigit() else None
+        url = os.getenv("WEBAPP_URL", "").strip().rstrip("/")
+        domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
+        if not url and domain:
+            url = "https://" + domain
+        self.webapp_url = url or None
+        if self.webapp_url and not self.web_port:
+            self.web_port = 8080
+
         self.api_url = (os.getenv("TELEGRAM_API", "") or "https://api.telegram.org").rstrip("/")
         self.proxy = os.getenv("PROXY", "").strip() or None
         try:

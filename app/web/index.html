@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Marvarid Media</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: var(--tg-theme-bg-color, #0f1220);
+    --bg2: var(--tg-theme-secondary-bg-color, #171b2e);
+    --text: var(--tg-theme-text-color, #f2f4ff);
+    --hint: var(--tg-theme-hint-color, #8a90ad);
+    --accent: var(--tg-theme-button-color, #3d8bfd);
+    --accent-text: var(--tg-theme-button-text-color, #ffffff);
+    --card: color-mix(in srgb, var(--bg2) 85%, var(--text) 4%);
+    --line: color-mix(in srgb, var(--text) 10%, transparent);
+    --green: #2fbf71;
+    --red: #e5534b;
+    --gold: #f5b84b;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { overflow-x: hidden; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+
+  header { padding: 18px 16px 6px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .logo { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 22px;
+    background: linear-gradient(135deg, #7f5af0, #3d8bfd 55%, #2fbf71); box-shadow: 0 6px 18px #3d8bfd40; }
+  .brand h1 { margin: 0; font-size: 19px; letter-spacing: .2px; }
+  .brand p { margin: 1px 0 0; color: var(--hint); font-size: 13px; }
+
+  .sticky { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 8px 16px 10px;
+    border-bottom: 1px solid var(--line); }
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; background: var(--bg2);
+    padding: 4px; border-radius: 12px; }
+  @media (max-width: 370px) { .tab small { display: none; } .tab { font-size: 13px; } }
+  .tab { padding: 9px 4px; border-radius: 9px; font-weight: 600; font-size: 14px; color: var(--hint);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: .15s; }
+  .tab small { font-weight: 500; opacity: .75; }
+  .tab.on { background: var(--accent); color: var(--accent-text); box-shadow: 0 2px 10px #0003; }
+  .row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+  .search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; background: var(--bg2); border-radius: 11px;
+    padding: 0 12px; height: 40px; }
+  .search input { flex: 1; min-width: 0; width: 100%; border: 0; outline: 0; background: none; color: var(--text); font: inherit; }
+  .search input::placeholder { color: var(--hint); }
+  .chip { flex: none; height: 40px; padding: 0 10px; border-radius: 11px; background: var(--bg2); color: var(--hint);
+    font-weight: 600; font-size: 13px; white-space: nowrap; }
+  .chip.on { color: var(--text); box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+  main { padding: 14px 16px 24px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 10px; }
+  @media (max-width: 340px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 560px) { .grid { grid-template-columns: repeat(4, 1fr); } }
+  .card { text-align: left; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .poster { position: relative; aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; background: var(--card);
+    display: grid; place-items: center; box-shadow: 0 4px 14px #0002; }
+  .poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ph { display: grid; place-items: center; gap: 6px; padding: 8px; text-align: center; width: 100%; height: 100%;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 35%, var(--bg2)), var(--bg2)); }
+  .ph b { font-size: 30px; }
+  .ph span { font-size: 11px; color: var(--text); opacity: .85; display: -webkit-box; -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical; overflow: hidden; }
+  .badge { position: absolute; top: 6px; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 7px;
+    background: #000a; color: #fff; backdrop-filter: blur(4px); }
+  .badge.l { left: 6px; } .badge.r { right: 6px; background: #f5b84bdd; color: #241a00; }
+  .card .t { font-size: 13px; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; }
+  .card .m { font-size: 11.5px; color: var(--hint); margin-top: -3px; }
+
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .track { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: var(--radius);
+    background: var(--bg2); text-align: left; width: 100%; }
+  .cover { width: 54px; height: 54px; border-radius: 10px; overflow: hidden; flex: none; display: grid;
+    place-items: center; font-size: 24px; background: linear-gradient(135deg, #7f5af0, #3d8bfd); }
+  .cover img { width: 100%; height: 100%; object-fit: cover; }
+  .track .info { flex: 1; min-width: 0; }
+  .track .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track .m { font-size: 12.5px; color: var(--hint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .play { width: 38px; height: 38px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-text); font-size: 15px; }
+
+  .empty, .loading { text-align: center; color: var(--hint); padding: 48px 12px; }
+  .empty b { display: block; font-size: 40px; margin-bottom: 8px; }
+  .more { display: block; margin: 18px auto 0; padding: 10px 18px; border-radius: 11px; background: var(--bg2);
+    color: var(--accent); font-weight: 600; }
+  .skeleton { animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .45; } }
+
+  .sheet-bg { position: fixed; inset: 0; background: #0009; z-index: 20; opacity: 0; pointer-events: none; transition: .2s; }
+  .sheet-bg.on { opacity: 1; pointer-events: auto; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; background: var(--bg); border-radius: 20px 20px 0 0;
+    max-height: 88vh; overflow: auto; transform: translateY(calc(100% + 40px)); transition: transform .25s ease;
+    padding: 10px 16px calc(18px + env(safe-area-inset-bottom)); visibility: hidden; }
+  .sheet.on { transform: none; visibility: visible; box-shadow: 0 -10px 30px #0006; }
+  .grip { width: 38px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 12px; }
+  .detail { display: flex; gap: 14px; }
+  .detail .poster { width: 112px; flex: none; }
+  .detail h2 { margin: 2px 0 6px; font-size: 18px; line-height: 1.25; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { font-size: 12px; padding: 3px 8px; border-radius: 8px; background: var(--bg2); color: var(--hint); }
+  .tag.gold { color: #241a00; background: var(--gold); font-weight: 700; }
+  .desc { margin: 14px 0 0; color: var(--text); opacity: .9; white-space: pre-line; font-size: 14px; }
+  .go { width: 100%; margin-top: 18px; height: 50px; border-radius: 13px; font-weight: 700; font-size: 16px;
+    background: var(--green); color: #fff; box-shadow: 0 6px 18px #2fbf7140; }
+  .go.lock { background: linear-gradient(135deg, #f5b84b, #e58e26); color: #241a00; box-shadow: none; }
+  .go:disabled { opacity: .6; }
+  .note { text-align: center; color: var(--hint); font-size: 12.5px; margin-top: 10px; }
+
+  .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 30px);
+    background: #111a; color: #fff; backdrop-filter: blur(8px); padding: 11px 16px; border-radius: 12px; font-size: 14px;
+    z-index: 40; opacity: 0; transition: .2s; max-width: calc(100% - 32px); text-align: center; }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">💎</div>
+    <div>
+      <h1 id="brand">Marvarid Media</h1>
+      <p id="hello">Kinolar, multfilmlar va musiqalar</p>
+    </div>
+  </div>
+</header>
+
+<div class="sticky">
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-cat="movie">🎬 Kinolar <small id="n-movie"></small></button>
+    <button class="tab" data-cat="cartoon">🧸 Multfilmlar <small id="n-cartoon"></small></button>
+    <button class="tab" data-cat="music">🎵 Musiqalar <small id="n-music"></small></button>
+  </div>
+  <div class="row">
+    <label class="search">🔎<input id="q" type="search" placeholder="Nomi yoki kodi..." autocomplete="off" enterkeyhint="search"></label>
+    <button class="chip on" data-sort="new">🆕 Yangi</button>
+    <button class="chip" data-sort="top">🔥 Top</button>
+  </div>
+</div>
+
+<main id="main"><div class="loading">⏳ Yuklanmoqda...</div></main>
+
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+  var tg = window.Telegram && window.Telegram.WebApp;
+  var initData = tg ? tg.initData : "";
+  var state = { cat: "movie", sort: "new", q: "", offset: 0, more: false, busy: false, items: [], req: 0, me: null };
+  var ICON = { movie: "🎬", cartoon: "🧸", music: "🎵" };
+  var $ = function (id) { return document.getElementById(id); };
+
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    try { tg.setHeaderColor("bg_color"); tg.setBackgroundColor("bg_color"); } catch (e) {}
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function fmt(n) {
+    n = +n || 0;
+    if (n >= 1e6) return (n / 1e6).toFixed(1).replace(".0", "") + "M";
+    if (n >= 1e4) return Math.floor(n / 1e3) + "K";
+    if (n >= 1e3) return (n / 1e3).toFixed(1).replace(".0", "") + "K";
+    return String(n);
+  }
+  function haptic(kind) {
+    try { tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred(kind || "light"); } catch (e) {}
+  }
+  var toastTimer;
+  function toast(text) {
+    var t = $("toast");
+    t.textContent = text;
+    t.classList.add("on");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove("on"); }, 2600);
+  }
+
+  function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ "X-Init-Data": initData }, opts.headers || {});
+    return fetch(path, opts).then(function (r) {
+      return r.json().catch(function () { return { ok: false, reason: "error" }; });
+    });
+  }
+
+  function posterNode(item, cls) {
+    var box = el("div", cls || "poster");
+    if (item.poster) {
+      var img = new Image();
+      img.loading = "lazy";
+      img.alt = "";
+      img.src = "/api/poster/" + item.id + "?v=" + item.poster;
+      img.onerror = function () { box.replaceChildren(placeholder(item, cls)); };
+      box.appendChild(img);
+    } else {
+      box.appendChild(placeholder(item, cls));
+    }
+    return box;
+  }
+  function placeholder(item, cls) {
+    if (cls === "cover") return document.createTextNode(ICON[item.cat] || "🎬");
+    var ph = el("div", "ph");
+    ph.appendChild(el("b", null, ICON[item.cat] || "🎬"));
+    ph.appendChild(el("span", null, item.title));
+    return ph;
+  }
+
+  function setCounts(c) {
+    if (!c) return;
+    ["movie", "cartoon", "music"].forEach(function (k) { $("n-" + k).textContent = c[k] ? c[k] : ""; });
+  }
+
+  // ───── ro'yxat ─────
+  function render() {
+    var main = $("main");
+    main.replaceChildren();
+    if (!state.items.length) {
+      var e = el("div", "empty");
+      e.appendChild(el("b", null, state.q ? "🔎" : (ICON[state.cat] || "📭")));
+      e.appendChild(document.createTextNode(state.q ? "Hech narsa topilmadi. Boshqacha yozib ko'ring." :
+        "Bu bo'limda hozircha hech narsa yo'q. Tez orada qo'shiladi!"));
+      main.appendChild(e);
+      return;
+    }
+    var music = state.cat === "music";
+    var wrap = el("div", music ? "list" : "grid");
+    state.items.forEach(function (it) { wrap.appendChild(music ? trackNode(it) : cardNode(it)); });
+    main.appendChild(wrap);
+    if (state.more) {
+      var more = el("button", "more", "⬇️ Yana yuklash");
+      more.id = "moreBtn";
+      more.onclick = function () { load(false); };
+      main.appendChild(more);
+      if (window.IntersectionObserver) {
+        new IntersectionObserver(function (en, obs) {
+          if (en[0].isIntersecting) { obs.disconnect(); load(false); }
+        }, { rootMargin: "400px" }).observe(more);
+      }
+    }
+  }
+  function cardNode(it) {
+    var b = el("button", "card");
+    var p = posterNode(it);
+    if (it.parts > 1) p.appendChild(el("span", "badge l", it.parts + " qism"));
+    if (it.premium) p.appendChild(el("span", "badge r", "💎"));
+    b.appendChild(p);
+    b.appendChild(el("div", "t", it.title));
+    b.appendChild(el("div", "m", "👁 " + fmt(it.views) + "  ·  #" + it.code));
+    b.onclick = function () { openSheet(it); };
+    return b;
+  }
+  function trackNode(it) {
+    var b = el("button", "track");
+    b.appendChild(posterNode(it, "cover"));
+    var info = el("div", "info");
+    info.appendChild(el("div", "t", (it.premium ? "💎 " : "") + it.title));
+    info.appendChild(el("div", "m", it.desc ? it.desc.split("\n")[0] : "🎧 " + fmt(it.views) + " marta tinglangan"));
+    b.appendChild(info);
+    b.appendChild(el("span", "play", it.locked ? "🔒" : "▶"));
+    b.onclick = function () { openSheet(it); };
+    return b;
+  }
+
+  function load(reset) {
+    if (state.busy && !reset) return;
+    if (reset) {
+      state.offset = 0; state.items = []; state.more = false;
+      $("main").replaceChildren(el("div", "loading skeleton", "⏳ Yuklanmoqda..."));
+    } else {
+      var mb = $("moreBtn");
+      if (mb) { mb.textContent = "⏳ Yuklanmoqda..."; mb.disabled = true; }
+    }
+    state.busy = true;
+    var req = ++state.req;
+    var qs = "cat=" + state.cat + "&sort=" + state.sort + "&offset=" + state.offset +
+             "&q=" + encodeURIComponent(state.q);
+    api("/api/catalog?" + qs).then(function (res) {
+      if (req !== state.req) return;
+      state.busy = false;
+      if (!res.ok) { return showError(res.reason); }
+      state.items = state.items.concat(res.items);
+      state.offset += res.items.length;
+      state.more = res.more;
+      setCounts(res.counts);
+      render();
+    }).catch(function () {
+      if (req !== state.req) return;
+      state.busy = false;
+      showError("network");
+    });
+  }
+
+  function showError(reason) {
+    var main = $("main");
+    var e = el("div", "empty");
+    if (reason === "auth") {
+      e.appendChild(el("b", null, "🔐"));
+      e.appendChild(document.createTextNode("Saytni Telegram bot ichidan oching: botda «🌐 Sayt» tugmasini bosing."));
+    } else {
+      e.appendChild(el("b", null, "⚠️"));
+      e.appendChild(document.createTextNode("Ulanishda xatolik. Internetni tekshirib, qaytadan urinib ko'ring."));
+      var r = el("button", "more", "🔄 Qayta urinish");
+      r.onclick = function () { load(true); };
+      e.appendChild(r);
+    }
+    main.replaceChildren(e);
+  }
+
+  // ───── batafsil oyna ─────
+  function openSheet(it) {
+    haptic("light");
+    var s = $("sheet");
+    s.replaceChildren();
+    s.appendChild(el("div", "grip"));
+    var d = el("div", "detail");
+    d.appendChild(posterNode(it));
+    var right = el("div");
+    right.appendChild(el("h2", null, it.title));
+    var tags = el("div", "tags");
+    tags.appendChild(el("span", "tag", ICON[it.cat] + " " + ({ movie: "Kino", cartoon: "Multfilm", music: "Musiqa" })[it.cat]));
+    tags.appendChild(el("span", "tag", "🔢 Kod: " + it.code));
+    if (it.parts > 1) tags.appendChild(el("span", "tag", "📺 " + it.parts + " qism"));
+    tags.appendChild(el("span", "tag", "👁 " + fmt(it.views)));
+    if (it.premium) tags.appendChild(el("span", "tag gold", "💎 Premium"));
+    right.appendChild(tags);
+    d.appendChild(right);
+    s.appendChild(d);
+    if (it.desc) s.appendChild(el("p", "desc", it.desc));
+
+    var label = it.locked ? "💎 Premium bilan ochish" :
+      (it.cat === "music" ? "🎵 Botda tinglash" : (it.parts > 1 ? "📺 Qismlarni ko'rish" : "▶️ Botda tomosha qilish"));
+    var go = el("button", "go" + (it.locked ? " lock" : ""), label);
+    go.onclick = function () { watch(it, go); };
+    s.appendChild(go);
+    s.appendChild(el("div", "note", it.locked ?
+      "Bu kontent faqat Premium a'zolar uchun. Bot chatida Premium olish tugmasi chiqadi." :
+      "Bosganingizdan so'ng bot uni chatga yuboradi."));
+    $("sheetBg").classList.add("on");
+    s.classList.add("on");
+    if (tg && tg.BackButton) tg.BackButton.show();
+  }
+  function closeSheet() {
+    $("sheetBg").classList.remove("on");
+    $("sheet").classList.remove("on");
+    if (tg && tg.BackButton) tg.BackButton.hide();
+  }
+  $("sheetBg").onclick = closeSheet;
+  if (tg && tg.BackButton) tg.BackButton.onClick(closeSheet);
+
+  function watch(it, btn) {
+    btn.disabled = true;
+    var old = btn.textContent;
+    btn.textContent = "⏳ Yuborilmoqda...";
+    api("/api/watch", { method: "POST", headers: { "Content-Type": "application/json" },
+                         body: JSON.stringify({ id: it.id }) })
+      .then(function (res) {
+        btn.disabled = false;
+        btn.textContent = old;
+        var msg = {
+          sub: "📢 Avval kanallarga obuna bo'ling — bot chatida tugmalar chiqdi.",
+          premium: "💎 Bu Premium kontent — bot chatida Premium olish tugmasi bor.",
+          blocked: "🤖 Avval botga /start bosing, so'ng qayta urinib ko'ring.",
+          flood: "⏳ Juda tez! Biroz kuting.",
+          not_found: "😔 Bu kontent o'chirilgan.",
+          auth: "🔐 Saytni bot ichidan qayta oching."
+        }[res.reason];
+        if (res.ok) {
+          try { tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred("success"); } catch (e) {}
+          toast("✅ Botga yuborildi! Chatni oching.");
+          setTimeout(function () { tg ? tg.close() : closeSheet(); }, 1100);
+        } else if (res.reason === "sub" || res.reason === "premium") {
+          toast(msg);
+          setTimeout(function () { tg ? tg.close() : closeSheet(); }, 1800);
+        } else {
+          toast(msg || "⚠️ Xatolik yuz berdi. Qaytadan urinib ko'ring.");
+        }
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = old;
+        toast("⚠️ Ulanishda xatolik.");
+      });
+  }
+
+  // ───── boshqaruv ─────
+  Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (b) {
+    b.onclick = function () {
+      if (state.cat === b.dataset.cat) return;
+      haptic("light");
+      document.querySelector(".tab.on").classList.remove("on");
+      b.classList.add("on");
+      state.cat = b.dataset.cat;
+      window.scrollTo(0, 0);
+      load(true);
+    };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (b) {
+    b.onclick = function () {
+      if (state.sort === b.dataset.sort) return;
+      haptic("light");
+      document.querySelector(".chip.on").classList.remove("on");
+      b.classList.add("on");
+      state.sort = b.dataset.sort;
+      load(true);
+    };
+  });
+  var qTimer;
+  $("q").addEventListener("input", function (e) {
+    clearTimeout(qTimer);
+    qTimer = setTimeout(function () {
+      var v = e.target.value.trim();
+      if (v === state.q) return;
+      state.q = v;
+      load(true);
+    }, 350);
+  });
+  $("q").addEventListener("keydown", function (e) { if (e.key === "Enter") e.target.blur(); });
+
+  if (!initData) { showError("auth"); return; }
+  api("/api/me").then(function (me) {
+    if (!me.ok) return;
+    state.me = me;
+    document.title = me.brand;
+    $("brand").textContent = me.brand;
+    $("hello").textContent = (me.name ? "Salom, " + me.name + "! " : "") + (me.premium ? "💎 Premium" : "Xush kelibsiz 🍿");
+    setCounts(me.counts);
+  });
+  load(true);
+})();
+</script>
+</body>
+</html>

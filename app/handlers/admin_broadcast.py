@@ -10,7 +10,8 @@ from ..core import App, Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb
 from ..telegram import BadRequest, Forbidden, TelegramError
 from ..texts import B
-from ..utils import esc, fmt_duration, fmt_num, parse_url_buttons, progress_bar
+from ..utils import (count_custom_emoji, esc, fmt_duration, fmt_num, message_html, parse_url_buttons,
+                     progress_bar)
 
 log = logging.getLogger("admin.broadcast")
 
@@ -25,7 +26,14 @@ BUTTONS_HELP = (
     "Har bir qatorga bitta tugma yozing:\n"
     "<code>Tugma matni - https://havola</code>\n\n"
     "Bir qatorda bir nechta tugma uchun «|» belgisidan foydalaning:\n"
-    "<code>Kanal - https://t.me/kanal | Sayt - https://sayt.uz</code>"
+    "<code>Kanal - https://t.me/kanal | Sayt - https://sayt.uz</code>\n\n"
+    "💎 Tugma matni boshiga <b>premium emoji</b> qo'ysangiz, u tugma ikonkasiga aylanadi."
+)
+
+PREMIUM_EMOJI_NOTE = (
+    "ℹ️ Premium emoji obunachilarga animatsiyali ko'rinishda borishi uchun <b>bot egasida "
+    "(@BotFather'da botni yaratgan akkauntda) Telegram Premium</b> bo'lishi kerak. Aks holda ular "
+    "oddiy emojiga aylanadi. Tekshirish: /emoji"
 )
 
 
@@ -54,6 +62,8 @@ def btn_broadcast(ctx: Ctx) -> None:
     ctx.send("✉️ <b>Xabar yuborish</b>\n\n"
              "Foydalanuvchilarga yubormoqchi bo'lgan xabaringizni yuboring:\n"
              "matn, rasm, video, GIF, ovozli xabar yoki fayl.\n\n"
+             "💎 Matnda <b>premium emoji</b> ishlatishingiz mumkin — ular obunachilarga ham "
+             "premium ko'rinishda boradi.\n"
              "ℹ️ Albom (bir nechta rasm) o'rniga bitta xabar yuboring.", cancel_kb())
 
 
@@ -61,7 +71,7 @@ def btn_broadcast(ctx: Ctx) -> None:
 def st_message(ctx: Ctx) -> None:
     msg = ctx.message
     ctx.goto("bc:confirm", src_chat=ctx.chat_id, src_msg=msg["message_id"], mode="copy",
-             audience="all", buttons=[], group=msg.get("media_group_id"))
+             audience="all", buttons=[], group=msg.get("media_group_id"), emoji=count_custom_emoji(msg))
     send_preview(ctx)
 
 
@@ -75,7 +85,7 @@ def st_confirm(ctx: Ctx) -> None:
 
 @router.state("bc:buttons", admin=True)
 def st_buttons(ctx: Ctx) -> None:
-    rows, bad = parse_url_buttons(ctx.text)
+    rows, bad = parse_url_buttons(ctx.text, ctx.message.get("entities"))
     if rows is None:
         ctx.send(f"❗️ Noto'g'ri format: <code>{esc(bad[:100])}</code>\n\n{BUTTONS_HELP}", cancel_kb())
         return
@@ -104,10 +114,13 @@ def control_text(ctx: Ctx) -> str:
     d = ctx.sdata
     count = ctx.db.count_audience(d["audience"])
     n_buttons = sum(len(r) for r in d["buttons"])
+    n_emoji = int(d.get("emoji") or 0) + sum(1 for r in d["buttons"] for b in r if b.get("icon_custom_emoji_id"))
     text = ("👆 <b>Xabar shunday ko'rinadi.</b>\n\n"
             f"🎯 Auditoriya: <b>{AUDIENCE[d['audience']]}</b> — {fmt_num(count)} ta\n"
             f"📤 Usul: <b>{MODES[d['mode']]}</b>\n"
             f"🔘 Tugmalar: <b>{n_buttons} ta</b>")
+    if n_emoji:
+        text += f"\n💎 Premium emoji: <b>{n_emoji} ta</b>\n\n{PREMIUM_EMOJI_NOTE}"
     if d["mode"] == "forward" and n_buttons:
         text += "\n⚠️ Forward usulida tugmalar qo'shilmaydi."
     return text + "\n\nHammasi to'g'ri bo'lsa «✅ Yuborish» ni bosing."
@@ -247,3 +260,32 @@ def run_job(app: App, job: BroadcastJob) -> None:
                                      "text": "⚠️ Xabar yuborish kutilmagan xatolik bilan to'xtadi."})
     finally:
         app.broadcast = None
+
+
+# ═════════════════════════ 💎 Premium emoji tekshiruvi ═════════════════════════
+
+@router.command("emoji", admin=True)
+def cmd_emoji(ctx: Ctx) -> None:
+    ctx.set_state("em:wait")
+    ctx.send("💎 <b>Premium emoji tekshiruvi</b>\n\n"
+             "Premium emoji(lar) yozilgan xabar yuboring — bot uni sizga qaytaradi va har birining "
+             "<b>ID</b> raqamini ko'rsatadi.\n\n"
+             "✅ Qaytgan xabarda emoji animatsiyali bo'lsa — obunachilarga ham shunday boradi.\n"
+             "❌ Oddiy emojiga aylansa — bot egasi akkauntida Telegram Premium yo'q.", cancel_kb())
+
+
+@router.state("em:wait", admin=True)
+def st_emoji(ctx: Ctx) -> None:
+    msg = ctx.message
+    ents = msg.get("entities") or msg.get("caption_entities") or []
+    ids = [e["custom_emoji_id"] for e in ents if e.get("type") == "custom_emoji" and e.get("custom_emoji_id")]
+    if not ids:
+        ctx.send("❗️ Xabarda premium emoji topilmadi. Premium emoji yuboring yoki «❌ Bekor qilish».", cancel_kb())
+        return
+    ctx.clear_state()
+    try:
+        ctx.send("👇 Bot yuborgan ko'rinish:\n\n" + message_html(msg))
+    except BadRequest as exc:
+        ctx.send(f"❌ Bot premium emojini yubora olmadi: <i>{esc(exc.description)}</i>")
+    lines = [f'<tg-emoji emoji-id="{esc(i)}">⭐️</tg-emoji> <code>{esc(i)}</code>' for i in dict.fromkeys(ids)]
+    ctx.send("🆔 <b>Premium emoji ID raqamlari:</b>\n\n" + "\n".join(lines[:50]))

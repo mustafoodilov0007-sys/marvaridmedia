@@ -1,7 +1,8 @@
 # 💎 Marvarid Media — premium kino bot
 
-Tarjima kinolar va multfilmlar uchun to'liq tayyor Telegram bot: rangli (premium) tugmalar,
-majburiy obuna, raqamli qidiruv, seriallar, donat va Premium sotish tizimi.
+Tarjima kinolar, multfilmlar va musiqalar uchun to'liq tayyor Telegram bot: rangli (premium) tugmalar,
+bot ichidagi **🌐 sayt** (Mini App), majburiy obuna, raqamli qidiruv, seriallar, premium emoji,
+donat va Premium sotish tizimi.
 
 Bot **faqat Python** bilan ishlaydi — hech qanday qo'shimcha kutubxona o'rnatish shart emas.
 
@@ -43,6 +44,7 @@ Barcha sozlamalar **`.env`** faylida allaqachon yozilgan: token, adminlar
 
 | | |
 |---|---|
+| 🌐 **Sayt** | Bot ichida ochiladigan sayt: 🎬 Kinolar, 🧸 Multfilmlar, 🎵 Musiqalar bo'limlari, qidiruv, Yangi/Top. Tanlansa — bot chatga yuboradi |
 | 🔢 **Kod bo'yicha** | Kino kodini yuborsa — kino darhol keladi |
 | 🔎 **Nom bo'yicha** | `1. 2. 3. …` ro'yxat chiqadi, pastda **raqamli tugmalar** — raqam bosilsa o'sha kino keladi |
 | 🔤 Aqlli qidiruv | Lotin/kirill, `o'`/`oʻ`, katta-kichik harf farqi yo'q; xato yozilsa ham («avatr») topadi |
@@ -63,14 +65,19 @@ Telegram'ning yangi rangli tugmalari. Eski Telegram versiyalarida tugmalar oddiy
 ## 👨‍💻 Admin panel
 
 ### 🎬 Kino qo'shish
+0. Avval **turini** tanlang: **🎬 Kino**, **🧸 Multfilm** yoki **🎵 Musiqa** — saytda shu bo'limda chiqadi.
 1. **Kod** yuboring (yoki «🆕 Avtomatik kod» tugmasi).
-2. **Video** yuboring (video yoki fayl; kanaldan forward qilsangiz ham bo'ladi).
+2. **Video** yuboring (video yoki fayl; kanaldan forward qilsangiz ham bo'ladi). Musiqa uchun — **audio**.
 3. **Nomi** → 4. **Ma'lumot** (janr, yil, til; o'tkazib yuborsa bo'ladi) → 5. **Poster** (ixtiyoriy).
 6. **✅ Saqlash** yoki **💎 Premium kino sifatida saqlash**.
 
 Saqlangach: **📢 Kanalga e'lon qilish** — kanalga poster + ma'lumot + yashil «🎬 Tomosha qilish» tugmali post joylanadi.
 
-💡 **Tezkor usul:** hech qanday bo'limga kirmasdan botga video yuboring (yoki forward qiling) — bot darhol kod so'raydi.
+💡 **Tezkor usul:** hech qanday bo'limga kirmasdan botga video yuboring (yoki forward qiling) — bot turini
+(kino/multfilm) so'raydi. Audio yuborsangiz — avtomatik 🎵 Musiqa bo'lib qo'shiladi.
+
+Eski kinolar yangilanishdan keyin avtomatik **🎬 Kino** turida qoladi. Turini o'zgartirish:
+**🗑️ Kino o'chirish** → kod → **🏷 Turini o'zgartirish**.
 
 ### 📺 Serial qo'shish
 1-qismni oddiy kino kabi qo'shing → **«➕ Keyingi qismni qo'shish»** → qolgan qismlarni ketma-ket
@@ -98,7 +105,13 @@ Bot kanalda admin ekanini tekshiradi, so'ng turini so'raydi:
 Istalgan xabarni yuboring (matn, rasm, video…) → ko'rinishini tekshiring →
 **🔘 Tugma qo'shish** (`Matn - https://havola`, bir qatorda bir nechta: `A - link | B - link`) →
 **🎯 Auditoriya** (hammaga / premiumsizlarga — reklama uchun / faqat premiumlarga) →
-**📤 Usul** (nusxa yoki forward) → **✅ Yuborish**. Jarayon jonli ko'rinadi, istalgan payt **⏹ To'xtatish** mumkin.
+**📤 Usul** (nusxa yoki forward) → **✅ Yuborish**.
+
+💎 **Premium emoji:** xabar matnida premium (animatsiyali) emoji ishlatsangiz, ular obunachilarga ham
+shunday boradi. Tugma matni boshiga premium emoji qo'ysangiz — u tugma ikonkasiga aylanadi.
+Shart: **bot egasi** (@BotFather'da botni yaratgan akkaunt) **Telegram Premium**'ga ega bo'lishi kerak.
+Tekshirish uchun botga **/emoji** yozing va premium emoji yuboring — bot qaytargan emoji animatsiyali
+bo'lsa, hammasi ishlayapti. Bu buyruq emoji ID raqamlarini ham ko'rsatadi. Jarayon jonli ko'rinadi, istalgan payt **⏹ To'xtatish** mumkin.
 Botni bloklaganlar avtomatik belgilanadi.
 
 ### 👮 Adminlar
@@ -167,6 +180,19 @@ chiqib ketmasligi uchun), `Dockerfile` esa bor.
 `start.bat` oynasini yoping. Kodni yangilash: GitHub'ga yangi fayllarni yuklang — Railway o'zi qayta joylaydi,
 baza Volume'da saqlanib qoladi.
 
+## 🌐 Saytni (Mini App) yoqish
+
+Sayt bot bilan birga ishlaydi, alohida hosting kerak emas. Faqat bot **HTTPS manzilga** ega bo'lishi kerak:
+
+- **Railway:** servis → **Settings → Networking → Generate Domain** (port so'ralsa: `8080`).
+  Railway `PORT` va `RAILWAY_PUBLIC_DOMAIN` ni o'zi qo'yadi — boshqa hech narsa shart emas. Qayta Deploy.
+- **VPS:** domen + HTTPS (masalan nginx/Caddy) orqali `PORT` ga yo'naltiring va `.env` ga yozing:
+  `WEBAPP_URL=https://sayt.domen.uz` va `PORT=8080`.
+- **Kompyuter (start.bat):** HTTPS manzil bo'lmagani uchun sayt o'chiq turadi, bot esa odatdagidek ishlaydi.
+
+Yoqilgach logda `🌐 Sayt ishga tushdi` chiqadi, foydalanuvchi menyusida **🌐 Sayt** tugmasi va
+**/sayt** buyrug'i paydo bo'ladi. Saytda majburiy obuna va Premium qoidalari botdagidek ishlaydi.
+
 ## 🔄 Botni yangilash (yangi versiya kelganda)
 
 Yangilanish arxivida `.env` bo'lmaydi — tokeningiz va bazangiz o'zgarmaydi.
@@ -232,6 +258,7 @@ bot.py            — ishga tushirish
 start.bat         — Windows uchun ishga tushirish
 start.sh          — Linux uchun ishga tushirish
 Dockerfile        — Railway / Docker uchun
-app/              — bot kodi (handlers/ — bo'limlar)
+app/              — bot kodi (handlers/ — bo'limlar, webapp.py — sayt serveri)
+app/web/          — sayt sahifasi (index.html)
 data/             — baza va loglar (avtomatik yaratiladi)
 ```

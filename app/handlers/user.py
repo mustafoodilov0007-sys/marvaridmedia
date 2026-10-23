@@ -12,7 +12,7 @@ from ..core import Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, ikb, nav_row, number_rows, user_menu
 from ..subscription import all_joined, channel_statuses, gate_view, needs_gate
 from ..telegram import BadRequest
-from ..texts import B, HELP_TEXT
+from ..texts import B, HELP_TEXT, cat_icon
 from ..utils import (esc, fmt_compact, fmt_num, fmt_short_date, fuzzy_match, normalize, now, render,
                      truncate, visible_len)
 
@@ -91,6 +91,22 @@ def btn_search(ctx: Ctx) -> None:
     ctx.send("🔎 <b>Kino qidirish</b>\n\n"
              "Kino <b>nomini</b> yoki <b>kodini</b> yozib yuboring 👇\n\n"
              "💡 Masalan: <code>Avatar</code> yoki <code>15</code>")
+
+
+@router.button(B.SITE)
+@router.command("sayt", "site")
+def btn_site(ctx: Ctx) -> None:
+    url = ctx.app.config.webapp_url
+    if not url:
+        ctx.send("🌐 Sayt hozircha ishga tushirilmagan. Tez orada!")
+        return
+    c = ctx.db.count_by_category()
+    ctx.send(f"🌐 <b>{esc(ctx.app.brand)} sayti</b>\n\n"
+             f"🎬 Kinolar: <b>{fmt_num(c['movie'])}</b>\n"
+             f"🧸 Multfilmlar: <b>{fmt_num(c['cartoon'])}</b>\n"
+             f"🎵 Musiqalar: <b>{fmt_num(c['music'])}</b>\n\n"
+             "Hammasi bir joyda — tanlang, bot darhol yuboradi 👇",
+             ikb([{"text": "🌐 Saytni ochish", "web_app": {"url": url}, "style": SUCCESS}]))
 
 
 @router.button(B.TOP)
@@ -207,6 +223,9 @@ def search_ids(app, norm: str):
 
 def fmt_item(r, extra: Optional[str] = None) -> str:
     title = esc(truncate(r["title"], 60))
+    category = r["category"] if "category" in r.keys() else "movie"
+    if category != "movie":
+        title = cat_icon(category) + " " + title
     if r["is_premium"]:
         title = "💎 " + title
     bits = []
@@ -352,7 +371,7 @@ def open_movie(ctx: Ctx, movie, extra_rows=None) -> None:
 
 
 def build_caption(app, movie, part, total: int) -> str:
-    head = f"🎬 <b>{esc(movie['title'])}</b>"
+    head = f"{cat_icon(movie['category'])} <b>{esc(movie['title'])}</b>"
     if total > 1:
         head += f"\n📺 <b>{esc(part_label(part))}</b>  <i>({total} qismdan)</i>"
     meta = f"🔢 Kod: <code>{movie['code']}</code>  •  👁 {fmt_num(movie['views'] + 1)}"
@@ -401,6 +420,8 @@ def send_part(ctx: Ctx, movie, part, total: int, extra_rows=None) -> None:
     try:
         if part["file_type"] == "video":
             ctx.bot.send_video(ctx.chat_id, part["file_id"], caption, kb, protect)
+        elif part["file_type"] == "audio":
+            ctx.bot.send_audio(ctx.chat_id, part["file_id"], caption, kb, protect)
         else:
             ctx.bot.send_document(ctx.chat_id, part["file_id"], caption=caption, reply_markup=kb,
                                   protect_content=protect)
@@ -500,7 +521,7 @@ def cb_parts_list(ctx: Ctx) -> None:
         return
     ctx.answer()
     msg = ctx.cb_message
-    if msg.get("video") or msg.get("document"):
+    if msg.get("video") or msg.get("document") or msg.get("audio"):
         send_parts_list(ctx, movie, parts, page)
     else:
         text, kb = parts_view(movie, parts, page)

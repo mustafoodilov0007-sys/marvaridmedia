@@ -269,12 +269,17 @@ def fuzzy_match(query: str, candidates: Iterable[Tuple[int, str]],
     return [i for _, i in scored[:limit]]
 
 
-def extract_media(msg: Optional[dict]) -> Optional[Tuple[str, str, str]]:
-    """Xabardan kino faylini oladi: (file_id, 'video'|'document', izoh)."""
+def extract_media(msg: Optional[dict], audio: bool = False) -> Optional[Tuple[str, str, str]]:
+    """Xabardan faylni oladi: (file_id, 'video'|'document'|'audio', izoh).
+    audio=True bo'lsa musiqa (audio) fayllari ham qabul qilinadi."""
     if not msg:
         return None
     if msg.get("video"):
         return msg["video"]["file_id"], "video", msg.get("caption") or ""
+    if audio and msg.get("audio"):
+        a = msg["audio"]
+        caption = msg.get("caption") or " - ".join(x for x in (a.get("performer"), a.get("title")) if x)
+        return a["file_id"], "audio", caption
     if msg.get("document"):
         return msg["document"]["file_id"], "document", msg.get("caption") or ""
     return None
@@ -313,9 +318,42 @@ def post_link(chat: dict, message_id: int) -> Optional[str]:
 
 # ───────────────────────── tugmalar matnini o'qish ─────────────────────────
 
-def parse_url_buttons(text: str) -> Tuple[Optional[List[List[dict]]], str]:
-    """«Matn - https://havola» qatorlaridan URL-tugmalar yasaydi. «|» — bir qatorda bir nechta."""
+_EMOJI_MARK = re.compile("\ue000(\\d+)\ue002(.*?)\ue001", re.S)
+
+
+def _utf16_index(text: str, offset: int) -> int:
+    """UTF-16 (Telegram) offsetini Python satr indeksiga o'giradi."""
+    units = 0
+    for i, ch in enumerate(text):
+        if units >= offset:
+            return i
+        units += 2 if ord(ch) > 0xFFFF else 1
+    return len(text)
+
+
+def mark_custom_emoji(text: str, entities: Optional[Sequence[dict]]) -> str:
+    """Premium (custom) emojilarni matnda belgilab qo'yadi — tugma ikonkasi qilish uchun."""
+    ems = [e for e in (entities or []) if e.get("type") == "custom_emoji" and e.get("custom_emoji_id")]
+    if not ems:
+        return text or ""
+    out = text
+    for e in sorted(ems, key=lambda e: e["offset"], reverse=True):
+        a = _utf16_index(out, e["offset"])
+        b = _utf16_index(out, e["offset"] + e["length"])
+        out = out[:a] + "\ue000" + str(e["custom_emoji_id"]) + "\ue002" + out[a:b] + "\ue001" + out[b:]
+    return out
+
+
+def count_custom_emoji(msg: Optional[dict]) -> int:
+    ents = (msg or {}).get("entities") or (msg or {}).get("caption_entities") or []
+    return sum(1 for e in ents if e.get("type") == "custom_emoji")
+
+
+def parse_url_buttons(text: str, entities: Optional[Sequence[dict]] = None) -> Tuple[Optional[List[List[dict]]], str]:
+    """«Matn - https://havola» qatorlaridan URL-tugmalar yasaydi. «|» — bir qatorda bir nechta.
+    Tugma matnidagi premium emoji tugma ikonkasiga aylanadi (icon_custom_emoji_id)."""
     rows: List[List[dict]] = []
+    text = mark_custom_emoji(text, entities)
     for line in (text or "").splitlines():
         line = line.strip()
         if not line:
@@ -327,11 +365,21 @@ def parse_url_buttons(text: str) -> Tuple[Optional[List[List[dict]]], str]:
             if not m:
                 return None, chunk
             label, url = m.group(1).strip(), m.group(2).strip()
+            url = _EMOJI_MARK.sub(lambda x: x.group(2), url)
+            icon = None
+            found = _EMOJI_MARK.search(label)
+            if found:
+                icon = found.group(1)
+                plain = _EMOJI_MARK.sub("", label).strip()
+                label = plain or _EMOJI_MARK.sub(lambda x: x.group(2), label).strip()
             if url.startswith("@"):
                 url = "https://t.me/" + url[1:]
             if not re.match(r"^(https?://|tg://)", url):
                 url = "https://" + url
-            row.append({"text": label[:64], "url": url, "style": "success"})
+            button = {"text": label[:64], "url": url, "style": "success"}
+            if icon:
+                button["icon_custom_emoji_id"] = icon
+            row.append(button)
         if row:
             rows.append(row[:8])
     if not rows:

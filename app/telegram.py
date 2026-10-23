@@ -111,6 +111,7 @@ class Bot:
         self.host = parts.hostname or "api.telegram.org"
         self.port = parts.port or (443 if self.scheme == "https" else 80)
         self.prefix = (parts.path or "").rstrip("/") + f"/bot{token}/"
+        self.file_prefix = (parts.path or "").rstrip("/") + f"/file/bot{token}/"
         self.timeout = timeout
         self.proxy = self._resolve_proxy(proxy)
         self._ssl = self._ssl_context() if self.scheme == "https" else None
@@ -258,6 +259,30 @@ class Bot:
                 continue
             raise _ERRORS.get(code, TelegramError)(method, code, desc, prm)
 
+    def download_file(self, file_path: str, timeout: float = 60, limit: int = 20 * 1024 * 1024) -> bytes:
+        """getFile bergan faylni yuklab oladi (posterlar uchun)."""
+        path = self.file_prefix + urllib.parse.quote(file_path)
+        if self.proxy and self.scheme == "http":
+            path = f"http://{self.host}:{self.port}{path}"
+        for attempt in (1, 2):
+            try:
+                conn = self._connection(timeout)
+                conn.request("GET", path, headers={"Connection": "keep-alive",
+                                                   "User-Agent": "MarvaridKinoBot/1.0"})
+                resp = conn.getresponse()
+                data = resp.read(limit + 1)
+                self._local.last = time.monotonic()
+            except (OSError, http.client.HTTPException) as exc:
+                self._drop()
+                if attempt == 1:
+                    continue
+                raise NetworkError("downloadFile", 0, f"{type(exc).__name__}: {exc}") from None
+            if resp.status != 200 or len(data) > limit:
+                self._drop()
+                raise TelegramError("downloadFile", resp.status, "Faylni yuklab bo'lmadi")
+            return data
+        raise NetworkError("downloadFile", 0, "Faylni yuklab bo'lmadi")
+
     def safe(self, method: str, params: Optional[Dict[str, Any]] = None, **kw):
         """Xatoni yutib yuboradigan chaqiruv (muhim bo'lmagan amallar uchun)."""
         try:
@@ -300,6 +325,11 @@ class Bot:
         params = {"chat_id": chat_id, "video": video, "caption": caption, "supports_streaming": True}
         params.update(self._common(reply_markup, protect_content))
         return self.call("sendVideo", params)
+
+    def send_audio(self, chat_id, audio, caption=None, reply_markup=None, protect_content=None):
+        params = {"chat_id": chat_id, "audio": audio, "caption": caption}
+        params.update(self._common(reply_markup, protect_content))
+        return self.call("sendAudio", params)
 
     def send_document(self, chat_id, document=None, caption=None, reply_markup=None,
                       protect_content=None, file: Optional[InputFile] = None):

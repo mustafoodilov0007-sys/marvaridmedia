@@ -70,9 +70,14 @@ def nav_row(prefix: str, page: int, pages: int) -> List[dict]:
     ]
 
 
-def user_menu(is_admin: bool, premium_on: bool) -> dict:
+# Sayt (Mini App) ishga tushganda webapp moduli True qiladi — menyuda «🌐 Sayt» tugmasi chiqadi
+SITE_ON = False
+
+
+def user_menu(is_admin: bool, premium_on: bool, site: Optional[bool] = None) -> dict:
+    site = SITE_ON if site is None else site
     rows = [
-        [rbtn(B.SEARCH, PRIMARY)],
+        [rbtn(B.SEARCH, PRIMARY), rbtn(B.SITE, SUCCESS)] if site else [rbtn(B.SEARCH, PRIMARY)],
         [rbtn(B.TOP, DANGER), rbtn(B.NEW, SUCCESS)],
         [rbtn(B.RANDOM, PRIMARY), rbtn(B.PREMIUM, SUCCESS)] if premium_on else [rbtn(B.RANDOM, PRIMARY)],
         [rbtn(B.DONATE, DANGER), rbtn(B.CONTACT, PRIMARY)],

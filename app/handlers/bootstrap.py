@@ -66,7 +66,10 @@ def seed_data(app: App) -> None:
 
 @router.on_startup
 def setup_commands(app: App) -> None:
-    app.bot.safe("setMyCommands", {"commands": USER_COMMANDS})
+    commands = list(USER_COMMANDS)
+    if app.config.webapp_url:
+        commands.insert(1, {"command": "sayt", "description": "🌐 Sayt: kinolar, multfilmlar, musiqalar"})
+    app.bot.safe("setMyCommands", {"commands": commands})
     for uid in app.admin_ids():
         app.bot.safe("setMyCommands", {"commands": ADMIN_COMMANDS, "scope": {"type": "chat", "chat_id": uid}})
 

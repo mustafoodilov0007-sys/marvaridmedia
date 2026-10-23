@@ -13,6 +13,7 @@ class B:
     DONATE = "💝 Qo'llab-quvvatlash"
     CONTACT = "✍️ Murojaat"
     ADMIN = "👨‍💻 Admin panel"
+    SITE = "🌐 Sayt"
 
     # admin menyusi
     ADD_MOVIE = "🎬 Kino qo'shish"
@@ -24,6 +25,22 @@ class B:
     PREMIUMS = "💎 Premiumlar"
     TEXTS = "⚙️ Matnlar"
     HOME = "🏠 Bosh menyu"
+
+
+# Kontent turlari: kod → (belgi, nomi, ko'plikda)
+CATEGORIES = {
+    "movie": ("🎬", "Kino", "Kinolar"),
+    "cartoon": ("🧸", "Multfilm", "Multfilmlar"),
+    "music": ("🎵", "Musiqa", "Musiqalar"),
+}
+
+
+def cat_icon(category: str) -> str:
+    return CATEGORIES.get(category or "movie", CATEGORIES["movie"])[0]
+
+
+def cat_name(category: str) -> str:
+    return CATEGORIES.get(category or "movie", CATEGORIES["movie"])[1]
 
 
 # Admin «⚙️ Matnlar» bo'limidan o'zgartiriladigan matnlar.
@@ -83,6 +100,7 @@ HELP_TEXT = (
     "🔥 <b>Top kinolar</b> — eng ko'p ko'rilganlar\n"
     "🆕 <b>Yangi kinolar</b> — yangi qo'shilganlar\n"
     "🎲 <b>Tasodifiy kino</b> — omadingizni sinab ko'ring\n"
+    "🌐 <b>Sayt</b> — kinolar, multfilmlar va musiqalar katalogi\n"
     "💎 <b>Premium</b> — majburiy obunasiz va reklamasiz\n"
     "💝 <b>Qo'llab-quvvatlash</b> — loyihamizga yordam\n"
     "✍️ <b>Murojaat</b> — kino so'rash yoki taklif yuborish"

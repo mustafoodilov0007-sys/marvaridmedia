@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS movies (
     norm_desc   TEXT    NOT NULL DEFAULT '',
     views       INTEGER NOT NULL DEFAULT 0,
     added_by    INTEGER,
-    created_at  INTEGER NOT NULL
+    created_at  INTEGER NOT NULL,
+    category    TEXT    NOT NULL DEFAULT 'movie'
 );
 CREATE INDEX IF NOT EXISTS idx_movies_views   ON movies(views);
 CREATE INDEX IF NOT EXISTS idx_movies_created ON movies(created_at);
@@ -127,8 +128,10 @@ CREATE TABLE IF NOT EXISTS payment_msgs (
 CREATE INDEX IF NOT EXISTS idx_payment_msgs ON payment_msgs(payment_id);
 """
 
+CATEGORIES = ("movie", "cartoon", "music")
+
 _MOVIE_ROW = """
-SELECT m.id, m.code, m.title, m.is_premium, m.views, m.created_at,
+SELECT m.id, m.code, m.title, m.is_premium, m.views, m.created_at, m.category,
        (SELECT COUNT(*) FROM parts p WHERE p.movie_id = m.id) AS parts
 FROM movies m
 """
@@ -147,6 +150,15 @@ class Database:
             self.conn.execute("PRAGMA synchronous=NORMAL")
             self.conn.execute("PRAGMA foreign_keys=ON")
             self.conn.executescript(SCHEMA)
+            self._migrate()
+
+    def _migrate(self) -> None:
+        """Eski bazaga yangi ustunlarni qo'shadi (ma'lumotlar saqlanib qoladi)."""
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(movies)").fetchall()}
+        if "category" not in cols:
+            # eski kinolarning hammasi «kino» turida qoladi
+            self.conn.execute("ALTER TABLE movies ADD COLUMN category TEXT NOT NULL DEFAULT 'movie'")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_movies_category ON movies(category, created_at)")
 
     # ───────── yordamchilar ─────────
 
@@ -309,14 +321,17 @@ class Database:
         return self.q1("SELECT * FROM movies WHERE code=?", (code,))
 
     def add_movie(self, code: int, title: str, description: str, poster_id: Optional[str],
-                  is_premium: bool, added_by: int, file_id: str, file_type: str) -> int:
+                  is_premium: bool, added_by: int, file_id: str, file_type: str,
+                  category: str = "movie") -> int:
         t = now()
+        if category not in CATEGORIES:
+            category = "movie"
         with self.tx() as c:
             cur = c.execute(
                 "INSERT INTO movies(code, title, description, poster_id, is_premium, norm_title, norm_desc,"
-                " added_by, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                " added_by, created_at, category) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (code, title, description or "", poster_id, 1 if is_premium else 0, normalize(title),
-                 normalize(description or ""), added_by, t))
+                 normalize(description or ""), added_by, t, category))
             movie_id = cur.lastrowid
             c.execute("INSERT INTO parts(movie_id, part_no, file_id, file_type, created_at) VALUES (?,?,?,?,?)",
                       (movie_id, 1, file_id, file_type, t))
@@ -410,6 +425,30 @@ class Database:
 
     def count_movies(self) -> int:
         return self.val("SELECT COUNT(*) FROM movies")
+
+    def count_by_category(self) -> Dict[str, int]:
+        out = {c: 0 for c in CATEGORIES}
+        for r in self.q("SELECT category, COUNT(*) AS n FROM movies GROUP BY category"):
+            out[r["category"] if r["category"] in out else "movie"] += r["n"]
+        return out
+
+    # ───────── sayt (Mini App) katalogi ─────────
+
+    def catalog(self, category: str, sort: str = "new", tokens: Optional[List[str]] = None,
+                limit: int = 30, offset: int = 0, movie_id: Optional[int] = None) -> List[sqlite3.Row]:
+        where = ["m.category=?"]
+        params: list = [category]
+        if movie_id is not None:
+            where.append("m.id=?")
+            params.append(movie_id)
+        for t in tokens or []:
+            where.append("(m.norm_title || ' ' || m.norm_desc) LIKE ? ESCAPE '\\'")
+            params.append(f"%{escape_like(t)}%")
+        order = "m.views DESC, m.id DESC" if sort == "top" else "m.created_at DESC, m.id DESC"
+        sql = ("SELECT m.id, m.code, m.title, m.description, m.is_premium, m.views, m.created_at,"
+               " m.category, m.poster_id, (SELECT COUNT(*) FROM parts p WHERE p.movie_id = m.id) AS parts"
+               f" FROM movies m WHERE {' AND '.join(where)} ORDER BY {order} LIMIT ? OFFSET ?")
+        return self.q(sql, params + [limit, offset])
 
     def count_premium_movies(self) -> int:
         return self.val("SELECT COUNT(*) FROM movies WHERE is_premium=1")
