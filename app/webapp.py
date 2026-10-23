@@ -66,6 +66,8 @@ def check_init_data(init_data: str, token: str, max_age: int = INIT_DATA_MAX_AGE
 
 # ═════════════════════════ API ═════════════════════════
 
+GUEST = {"id": 0, "first_name": ""}  # ilova / brauzer: premium huquqisiz mehmon
+
 def _poster_key(poster_id: Optional[str]) -> Optional[str]:
     return hashlib.sha1(poster_id.encode()).hexdigest()[:12] if poster_id else None
 
@@ -383,10 +385,15 @@ def make_handler(app: App):
                     if f is None:
                         return self._send(404, b"", "text/plain")
                     return self._send_file(f, "video/mp4" if f.suffix == ".mp4" else "image/jpeg")
-                if path.startswith("/api/"):
+                if path.startswith("/pub/"):
+                    # 📱 Ilova va oddiy brauzer uchun: Telegram'siz, faqat katalog (mehmon sifatida)
+                    path = "/api/" + path[5:]
+                    user = GUEST
+                elif path.startswith("/api/"):
                     user = self._user()
                     if not user:
                         return self._json({"ok": False, "reason": "auth"}, 401)
+                if path.startswith("/api/"):
                     if path == "/api/me":
                         return self._json(api_me(app, user))
                     if path == "/api/home":

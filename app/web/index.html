@@ -313,6 +313,9 @@
   "use strict";
   var tg = window.Telegram && window.Telegram.WebApp;
   var initData = tg ? tg.initData : "";
+  // Telegram'dan tashqarida (📱 ilova yoki brauzer) — mehmon rejimi: katalog ochiq, ko'rish Telegram botda
+  var PUB = !initData;
+  var APP = /MarvaridApp/.test(navigator.userAgent);
   var me = { bot: "", brand: "Marvarid Media", channel: null };
   var NAMES = { movie: "Kino", cartoon: "Multfilm", music: "Musiqa" };
   var PLURAL = { movie: "Kinolar", cartoon: "Multfilmlar", music: "Musiqalar" };
@@ -373,6 +376,7 @@
   }
   function api(path, opts) {
     opts = opts || {};
+    if (PUB) path = path.replace(/^\/api\//, "/pub/");
     opts.headers = Object.assign({ "X-Init-Data": initData }, opts.headers || {});
     return fetch(path, opts).then(function (r) {
       return r.json().catch(function () { return { ok: false, reason: "error" }; });
@@ -390,16 +394,17 @@
     document.documentElement.setAttribute("data-theme", t);
     $("bTheme").replaceChildren(icon(t === "dark" ? "sun" : "moon"));
     var c = t === "dark" ? "#0a0c13" : "#f5f6fb";
-    try { tg.setHeaderColor(c); tg.setBackgroundColor(c); tg.setBottomBarColor && tg.setBottomBarColor(c); } catch (e) {}
+    if (!PUB) { try { tg.setHeaderColor(c); tg.setBackgroundColor(c); tg.setBottomBarColor && tg.setBottomBarColor(c); } catch (e) {} }
+    try { window.MarvaridApp && window.MarvaridApp.setTheme(t); } catch (e) {}
   }
-  var theme = store.get("theme") || (tg && tg.colorScheme === "light" ? "light" : "dark");
+  var theme = store.get("theme") || (!PUB && tg && tg.colorScheme === "light" ? "light" : "dark");
   applyTheme(theme);
   $("bTheme").onclick = function () { haptic(); theme = theme === "dark" ? "light" : "dark"; store.set("theme", theme); applyTheme(theme); };
 
   // ───── saqlanganlar (Telegram CloudStorage + zaxira localStorage) ─────
   var saved = {};
   try { saved = JSON.parse(store.get("saved") || "{}") || {}; } catch (e) { saved = {}; }
-  var cloud = tg && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast("6.9") ? tg.CloudStorage : null;
+  var cloud = !PUB && tg && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast("6.9") ? tg.CloudStorage : null;
   function snap(it) {
     return { id: it.id, code: it.code, cat: it.cat, title: it.title, poster: it.poster, parts: it.parts,
              views: it.views, premium: it.premium, locked: it.locked, year: it.year, desc: (it.desc || "").slice(0, 300),
@@ -572,13 +577,20 @@
     return row;
   }
 
+  function openLink(url) {
+    if (!PUB && tg && tg.openTelegramLink) { try { tg.openTelegramLink(url); return; } catch (e) {} }
+    window.location.href = url;  // ilovada Telegram ilovasida ochiladi
+  }
+  function botLink(it) { return "https://t.me/" + me.bot + "?start=" + it.code; }
   function share(it) {
     haptic();
     if (!me.bot) return;
-    var link = "https://t.me/" + me.bot + "?start=" + it.code;
-    var url = "https://t.me/share/url?url=" + encodeURIComponent(link) +
-      "&text=" + encodeURIComponent("🎬 " + it.title + " — " + me.brand + " botida tomosha qiling!");
-    try { tg.openTelegramLink(url); } catch (e) { window.open(url, "_blank"); }
+    var text = "🎬 " + it.title + " — " + me.brand + " botida tomosha qiling!";
+    if (PUB && navigator.share) {
+      navigator.share({ title: it.title, text: text, url: botLink(it) }).catch(function () {});
+      return;
+    }
+    openLink("https://t.me/share/url?url=" + encodeURIComponent(botLink(it)) + "&text=" + encodeURIComponent(text));
   }
 
   // ───── sahifalar ─────
@@ -709,7 +721,8 @@
     var items = Object.keys(saved).map(function (k) { return saved[k]; })
       .sort(function (a, b) { return (b.t || 0) - (a.t || 0); });
     var page = h("div", "page", [h("h1", null, "Saqlanganlar"),
-      h("p", "lead", items.length ? items.length + " ta — Telegram akkauntingizda saqlanadi" : "")]);
+      h("p", "lead", items.length ? items.length + (PUB ? " ta — shu qurilmada saqlanadi" :
+        " ta — Telegram akkauntingizda saqlanadi") : "")]);
     if (!items.length) {
       page.appendChild(emptyBox("bookmark", "Hali hech narsa saqlanmagan",
         "Yoqqan kinoni 🔖 belgisi bilan saqlang — shu yerda turadi."));
@@ -906,6 +919,7 @@
       it.desc ? h("p", "desc", it.desc) : null,
       actionRow(it, false),
       h("div", "note", it.locked ? "Bu kontent Premium a'zolar uchun. Bot chatida Premium olish tugmasi chiqadi."
+        : PUB ? "«" + (it.cat === "music" ? "Tinglash" : "Ko'rish") + "» bosilsa, Telegram'da botimiz ochiladi va uni yuboradi."
         : "«" + (it.cat === "music" ? "Tinglash" : "Ko'rish") + "» bosilsa, bot uni chatga yuboradi.")
     );
     $("veil").classList.add("on");
@@ -926,13 +940,19 @@
   $("veil").onclick = closeSheet;
 
   function updateBack() {
-    if (!tg || !tg.BackButton) return;
+    if (PUB || !tg || !tg.BackButton) return;
     if (sheetOpen || current !== "home") tg.BackButton.show(); else tg.BackButton.hide();
   }
   if (tg && tg.BackButton) tg.BackButton.onClick(function () { if (sheetOpen) closeSheet(); else show("home"); });
 
   function watch(it, btn) {
     haptic("medium");
+    if (PUB) {
+      if (!me.bot) { toast("⏳ Biroz kuting..."); return; }
+      toast("📲 Telegram ochilmoqda...");
+      openLink(botLink(it));
+      return;
+    }
     btn.disabled = true;
     var old = Array.prototype.slice.call(btn.childNodes);
     btn.replaceChildren("Yuborilmoqda...");
@@ -969,7 +989,7 @@
   $("bSearch").appendChild(icon("search"));
   $("bSearch").onclick = function () { haptic(); show("search"); };
   $("bChannel").appendChild(icon("send"));
-  $("bChannel").onclick = function () { haptic(); if (me.channel) { try { tg.openTelegramLink(me.channel); } catch (e) { window.open(me.channel); } } };
+  $("bChannel").onclick = function () { haptic(); if (me.channel) openLink(me.channel); };
   var NAV = { home: ["home", "Asosiy"], movie: ["film", "Kinolar"], shorts: ["clap", "Shorts"],
               cartoon: ["smile", "Multfilm"], music: ["music", "Musiqa"], saved: ["bookmark", "Saqlangan"] };
   document.querySelectorAll(".nav button").forEach(function (b) {
@@ -997,9 +1017,15 @@
     }
   }
 
-  if (tg) { tg.ready(); tg.expand(); try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {} }
-  setAvatar(tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null);
-  if (!initData) { renderError($("view"), "auth"); return; }
+  if (tg && !PUB) { tg.ready(); tg.expand(); try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {} }
+  if (PUB) $("avatar").classList.add("hidden");
+  else setAvatar(tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null);
+  // 📱 Android ilovadagi «orqaga» tugmasi: true — sayt o'zi hal qildi, false — ilovadan chiqish
+  window.mmBack = function () {
+    if (sheetOpen) { closeSheet(); return true; }
+    if (current !== "home") { show("home"); return true; }
+    return false;
+  };
   api("/api/me").then(function (d) {
     if (!d.ok) return;
     me = d;

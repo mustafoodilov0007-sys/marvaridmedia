@@ -199,6 +199,18 @@ Sayt bot bilan birga ishlaydi, alohida hosting kerak emas. Faqat bot **HTTPS man
 Yoqilgach logda `🌐 Sayt ishga tushdi` chiqadi, foydalanuvchi menyusida **🌐 Sayt** tugmasi va
 **/sayt** buyrug'i paydo bo'ladi. Saytda majburiy obuna va Premium qoidalari botdagidek ishlaydi.
 
+## 📱 Android ilova
+
+`android/` papkasida — saytni ochadigan Android ilova (katalog, Shorts, qidiruv; «Ko'rish» bosilsa
+Telegram'da bot ochiladi va kinoni yuboradi). Kod GitHub'ga yuklanganda **GitHub Actions** APK'ni o'zi yig'adi:
+**GitHub → Releases → android-latest → MarvaridMedia.apk**.
+
+- Imzo kaliti GitHub Secrets'da bo'lsa (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) —
+  imzolangan APK va Play Market uchun **AAB** chiqadi. Bo'lmasa — sinov (debug) APK.
+- Sayt manzili: `android/app/build.gradle.kts` dagi `siteUrl`.
+- Play Market uchun ikonka: `android/play/icon-512.png`.
+- Sayt Telegram'dan tashqarida (ilova yoki brauzer) mehmon rejimida ishlaydi: `/pub/...` API.
+
 ## 🔄 Botni yangilash (yangi versiya kelganda)
 
 Yangilanish arxivida `.env` bo'lmaydi — tokeningiz va bazangiz o'zgarmaydi.
