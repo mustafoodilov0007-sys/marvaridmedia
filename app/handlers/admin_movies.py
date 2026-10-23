@@ -38,8 +38,34 @@ def _is_music(ctx: Ctx) -> bool:
     return _cat(ctx) == "music"
 
 
+def ask_file(ctx: Ctx) -> None:
+    """«🎬 Kino qo'shish» bosilganda — avval fayl so'raladi, turi keyin tanlanadi."""
+    ctx.set_state("am:file")
+    ctx.send("➕ <b>Yangi qo'shish</b>\n\n"
+             "📤 Faylni yuboring: <b>video</b>, <b>audio</b> yoki <b>fayl</b>.\n"
+             "Kanaldan forward qilsangiz ham bo'ladi.\n\n"
+             "So'ng bot turini so'raydi: 🎬 Kino, 🧸 Multfilm yoki 🎵 Musiqa.",
+             ikb([btn("⚡️ Ommaviy qo'shish (forward)", "am:bulk", style=PRIMARY)],
+                 [btn("❌ Bekor qilish", "cancel", style=DANGER)]))
+
+
+@router.state("am:file", admin=True)
+def st_file(ctx: Ctx) -> None:
+    media = extract_media(ctx.message, audio=True)
+    if not media:
+        ctx.send("❗️ Iltimos, <b>video</b>, <b>audio</b> yoki <b>fayl</b> yuboring.", cancel_kb())
+        return
+    ask_category(ctx, prefill=media)
+
+
+def category_rows(prefix: str) -> list:
+    return [[btn("🎬 Kino", f"{prefix}:movie", style=SUCCESS), btn("🧸 Multfilm", f"{prefix}:cartoon", style=PRIMARY),
+             btn("🎵 Musiqa", f"{prefix}:music", style=DANGER)],
+            [btn("❌ Bekor qilish", "cancel", style=DANGER)]]
+
+
 def ask_category(ctx: Ctx, prefill=None) -> None:
-    """«🎬 Kino qo'shish» bosilganda — avval turini tanlash."""
+    """Fayl qabul qilingach — turini tanlash: kino, multfilm yoki musiqa."""
     data = {}
     if prefill:
         data = {"file_id": prefill[0], "file_type": prefill[1], "caption": prefill[2]}
@@ -47,14 +73,10 @@ def ask_category(ctx: Ctx, prefill=None) -> None:
     if prefill and prefill[1] == "audio":
         head = "🎵 <b>Audio qabul qilindi!</b>"
     elif prefill:
-        head = "📹 <b>Video qabul qilindi!</b>"
+        head = "📹 <b>Fayl qabul qilindi!</b>"
     else:
-        head = "➕ <b>Yangi kontent qo'shish</b>"
-    rows = [[btn("🎬 Kino", "am:cat:movie", style=SUCCESS), btn("🧸 Multfilm", "am:cat:cartoon", style=PRIMARY)]]
-    if not prefill or prefill[1] != "video":
-        rows.append([btn("🎵 Musiqa", "am:cat:music", style=PRIMARY)])
-    rows.append([btn("❌ Bekor qilish", "cancel", style=DANGER)])
-    ctx.send(f"{head}\n\nNimani qo'shamiz? Turini tanlang 👇", ikb(*rows))
+        head = "➕ <b>Yangi qo'shish</b>"
+    ctx.send(f"{head}\n\nBu nima? Turini tanlang 👇", ikb(*category_rows("am:cat")))
 
 
 def start_add(ctx: Ctx, prefill=None, category: str = "movie") -> None:
@@ -84,7 +106,7 @@ def start_add(ctx: Ctx, prefill=None, category: str = "movie") -> None:
 
 @router.button(B.ADD_MOVIE, admin=True)
 def btn_add_movie(ctx: Ctx) -> None:
-    ask_category(ctx)
+    ask_file(ctx)
 
 
 def admin_media_shortcut(ctx: Ctx) -> bool:
@@ -92,10 +114,7 @@ def admin_media_shortcut(ctx: Ctx) -> bool:
     media = extract_media(ctx.message, audio=True)
     if not media:
         return False
-    if media[1] == "audio":
-        start_add(ctx, prefill=media, category="music")
-    else:
-        ask_category(ctx, prefill=media)
+    ask_category(ctx, prefill=media)
     return True
 
 
@@ -265,8 +284,7 @@ def save_movie(ctx: Ctx, premium: bool) -> None:
              f"🔗 Havola: {esc(ctx.app.deep_link(d['code']))}",
              ikb([btn("📢 Kanalga e'lon qilish", f"an:{movie_id}", style=SUCCESS)],
                  [btn("➕ Keyingi qismni qo'shish", f"am:addpart:{movie_id}", style=PRIMARY)],
-                 [btn(f"{cat_icon(cat)} Yana {cat_name(cat).lower()} qo'shish", f"am:cat:{cat}",
-                      style=SUCCESS)]))
+                 [btn("➕ Yana qo'shish", "am:new", style=SUCCESS)]))
 
 
 def throttled_status(ctx: Ctx, state: str, text: str, kb, interval: float) -> None:
@@ -421,6 +439,17 @@ def cb_add_movie(ctx: Ctx) -> None:
     state = ctx.state
     if action == "bulk":
         ctx.answer()
+        if state == "am:code":
+            start_bulk(ctx)
+        else:
+            ctx.set_state("am:bulkcat")
+            ctx.send("⚡️ <b>Ommaviy qo'shish</b>\n\nNimalarni forward qilasiz? Turini tanlang 👇",
+                     ikb(*category_rows("am:bulkcat")))
+        return
+    if action == "bulkcat":
+        cat = parts[2] if len(parts) > 2 and parts[2] in CATEGORIES else "movie"
+        ctx.answer(f"{cat_icon(cat)} {cat_name(cat)}")
+        ctx.set_state("am:bulkcat", cat=cat)
         start_bulk(ctx)
         return
     if action == "bulkdone":
@@ -443,7 +472,7 @@ def cb_add_movie(ctx: Ctx) -> None:
         if state == "am:code" or prefill:
             start_add(ctx, prefill, _cat(ctx))
         else:
-            ask_category(ctx)
+            ask_file(ctx)
     elif action == "auto":
         if state != "am:code":
             _stale(ctx)
