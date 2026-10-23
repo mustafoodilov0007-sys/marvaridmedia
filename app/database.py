@@ -438,19 +438,29 @@ class Database:
         by_id = {r["id"]: r for r in rows}
         return [by_id[i] for i in ids if i in by_id]
 
-    def search_candidates(self, tokens: List[str], limit: int = 400) -> List[sqlite3.Row]:
+    @staticmethod
+    def _scope_sql(scope: Optional[str]) -> str:
+        """scope: None — hammasi, 'video' — kino va multfilmlar, 'music' — faqat musiqa."""
+        if scope == "video":
+            return " AND category<>'music'"
+        if scope == "music":
+            return " AND category='music'"
+        return ""
+
+    def search_candidates(self, tokens: List[str], limit: int = 400, scope: Optional[str] = None) -> List[sqlite3.Row]:
         if not tokens:
             return []
         where = " AND ".join(["(norm_title || ' ' || norm_desc) LIKE ? ESCAPE '\\'"] * len(tokens))
         params = [f"%{escape_like(t)}%" for t in tokens] + [limit]
-        return self.q(f"SELECT id, norm_title, views FROM movies WHERE {where} LIMIT ?", params)
+        return self.q(f"SELECT id, norm_title, views FROM movies WHERE {where}{self._scope_sql(scope)} LIMIT ?",
+                      params)
 
     def find_title(self, norm_title: str, category: str) -> Optional[sqlite3.Row]:
         return self.q1("SELECT id, code, title FROM movies WHERE norm_title=? AND category=? LIMIT 1",
                        (norm_title, category))
 
-    def all_titles(self) -> List[sqlite3.Row]:
-        return self.q("SELECT id, norm_title FROM movies")
+    def all_titles(self, scope: Optional[str] = None) -> List[sqlite3.Row]:
+        return self.q("SELECT id, norm_title FROM movies WHERE 1=1" + self._scope_sql(scope))
 
     # Top / Yangi / Tasodifiy — faqat kino va multfilmlar (musiqa alohida bo'limda)
     def top_movies(self, limit: int, include_premium: bool = True) -> List[sqlite3.Row]:

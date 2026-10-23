@@ -186,7 +186,14 @@ def handle_query(ctx: Ctx, raw: str) -> None:
     if len(norm.replace(" ", "")) < 2:
         ctx.send("🔎 Qidirish uchun kamida <b>2 ta harf</b> yozing.")
         return
-    ids, fuzzy = search_ids(app, norm)
+    ids, fuzzy = search_ids(app, norm, "video")
+    music_ids, _ = search_ids(app, norm, "music", fuzzy_ok=False)
+    if (not ids or fuzzy) and music_ids:
+        # faqat qo'shiq topildi — to'g'ridan-to'g'ri qo'shiqlar ro'yxati
+        sid = db.log_search(ctx.user_id, text, norm, len(music_ids))
+        page_text, kb = music_search_view(app, sid, text, music_ids, 0)
+        ctx.send(page_text, kb)
+        return
     sid = db.log_search(ctx.user_id, text, norm, 0 if fuzzy else len(ids))
     if not ids:
         ctx.send(f"😔 <b>«{esc(truncate(text, 50))}»</b> bo'yicha hech narsa topilmadi.\n\n"
@@ -196,7 +203,7 @@ def handle_query(ctx: Ctx, raw: str) -> None:
                  "• Kerakli kinoni «✍️ Kino so'rash» orqali so'rang", not_found_kb())
         return
     app.cache_search(sid, (text, ids, fuzzy))
-    page_text, kb = search_view(app, sid, text, ids, fuzzy, 0)
+    page_text, kb = search_view(app, sid, text, ids, fuzzy, 0, len(music_ids))
     ctx.send(page_text, kb)
 
 
@@ -205,10 +212,11 @@ def not_found_kb() -> dict:
                [btn("✍️ Kino so'rash", "ct:start", style=DANGER)])
 
 
-def search_ids(app, norm: str):
-    """(id lar ro'yxati, taxminiy_natijami) qaytaradi."""
+def search_ids(app, norm: str, scope: Optional[str] = None, fuzzy_ok: bool = True):
+    """(id lar ro'yxati, taxminiy_natijami) qaytaradi.
+    scope: None — hammasi, 'video' — kino va multfilmlar, 'music' — faqat qo'shiqlar."""
     tokens = norm.split()
-    rows = app.db.search_candidates(tokens)
+    rows = app.db.search_candidates(tokens, scope=scope)
     if rows:
         scored = []
         for r in rows:
@@ -226,7 +234,9 @@ def search_ids(app, norm: str):
             scored.append((score, -r["views"], -r["id"], r["id"]))
         scored.sort()
         return [x[3] for x in scored[:MAX_RESULTS]], False
-    titles = [(r["id"], r["norm_title"]) for r in app.db.all_titles()]
+    if not fuzzy_ok:
+        return [], False
+    titles = [(r["id"], r["norm_title"]) for r in app.db.all_titles(scope)]
     return fuzzy_match(norm, titles, limit=30), True
 
 
@@ -264,7 +274,7 @@ def build_list(header: str, rows, start_no: int, page: int, pages: int, page_pre
     return "\n".join(lines), {"inline_keyboard": kb_rows}
 
 
-def search_view(app, sid: int, query: str, ids: List[int], fuzzy: bool, page: int):
+def search_view(app, sid: int, query: str, ids: List[int], fuzzy: bool, page: int, music_found: int = 0):
     total = len(ids)
     pages = max(1, math.ceil(total / PER_PAGE))
     page %= pages
@@ -275,7 +285,40 @@ def search_view(app, sid: int, query: str, ids: List[int], fuzzy: bool, page: in
                   "💡 Balki shulardan birini nazarda tutgandirsiz:")
     else:
         header = f"🔎 <b>«{q}»</b> bo'yicha <b>{total}</b> ta natija:"
-    return build_list(header, rows, page * PER_PAGE, page, pages, f"sp:{sid}", fmt_item)
+    text, kb = build_list(header, rows, page * PER_PAGE, page, pages, f"sp:{sid}", fmt_item)
+    if music_found:
+        kb["inline_keyboard"].insert(-1, [btn(f"🎵 Qo'shiqlardan ham topildi: {music_found} ta", f"ms:{sid}:0",
+                                              style=SUCCESS)])
+    return text, kb
+
+
+def music_search_view(app, sid: int, query: str, ids: List[int], page: int):
+    total = len(ids)
+    pages = max(1, math.ceil(total / PER_PAGE))
+    page %= pages
+    rows = app.db.movie_rows(ids[page * PER_PAGE:(page + 1) * PER_PAGE])
+    header = f"🎵 <b>«{esc(truncate(query, 40))}»</b> — qo'shiqlar: <b>{total}</b> ta"
+    return build_list(header, rows, page * PER_PAGE, page, pages, f"ms:{sid}", fmt_item, hint="👇 Tanlang:")
+
+
+@router.callback("ms", gate=True)
+def cb_music_search(ctx: Ctx) -> None:
+    try:
+        _, sid, page = ctx.data.split(":")
+        sid, page = int(sid), int(page)
+    except ValueError:
+        return
+    row = ctx.db.get_search(sid)
+    if not row:
+        ctx.answer("⌛️ Qidiruv eskirgan. Nomini qaytadan yozing.", alert=True)
+        return
+    ids, _ = search_ids(ctx.app, row["norm"], "music", fuzzy_ok=False)
+    if not ids:
+        ctx.answer("😔 Qo'shiq topilmadi", alert=True)
+        return
+    text, kb = music_search_view(ctx.app, sid, row["query"], ids, page)
+    ctx.answer()
+    edit_or_send(ctx, text, kb)
 
 
 @router.callback("sp", gate=True)
@@ -291,14 +334,15 @@ def cb_search_page(ctx: Ctx) -> None:
         if not row:
             ctx.answer("⌛️ Qidiruv eskirgan. Kino nomini qaytadan yozing.", alert=True)
             return
-        ids, fuzzy = search_ids(ctx.app, row["norm"])
+        ids, fuzzy = search_ids(ctx.app, row["norm"], "video")
         cached = (row["query"], ids, fuzzy)
         ctx.app.cache_search(sid, cached)
     query, ids, fuzzy = cached
     if not ids:
         ctx.answer("😔 Natija qolmadi", alert=True)
         return
-    text, kb = search_view(ctx.app, sid, query, ids, fuzzy, page)
+    music_n = len(search_ids(ctx.app, normalize(query), "music", fuzzy_ok=False)[0])
+    text, kb = search_view(ctx.app, sid, query, ids, fuzzy, page, music_n)
     ctx.answer()
     edit_or_send(ctx, text, kb)
 
