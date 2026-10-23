@@ -84,6 +84,12 @@ Eski kinolar yangilanishdan keyin avtomatik **🎬 Kino** turida qoladi. Turini 
 yuboring (birdaniga forward qilsa ham bo'ladi) — avtomatik 2-, 3-, 4-qism bo'lib saqlanadi → **🏁 Tugatish**.
 Band kodni yuborsangiz ham bot o'sha kinoga qism qo'shishni taklif qiladi.
 
+### 🎞 Shorts (saytda)
+**🗑️ Kino o'chirish** → kod → **🎞 Shorts qo'shish** → qisqa **video** (treyler, parcha) yoki **rasm** yuboring
+(bir nechtasini ketma-ket ham bo'ladi) → **🏁 Tugatish**. Kino saqlangandan keyin chiqadigan tugma orqali ham qo'shsa bo'ladi.
+Saytdagi **Shorts** bo'limida TikTok kabi tepaga surib ko'riladi, «▶ To'liq ko'rish» bosilsa bot kinoni yuboradi.
+Video **20 MB** dan kichik bo'lsin (Telegram bot kattaroq faylni saytga bera olmaydi).
+
 ### ⚡️ Eski kinolarni tez ko'chirish (ommaviy qo'shish)
 **🎬 Kino qo'shish → ⚡️ Ommaviy qo'shish** → kanal/guruhdan kinolarni birdaniga forward qiling.
 Bot har bir post izohidan **kodni** (`Kod: 45`, `Kino kodi: 45`, `#45`) va **nomni** (birinchi qator)

@@ -155,6 +155,8 @@ def api_home(app: App, user: dict) -> dict:
              "items": pack(db.catalog("music", "new", None, 15))},
         ],
         "counts": db.count_by_category(),
+        "shorts": [dict(_item(r, premium_on, vip), short={"id": r["short_id"], "kind": r["short_kind"]})
+                   for r in db.shorts_feed(SHORTS_PAGE, 0)],
     }
 
 
@@ -237,10 +239,60 @@ def poster_bytes(app: App, movie_id: int, cache_dir: Path) -> Optional[bytes]:
     return data
 
 
+# ═════════════════════════ 🎞 Shorts ═════════════════════════
+
+SHORTS_PAGE = 8
+_short_locks: dict = {}
+_short_locks_guard = threading.Lock()
+
+
+def api_shorts(app: App, user: dict, qs: dict) -> dict:
+    try:
+        offset = max(0, int(qs.get("offset", "0")))
+    except ValueError:
+        offset = 0
+    _, vip = _user_flags(app, user["id"])
+    premium_on = app.setting_bool("premium_enabled")
+    rows = app.db.shorts_feed(SHORTS_PAGE + 1, offset)
+    items = []
+    for r in rows[:SHORTS_PAGE]:
+        it = _item(r, premium_on, vip)
+        it["short"] = {"id": r["short_id"], "kind": r["short_kind"]}
+        items.append(it)
+    return {"ok": True, "items": items, "more": len(rows) > SHORTS_PAGE}
+
+
+def short_file(app: App, short_id: int, folder: Path) -> Optional[Path]:
+    """Shorts faylini Telegram'dan bir marta yuklab, diskda saqlaydi."""
+    short = app.db.get_short(short_id)
+    if not short:
+        return None
+    path = folder / (f"{short_id}.mp4" if short["kind"] == "video" else f"{short_id}.jpg")
+    if path.exists():
+        return path
+    with _short_locks_guard:
+        lock = _short_locks.setdefault(short_id, threading.Lock())
+    with lock:  # bir vaqtda kelgan so'rovlar faylni ikki marta yuklamasin
+        if path.exists():
+            return path
+        try:
+            info = app.bot.call("getFile", {"file_id": short["file_id"]})
+            data = app.bot.download_file(info["file_path"])
+        except (TelegramError, KeyError) as exc:
+            log.warning("Shorts yuklanmadi (%s): %s", short_id, exc)
+            return None
+        folder.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(f".{threading.get_ident()}.tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
+    return path
+
+
 # ═════════════════════════ HTTP server ═════════════════════════
 
 def make_handler(app: App):
     cache_dir = Path(app.config.db_path).parent / "posters"
+    shorts_dir = Path(app.config.db_path).parent / "shorts"
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "MarvaridWeb/1.0"
@@ -264,6 +316,47 @@ def make_handler(app: App):
             self._send(status, json.dumps(obj, ensure_ascii=False).encode("utf-8"),
                        "application/json; charset=utf-8")
 
+        def _send_file(self, path: Path, ctype: str) -> None:
+            """Faylni Range (bo'lib-bo'lib) so'rovlarini qo'llab yuboradi — video ijrosi uchun kerak."""
+            size = path.stat().st_size
+            start, end, status = 0, size - 1, 200
+            rng = self.headers.get("Range", "")
+            m = re.fullmatch(r"bytes=(\d*)-(\d*)", rng.strip())
+            if m and size:
+                a, b = m.group(1), m.group(2)
+                if a:
+                    start = int(a)
+                    end = min(int(b), size - 1) if b else size - 1
+                elif b:
+                    start = max(0, size - int(b))
+                if start > end or start >= size:
+                    self.send_response(416)
+                    self.send_header("Content-Range", f"bytes */{size}")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                status = 206
+            length = end - start + 1
+            self.send_response(status)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Content-Length", str(length))
+            self.send_header("Cache-Control", "public, max-age=604800, immutable")
+            if status == 206:
+                self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+            self.end_headers()
+            if self.command == "HEAD":
+                return
+            with open(path, "rb") as f:
+                f.seek(start)
+                left = length
+                while left > 0:
+                    chunk = f.read(min(65536, left))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    left -= len(chunk)
+
         def _user(self) -> Optional[dict]:
             return check_init_data(self.headers.get("X-Init-Data", ""), app.config.token)
 
@@ -284,6 +377,12 @@ def make_handler(app: App):
                     if data is None:
                         return self._send(404, b"", "text/plain")
                     return self._send(200, data, "image/jpeg", "public, max-age=604800, immutable")
+                m = re.fullmatch(r"/media/short/(\d+)", path)
+                if m:
+                    f = short_file(app, int(m.group(1)), shorts_dir)
+                    if f is None:
+                        return self._send(404, b"", "text/plain")
+                    return self._send_file(f, "video/mp4" if f.suffix == ".mp4" else "image/jpeg")
                 if path.startswith("/api/"):
                     user = self._user()
                     if not user:
@@ -294,6 +393,8 @@ def make_handler(app: App):
                         return self._json(api_home(app, user))
                     if path == "/api/catalog":
                         return self._json(api_catalog(app, user, qs))
+                    if path == "/api/shorts":
+                        return self._json(api_shorts(app, user, qs))
                 return self._send(404, b"Not found", "text/plain")
             except (BrokenPipeError, ConnectionResetError):
                 pass

@@ -284,6 +284,7 @@ def save_movie(ctx: Ctx, premium: bool) -> None:
              f"🔗 Havola: {esc(ctx.app.deep_link(d['code']))}",
              ikb([btn("📢 Kanalga e'lon qilish", f"an:{movie_id}", style=SUCCESS)],
                  [btn("➕ Keyingi qismni qo'shish", f"am:addpart:{movie_id}", style=PRIMARY)],
+                 [btn("🎞 Shorts qo'shish (saytda)", f"dm:shadd:{movie_id}", style=PRIMARY)],
                  [btn("➕ Yana qo'shish", "am:new", style=SUCCESS)]))
 
 
@@ -610,6 +611,8 @@ def manage_view(ctx: Ctx, movie):
     if ctx.app.setting_bool("premium_enabled") or movie["is_premium"]:
         rows.append([btn("🆓 Oddiy qilish" if movie["is_premium"] else "💎 Premium qilish",
                          f"dm:prem:{mid}", style=PRIMARY)])
+    n_shorts = ctx.db.count_shorts(mid)
+    rows.append([btn(f"🎞 Shorts ({n_shorts})" if n_shorts else "🎞 Shorts qo'shish", f"dm:sh:{mid}", style=SUCCESS)])
     rows.append([btn("➕ Qism qo'shish", f"am:addpart:{mid}", style=SUCCESS),
                  btn("📢 E'lon qilish", f"an:{mid}", style=PRIMARY)])
     rows.append([btn("❌ Yopish", "x", style=DANGER)])
@@ -696,7 +699,12 @@ def cb_manage(ctx: Ctx) -> None:
         return
     mid = movie["id"]
     if action == "open":
-        ctx.answer()
+        if ctx.state == "dm:short":
+            added = int(ctx.sdata.get("added") or 0)
+            ctx.clear_state()
+            ctx.answer(f"🏁 Tayyor! {added} ta shorts qo'shildi" if added else "🏁 Tayyor")
+        else:
+            ctx.answer()
         send_manage(ctx, movie, edit=True)
     elif action == "del":
         ctx.answer()
@@ -718,6 +726,30 @@ def cb_manage(ctx: Ctx) -> None:
         rows = number_rows([(p["part_no"], f"dm:pdel:{p['id']}") for p in plist[:50]], style=DANGER)
         rows.append([btn("⬅️ Orqaga", f"dm:open:{mid}", style=DANGER)])
         ctx.edit("\n".join(lines), {"inline_keyboard": rows})
+    elif action == "sh":
+        ctx.answer()
+        n = db.count_shorts(mid)
+        rows = [[btn("➕ Shorts qo'shish", f"dm:shadd:{mid}", style=SUCCESS)]]
+        if n:
+            rows.append([btn(f"🗑 Shortslarni o'chirish ({n})", f"dm:shdel:{mid}", style=DANGER)])
+        rows.append([btn("⬅️ Orqaga", f"dm:open:{mid}", style=PRIMARY)])
+        ctx.edit(f"🎞 <b>Shorts</b> — {esc(movie['title'])}\n\n"
+                 f"Hozir: <b>{n}</b> ta.\n\n"
+                 "Shorts saytdagi «Shorts» bo'limida chiqadi: foydalanuvchi qisqa videoni (treyler) yoki "
+                 "rasmni ko'radi va «▶ To'liq ko'rish» bosib kinoni oladi.", ikb(*rows))
+    elif action == "shadd":
+        ctx.answer()
+        ctx.set_state("dm:short", ttl=6 * 3600, movie_id=mid, added=0)
+        ctx.send(f"🎞 <b>{esc(movie['title'])}</b> — shorts qo'shish\n\n"
+                 "Qisqa <b>video</b> (treyler, parcha) yoki <b>rasm</b> (poster, kadr) yuboring.\n"
+                 "Bir nechtasini ketma-ket yuborsangiz ham bo'ladi.\n\n"
+                 "⚠️ Video <b>20 MB</b> dan kichik bo'lsin (1 daqiqagacha bo'lgani yaxshi) — "
+                 "kattasini Telegram saytga bera olmaydi.", shorts_done_kb(mid))
+    elif action == "shdel":
+        ids = db.delete_shorts(mid)
+        _drop_short_files(ctx, ids)
+        ctx.answer(f"🗑 {len(ids)} ta shorts o'chirildi")
+        send_manage(ctx, db.get_movie(mid), edit=True)
     elif action == "cat":
         order = list(CATEGORIES)
         cur = movie["category"] if movie["category"] in order else "movie"
@@ -739,6 +771,67 @@ def cb_manage(ctx: Ctx) -> None:
         }[action]
         ctx.set_state(state, movie_id=mid)
         ctx.send(f"🎬 <b>{esc(movie['title'])}</b>\n\n{prompt}", cancel_kb())
+
+
+SHORT_LIMIT = 20 * 1024 * 1024  # Telegram bot API shundan katta faylni yuklab berolmaydi
+
+
+def shorts_done_kb(movie_id: int) -> dict:
+    return ikb([btn("🏁 Tugatish", f"dm:open:{movie_id}", style=SUCCESS)])
+
+
+def _drop_short_files(ctx: Ctx, ids) -> None:
+    folder = ctx.db.path.parent / "shorts"
+    for sid in ids:
+        for f in folder.glob(f"{int(sid)}.*"):
+            try:
+                f.unlink()
+            except OSError:
+                pass
+
+
+def extract_short(msg: dict):
+    """Xabardan shorts uchun media: (file_id, 'video'|'photo', hajmi)."""
+    if msg.get("photo"):
+        p = msg["photo"][-1]
+        return p["file_id"], "photo", p.get("file_size") or 0
+    for key in ("video", "animation"):
+        if msg.get(key):
+            v = msg[key]
+            return v["file_id"], "video", v.get("file_size") or 0
+    doc = msg.get("document") or {}
+    mime = doc.get("mime_type") or ""
+    if mime.startswith("video/"):
+        return doc["file_id"], "video", doc.get("file_size") or 0
+    if mime.startswith("image/"):
+        return doc["file_id"], "photo", doc.get("file_size") or 0
+    return None
+
+
+@router.state("dm:short", admin=True)
+def st_short(ctx: Ctx) -> None:
+    movie = ctx.db.get_movie(ctx.sdata.get("movie_id") or 0)
+    if not movie:
+        ctx.clear_state()
+        ctx.send("😔 Kino topilmadi (o'chirilgan bo'lishi mumkin).")
+        return
+    media = extract_short(ctx.message)
+    if not media:
+        ctx.send("❗️ Qisqa <b>video</b> yoki <b>rasm</b> yuboring. Tugatish uchun «🏁 Tugatish».",
+                 shorts_done_kb(movie["id"]))
+        return
+    file_id, kind, size = media
+    if size > SHORT_LIMIT:
+        ctx.send(f"❌ Video juda katta ({size // (1024 * 1024)} MB). <b>20 MB</b> dan kichik video yuboring — "
+                 "masalan, kinodan 30–60 soniyalik parcha.", shorts_done_kb(movie["id"]))
+        return
+    ctx.db.add_short(movie["id"], file_id, kind)
+    added = int(ctx.sdata.get("added") or 0) + 1
+    ctx.goto("dm:short", ttl=6 * 3600, added=added)
+    what = "🎬 Video" if kind == "video" else "🖼 Rasm"
+    ctx.send(f"✅ {what} shortsga qo'shildi! ({esc(truncate(movie['title'], 40))})\n"
+             f"Bu safar: <b>{added}</b> ta, jami: <b>{ctx.db.count_shorts(movie['id'])}</b> ta.\n\n"
+             "Yana yuboring yoki «🏁 Tugatish» ni bosing.", shorts_done_kb(movie["id"]))
 
 
 def _edit_target(ctx: Ctx):

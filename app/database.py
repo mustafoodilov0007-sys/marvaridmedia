@@ -54,6 +54,15 @@ CREATE TABLE IF NOT EXISTS parts (
     UNIQUE (movie_id, part_no)
 );
 
+CREATE TABLE IF NOT EXISTS shorts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    movie_id   INTEGER NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+    file_id    TEXT    NOT NULL,
+    kind       TEXT    NOT NULL,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_shorts_movie ON shorts(movie_id);
+
 CREATE TABLE IF NOT EXISTS channels (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
     chat_id  TEXT,
@@ -364,6 +373,7 @@ class Database:
 
     def delete_movie(self, movie_id: int) -> None:
         with self.tx() as c:
+            c.execute("DELETE FROM shorts WHERE movie_id=?", (movie_id,))
             c.execute("DELETE FROM parts WHERE movie_id=?", (movie_id,))
             c.execute("DELETE FROM movies WHERE id=?", (movie_id,))
 
@@ -397,6 +407,7 @@ class Database:
             for i, r in enumerate(rows, 1):
                 c.execute("UPDATE parts SET part_no=? WHERE id=?", (i, r["id"]))
             if not rows:
+                c.execute("DELETE FROM shorts WHERE movie_id=?", (p["movie_id"],))
                 c.execute("DELETE FROM movies WHERE id=?", (p["movie_id"],))
             return len(rows)
 
@@ -443,6 +454,36 @@ class Database:
         for r in self.q("SELECT category, COUNT(*) AS n FROM movies GROUP BY category"):
             out[r["category"] if r["category"] in out else "movie"] += r["n"]
         return out
+
+    # ───────── shorts (qisqa video / rasm) ─────────
+
+    def add_short(self, movie_id: int, file_id: str, kind: str) -> int:
+        return self.x("INSERT INTO shorts(movie_id, file_id, kind, created_at) VALUES (?,?,?,?)",
+                      (movie_id, file_id, kind, now())).lastrowid
+
+    def get_short(self, short_id: int) -> Optional[sqlite3.Row]:
+        return self.q1("SELECT * FROM shorts WHERE id=?", (short_id,))
+
+    def count_shorts(self, movie_id: Optional[int] = None) -> int:
+        if movie_id is None:
+            return self.val("SELECT COUNT(*) FROM shorts")
+        return self.val("SELECT COUNT(*) FROM shorts WHERE movie_id=?", (movie_id,))
+
+    def movie_shorts(self, movie_id: int) -> List[sqlite3.Row]:
+        return self.q("SELECT * FROM shorts WHERE movie_id=? ORDER BY id", (movie_id,))
+
+    def delete_shorts(self, movie_id: int) -> List[int]:
+        ids = [r[0] for r in self.q("SELECT id FROM shorts WHERE movie_id=?", (movie_id,))]
+        self.x("DELETE FROM shorts WHERE movie_id=?", (movie_id,))
+        return ids
+
+    def shorts_feed(self, limit: int = 10, offset: int = 0) -> List[sqlite3.Row]:
+        return self.q(
+            "SELECT s.id AS short_id, s.kind AS short_kind, m.id, m.code, m.title, m.description, m.is_premium,"
+            " m.views, m.created_at, m.category, m.poster_id,"
+            " (SELECT COUNT(*) FROM parts p WHERE p.movie_id = m.id) AS parts"
+            " FROM shorts s JOIN movies m ON m.id = s.movie_id ORDER BY s.id DESC LIMIT ? OFFSET ?",
+            (limit, offset))
 
     # ───────── sayt (Mini App) katalogi ─────────
 
