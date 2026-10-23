@@ -477,6 +477,10 @@ def cb_add_movie(ctx: Ctx) -> None:
     if action == "bulkdone":
         finish_bulk(ctx)
         return
+    if action in ("cat", "bulkcat") and len(parts) > 2 and parts[2] == "music":
+        ctx.answer()
+        btn_add_music(ctx)  # eski xabarlardagi «🎵 Musiqa» tugmasi — musiqa alohida bo'limda
+        return
     if action == "cat":
         cat = parts[2] if len(parts) > 2 and parts[2] in CATEGORIES else "movie"
         ctx.answer(f"{cat_icon(cat)} {cat_name(cat)}")
