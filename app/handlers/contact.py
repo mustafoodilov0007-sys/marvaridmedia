@@ -6,7 +6,7 @@ import logging
 import time
 
 from ..core import Ctx, router
-from ..keyboards import PRIMARY, btn, cancel_kb, ikb
+from ..keyboards import PRIMARY, SUCCESS, btn, cancel_kb, ikb
 from ..telegram import Forbidden, TelegramError
 from ..texts import B
 from ..utils import esc, message_html, user_link, visible_len
@@ -102,3 +102,87 @@ def st_reply(ctx: Ctx) -> None:
         ctx.send(f"❌ Javob yuborilmadi: {esc(exc.description)}")
         return
     ctx.send("✅ Javobingiz foydalanuvchiga yuborildi!")
+
+
+# ═════════════════════════ 🎬 Kino so'rash ═════════════════════════
+
+_last_request = {}       # foydalanuvchi -> (oxirgi so'ralgan kino, vaqt)
+
+REQUEST_PROMPT = (
+    "🎬 <b>Kino so'rash</b>\n\n"
+    "Qaysi kinoni izlayapsiz? Nomini yozing 👇\n\n"
+    "💡 Yili, tili yoki aktyorini ham qo'shsangiz, tezroq topamiz.\n"
+    "<i>Masalan: «Avatar 3, 2025, o'zbek tilida»</i>"
+)
+
+
+def send_request(ctx: Ctx, query: str) -> bool:
+    """So'ralgan kinoni barcha adminlarga yuboradi."""
+    app = ctx.app
+    query = (query or "").strip()[:300]
+    if not query:
+        return False
+    prev_q, prev_t = _last_request.get(ctx.user_id, ("", 0.0))
+    if prev_q.casefold() == query.casefold() and time.time() - prev_t < 3600:
+        ctx.send(f"✅ «{esc(query)}» so'rovingiz allaqachon adminlarga yuborilgan. Tez orada qo'shamiz! 🙌")
+        return True
+    if time.time() - prev_t < 5:
+        ctx.set_state("req", ttl=CONTACT_TTL)
+        ctx.send("⏳ Biroz shoshildingiz 🙂 Bir necha soniyadan so'ng kino nomini qayta yuboring.", cancel_kb())
+        return True
+    _last_request[ctx.user_id] = (query, time.time())
+    uname = f" (@{esc(ctx.user['username'])})" if ctx.user.get("username") else ""
+    text = (f"🎬 <b>Yangi kino so'rovi</b>\n\n"
+            f"🔎 <b>«{esc(query)}»</b>\n\n"
+            f"👤 {user_link(ctx.user_id, ctx.user.get('first_name'))}{uname}\n🆔 <code>{ctx.user_id}</code>\n\n"
+            "💡 Qo'shgach, foydalanuvchiga javob yozib kodini yuboring.")
+    kb = ikb([btn("✍️ Javob berish", f"rep:{ctx.user_id}", style=PRIMARY)])
+    delivered = 0
+    for admin_id in app.admin_ids():
+        try:
+            ctx.bot.send_message(admin_id, text, kb)
+            delivered += 1
+        except TelegramError as exc:
+            log.warning("Kino so'rovi adminga yetmadi (%s): %s", admin_id, exc.description)
+    if delivered:
+        ctx.send(f"✅ <b>So'rovingiz qabul qilindi!</b>\n\n🎬 «{esc(query)}»\n\n"
+                 "Adminlarimiz kinoni topib, tez orada qo'shishadi va sizga xabar berishadi. 🙌\n"
+                 "Shu orada boshqa kinolarni ham ko'rib chiqing 🍿")
+    else:
+        ctx.send("⚠️ So'rovni yuborib bo'lmadi. Birozdan so'ng qayta urinib ko'ring.")
+    return True
+
+
+@router.command("sorov", "sorash", "sorovnoma", gate=False)
+def cmd_request(ctx: Ctx) -> None:
+    if ctx.args.strip():  # «/sorov Avatar 3» — darhol yuboriladi
+        send_request(ctx, ctx.args)
+        return
+    ctx.set_state("req", ttl=CONTACT_TTL)
+    ctx.send(REQUEST_PROMPT, cancel_kb())
+
+
+@router.state("req")
+def st_request(ctx: Ctx) -> None:
+    if not ctx.text.strip() or ctx.text.startswith("/"):
+        ctx.send("❗️ Kino nomini matn ko'rinishida yozing.", cancel_kb())
+        return
+    ctx.clear_state()
+    send_request(ctx, ctx.text)
+
+
+@router.callback("rq")
+def cb_request(ctx: Ctx) -> None:
+    """Qidiruvda topilmagan kinoni bir bosishda so'rash: rq:<qidiruv id>."""
+    try:
+        row = ctx.db.get_search(int(ctx.data.split(":")[1]))
+    except (IndexError, ValueError):
+        row = None
+    if not row or row["user_id"] != ctx.user_id:
+        ctx.answer()
+        ctx.set_state("req", ttl=CONTACT_TTL)
+        ctx.send(REQUEST_PROMPT, cancel_kb())
+        return
+    ctx.answer("📨 Yuborilmoqda...")
+    ctx.bot.safe("editMessageReplyMarkup", {"chat_id": ctx.chat_id, "message_id": ctx.cb_message.get("message_id")})
+    send_request(ctx, row["query"])

@@ -54,8 +54,8 @@ DEFAULT_TEXTS = {
     "start_text": (
         "👋 Assalomu alaykum, <b>{name}</b>!\n\n"
         "💎 <b>{brand}</b> rasmiy kino botiga xush kelibsiz!\n\n"
-        "🔢 Kino <b>kodini</b> yuboring — kino darhol keladi.\n"
-        "🔎 Yoki kino <b>nomini</b> yozing — natijalardan tanlaysiz.\n\n"
+        "🎬 Kino <b>nomini</b> yozing yoki 🔢 <b>kodini</b> yuboring — bir zumda topib beraman! ⚡️\n"
+        "😔 Izlagan kinongiz topilmasa — /sorov buyrug'i bilan so'rang, tez orada qo'shamiz.\n\n"
         "🍿 Yoqimli hordiq tilaymiz!"
     ),
     "sub_text": (
@@ -100,7 +100,8 @@ TEXT_TITLES = {
 HELP_TEXT = (
     "ℹ️ <b>Botdan foydalanish</b>\n\n"
     "🔢 <b>Kino kodi</b> — kanaldagi postda ko'rsatilgan raqamni yuboring, kino darhol keladi.\n"
-    "🔎 <b>Kino nomi</b> — nomini yozing, ro'yxatdagi raqamni tanlang.\n\n"
+    "🔎 <b>Kino nomi</b> — nomini yozing, ro'yxatdagi raqamni tanlang.\n"
+    "🎬 <b>/sorov</b> — izlagan kinongiz topilmasa, so'rang — qo'shamiz!\n\n"
     "🔥 <b>Top kinolar</b> — eng ko'p ko'rilganlar\n"
     "🆕 <b>Yangi kinolar</b> — yangi qo'shilganlar\n"
     "🎲 <b>Tasodifiy kino</b> — omadingizni sinab ko'ring\n"

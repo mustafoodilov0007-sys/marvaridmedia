@@ -85,7 +85,7 @@ def user_menu(is_admin: bool, premium_on: bool, site: Optional[bool] = None) -> 
     ]
     if is_admin:
         rows.append([rbtn(B.ADMIN, DANGER)])
-    return rkb(rows, "🔎 Kino kodi yoki nomini yozing...")
+    return rkb(rows, "🎬 Kino nomi yoki kodi... 🍿")
 
 
 def admin_menu() -> dict:

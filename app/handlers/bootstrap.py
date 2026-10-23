@@ -16,6 +16,7 @@ USER_COMMANDS = [
     {"command": "start", "description": "🏠 Bosh menyu"},
     {"command": "top", "description": "🔥 Top kinolar"},
     {"command": "new", "description": "🆕 Yangi kinolar"},
+    {"command": "sorov", "description": "🎬 Kino so'rash (topilmasa)"},
     {"command": "premium", "description": "💎 Premium obuna"},
     {"command": "donat", "description": "💝 Loyihani qo'llab-quvvatlash"},
     {"command": "help", "description": "ℹ️ Yordam"},

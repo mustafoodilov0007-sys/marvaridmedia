@@ -90,8 +90,10 @@ def on_my_chat_member(ctx: Ctx) -> None:
 @router.button(B.SEARCH)
 def btn_search(ctx: Ctx) -> None:
     ctx.send("🔎 <b>Kino qidirish</b>\n\n"
-             "Kino <b>nomini</b> yoki <b>kodini</b> yozib yuboring 👇\n\n"
-             "💡 Masalan: <code>Avatar</code> yoki <code>15</code>")
+             "🎬 Kino <b>nomini</b> yozing yoki 🔢 <b>kodini</b> yuboring — bir zumda topib beraman! ⚡️\n\n"
+             "💡 Masalan: <code>Avatar</code>, <code>Qasoskorlar</code> yoki <code>15</code>\n"
+             "🔤 Lotin yoki kirill — farqi yo'q, xato yozsangiz ham topaman 😉\n\n"
+             "😔 Izlagan kinongiz topilmasa — /sorov buyrug'i bilan so'rang, tez orada qo'shamiz!")
 
 
 @router.button(B.SITE)
@@ -155,7 +157,9 @@ def on_any_message(ctx: Ctx) -> None:
     hook = ctx.app.router.special.get("admin_media")
     if ctx.is_admin and hook and hook(ctx):
         return
-    ctx.send("🔢 Kino <b>kodini</b> yoki 🔎 <b>nomini</b> yozib yuboring.")
+    ctx.send("🍿 <b>Bugun qaysi kinoni ko'ramiz?</b>\n\n"
+             "🎬 Kino <b>nomini</b> yozing yoki 🔢 <b>kodini</b> yuboring.\n"
+             "😔 Topilmasa — /sorov orqali so'rang!")
 
 
 def handle_query(ctx: Ctx, raw: str) -> None:
@@ -178,7 +182,9 @@ def handle_query(ctx: Ctx, raw: str) -> None:
             open_movie(ctx, movie)
         else:
             ctx.send(f"😔 <b>{code}</b> kodli kino topilmadi.\n\n"
-                     "🔎 Kodni tekshirib qayta yuboring yoki kino nomini yozib qidiring.", not_found_kb())
+                     "🔢 Kodni tekshirib qayta yuboring yoki 🎬 kino <b>nomini</b> yozib qidiring.\n\n"
+                     "🎬 Izlagan kinongiz yo'qmi? /sorov buyrug'i bilan so'rang — tez orada qo'shamiz!",
+                     not_found_kb())
         return
 
     text = text[:100]
@@ -196,20 +202,25 @@ def handle_query(ctx: Ctx, raw: str) -> None:
         return
     sid = db.log_search(ctx.user_id, text, norm, 0 if fuzzy else len(ids))
     if not ids:
-        ctx.send(f"😔 <b>«{esc(truncate(text, 50))}»</b> bo'yicha hech narsa topilmadi.\n\n"
-                 "💡 <b>Maslahatlar:</b>\n"
-                 "• Nomini boshqacharoq yozib ko'ring\n"
-                 "• Kino kodini yuboring (masalan: <code>15</code>)\n"
-                 "• Kerakli kinoni «✍️ Kino so'rash» orqali so'rang", not_found_kb())
+        ctx.send(f"😔 <b>«{esc(truncate(text, 50))}»</b> hozircha bazamizda yo'q.\n\n"
+                 "💡 <b>Yana urinib ko'ring:</b>\n"
+                 "• Nomini boshqacha yozing (inglizcha yoki ruscha nomi bilan)\n"
+                 "• Kino kodini yuboring (masalan: <code>15</code>)\n\n"
+                 "🎬 <b>Topilmadimi?</b> Pastdagi tugmani bosing — so'rovingizni adminlarga yuboramiz, "
+                 "tez orada qo'shamiz! 🙌", not_found_kb(sid, text))
         return
     app.cache_search(sid, (text, ids, fuzzy))
     page_text, kb = search_view(app, sid, text, ids, fuzzy, 0, len(music_ids))
     ctx.send(page_text, kb)
 
 
-def not_found_kb() -> dict:
-    return ikb([btn("🔥 Top kinolar", "tp:0", style=SUCCESS), btn("🆕 Yangi kinolar", "np:0", style=PRIMARY)],
-               [btn("✍️ Kino so'rash", "ct:start", style=DANGER)])
+def not_found_kb(sid: Optional[int] = None, query: str = "") -> dict:
+    if sid:
+        ask = btn(f"🎬 «{truncate(query, 28)}» ni so'rash", f"rq:{sid}", style=DANGER)
+    else:
+        ask = btn("🎬 Kino so'rash", "rq:0", style=DANGER)
+    return ikb([ask],
+               [btn("🔥 Top kinolar", "tp:0", style=SUCCESS), btn("🆕 Yangi kinolar", "np:0", style=PRIMARY)])
 
 
 def search_ids(app, norm: str, scope: Optional[str] = None, fuzzy_ok: bool = True):
@@ -286,6 +297,9 @@ def search_view(app, sid: int, query: str, ids: List[int], fuzzy: bool, page: in
     else:
         header = f"🔎 <b>«{q}»</b> bo'yicha <b>{total}</b> ta natija:"
     text, kb = build_list(header, rows, page * PER_PAGE, page, pages, f"sp:{sid}", fmt_item)
+    if fuzzy:  # aniq topilmadi — so'rash tugmasi
+        text += "\n\n🎬 Bularning orasida yo'qmi? Pastdagi tugma bilan so'rang!"
+        kb["inline_keyboard"].insert(-1, [btn(f"🎬 «{truncate(query, 28)}» ni so'rash", f"rq:{sid}", style=DANGER)])
     if music_found:
         kb["inline_keyboard"].insert(-1, [btn(f"🎵 Qo'shiqlardan ham topildi: {music_found} ta", f"ms:{sid}:0",
                                               style=SUCCESS)])
