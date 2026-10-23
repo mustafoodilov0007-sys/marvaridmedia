@@ -9,7 +9,7 @@ import time
 from .. import genres
 from ..core import NEXT, Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, number_rows
-from ..telegram import TelegramError
+from ..telegram import InputFile, TelegramError
 from ..texts import B, CATEGORIES, cat_icon, cat_name
 from ..utils import (entities_to_html, esc, extract_media, fmt_date, fmt_num, message_html, normalize, post_link,
                      truncate, visible_len)
@@ -238,6 +238,17 @@ def st_title(ctx: Ctx) -> None:
 
 @router.state("am:desc", admin=True)
 def st_desc(ctx: Ctx) -> None:
+    if has_image(ctx.message):  # poster izoh bilan birga (yoki izohsiz) yuborildi
+        poster = poster_from(ctx)
+        if not poster:
+            poster_error(ctx)
+            return
+        cap = (ctx.message.get("caption") or "").strip()[:800]
+        html = message_html(ctx.message).strip() if cap and len(ctx.message.get("caption") or "") <= 800 else ""
+        ctx.goto("am:desc", poster_pre=poster)
+        ctx.send("🖼 Poster qabul qilindi!" + (" 📝 Rasm izohi ma'lumot sifatida olindi." if cap else ""))
+        after_desc(ctx, cap, html)
+        return
     desc = ctx.text.strip()
     if not desc:
         ctx.send("❗️ Ma'lumotni matn ko'rinishida yuboring yoki «⏭ O'tkazib yuborish» ni bosing.")
@@ -269,13 +280,17 @@ def genre_prompt(title: str, selected, year: int) -> str:
     return (f"5️⃣ <b>{esc(title)}</b> — <b>janrini</b> tanlang 🎭\n\n"
             f"Tanlangan: {chosen}\n"
             f"📅 Yili: <b>{year or '—'}</b>  <i>(o'zgartirish uchun yilni yozib yuboring, masalan 2024)</i>\n\n"
-            "💡 Izohdan avtomatik aniqlandi — kerak bo'lsa tuzating. Saytda janr bo'yicha saralash va "
-            "«O'xshash kinolar» shu asosida ishlaydi.")
+            "💡 Izohdan avtomatik aniqlandi — kerak bo'lsa tuzating va «✅ Tayyor» ni bosing.\n"
+            "🖼 Posterni hoziroq yuborsangiz ham bo'ladi — janrlar shu holicha saqlanadi.")
 
 
 def after_desc(ctx: Ctx, desc: str, desc_html: str = "") -> None:
     if _is_music(ctx):
-        ask_poster(ctx, desc, desc_html)
+        if ctx.sdata.get("poster_pre"):
+            ctx.goto("am:poster", desc=desc, desc_html=desc_html)
+            show_confirm(ctx, ctx.sdata["poster_pre"])
+        else:
+            ask_poster(ctx, desc, desc_html)
         return
     title = ctx.sdata.get("title") or ""
     found = genres.detect(title, desc)
@@ -286,6 +301,14 @@ def after_desc(ctx: Ctx, desc: str, desc_html: str = "") -> None:
 
 @router.state("am:genre", admin=True)
 def st_genre(ctx: Ctx) -> None:
+    if has_image(ctx.message):  # janrni tasdiqlamay turib poster yuborildi — janrlar shu holicha saqlanadi
+        poster = poster_from(ctx)
+        if not poster:
+            poster_error(ctx)
+            return
+        ctx.send("🎭 Janrlar saqlandi, 🖼 poster qabul qilindi!")
+        show_confirm(ctx, poster)
+        return
     text = ctx.text.strip()
     if re.fullmatch(r"(19[2-9]\d|20[0-4]\d)", text):
         ctx.goto("am:genre", year=int(text))
@@ -295,6 +318,47 @@ def st_genre(ctx: Ctx) -> None:
         return
     ctx.send("👆 Janrlarni tugmalardan tanlang va «✅ Tayyor» ni bosing.\n"
              "📅 Yilni o'zgartirish uchun faqat yilni yozing (masalan <code>2024</code>).")
+
+
+POSTER_LIMIT = 10 * 1024 * 1024  # sendPhoto shundan katta rasmni qabul qilmaydi
+
+
+def has_image(msg: dict) -> bool:
+    doc = msg.get("document") or {}
+    return bool(msg.get("photo")) or (doc.get("mime_type") or "").startswith("image/")
+
+
+def poster_from(ctx: Ctx):
+    """Xabardagi rasmni poster file_id siga aylantiradi.
+
+    Oddiy rasm — to'g'ridan-to'g'ri. «Fayl» (siqilmagan) qilib yuborilgan rasm esa yuklab olinib,
+    rasm sifatida qayta yuboriladi (aks holda uni poster qilib bo'lmaydi). Bo'lmasa — None.
+    """
+    msg = ctx.message
+    if msg.get("photo"):
+        return msg["photo"][-1]["file_id"]
+    doc = msg.get("document") or {}
+    if not (doc.get("mime_type") or "").startswith("image/") or (doc.get("file_size") or 0) > POSTER_LIMIT:
+        return None
+    try:
+        info = ctx.bot.call("getFile", {"file_id": doc["file_id"]})
+        data = ctx.bot.download_file(info["file_path"])
+        sent = ctx.bot.call("sendPhoto", {"chat_id": ctx.chat_id, "disable_notification": True},
+                            files={"photo": InputFile(doc.get("file_name") or "poster.jpg", data, doc["mime_type"])})
+        file_id = sent["photo"][-1]["file_id"]
+        ctx.bot.safe("deleteMessage", {"chat_id": ctx.chat_id, "message_id": sent["message_id"]})
+        return file_id
+    except (TelegramError, KeyError, IndexError, TypeError) as exc:
+        log.warning("Fayl-rasmni posterga aylantirib bo'lmadi: %s", exc)
+        return None
+
+
+def poster_error(ctx: Ctx, extra: str = "") -> None:
+    doc = ctx.message.get("document") or {}
+    if (doc.get("mime_type") or "").startswith("image/") and (doc.get("file_size") or 0) > POSTER_LIMIT:
+        ctx.send("❗️ Rasm juda katta (10 MB dan ortiq). Uni oddiy <b>rasm</b> (siqilgan) qilib yuboring." + extra)
+    else:
+        ctx.send("❗️ Poster uchun <b>rasm</b> yuboring." + extra)
 
 
 def ask_poster(ctx: Ctx, desc: str, desc_html: str = "") -> None:
@@ -308,11 +372,11 @@ def ask_poster(ctx: Ctx, desc: str, desc_html: str = "") -> None:
 
 @router.state("am:poster", admin=True)
 def st_poster(ctx: Ctx) -> None:
-    photos = ctx.message.get("photo")
-    if not photos:
-        ctx.send("❗️ Poster uchun <b>rasm</b> yuboring yoki «⏭ O'tkazib yuborish» ni bosing.")
+    poster = poster_from(ctx)
+    if not poster:
+        poster_error(ctx, " Yoki «⏭ O'tkazib yuborish» ni bosing.")
         return
-    show_confirm(ctx, photos[-1]["file_id"])
+    show_confirm(ctx, poster)
 
 
 def show_confirm(ctx: Ctx, poster) -> None:
@@ -620,7 +684,10 @@ def cb_add_movie(ctx: Ctx) -> None:
             return
         ctx.answer()
         d = ctx.sdata
-        ask_poster(ctx, d.get("desc") or "", d.get("desc_html") or "")
+        if d.get("poster_pre"):
+            show_confirm(ctx, d["poster_pre"])
+        else:
+            ask_poster(ctx, d.get("desc") or "", d.get("desc_html") or "")
     elif action == "save":
         if state != "am:confirm":
             _stale(ctx)
@@ -1085,9 +1152,12 @@ def st_edit_poster(ctx: Ctx) -> None:
     movie = _edit_target(ctx)
     if not movie:
         return
-    photos = ctx.message.get("photo")
-    if photos:
-        ctx.db.update_movie(movie["id"], poster_id=photos[-1]["file_id"])
+    if has_image(ctx.message):
+        poster = poster_from(ctx)
+        if not poster:
+            poster_error(ctx, " Yoki posterni olib tashlash uchun <code>-</code> yuboring.")
+            return
+        ctx.db.update_movie(movie["id"], poster_id=poster)
     elif ctx.text.strip() == "-":
         ctx.db.update_movie(movie["id"], poster_id=None)
     else:
