@@ -282,6 +282,9 @@ def make_handler(app: App):
 @router.on_startup
 def start_web(app: App) -> None:
     cfg = app.config
+    if not cfg.webapp_url:
+        # sayt manzili yo'q — «Menu» tugmasi odatiy buyruqlar ro'yxatini ochsin
+        app.bot.safe("setChatMenuButton", {"menu_button": {"type": "commands"}})
     if not cfg.web_port:
         log.info("🌐 Sayt o'chiq (WEBAPP_URL yoki PORT sozlanmagan)")
         return
@@ -295,6 +298,9 @@ def start_web(app: App) -> None:
     app.web_server = server
     if cfg.webapp_url:
         keyboards.SITE_ON = True
+        # chat pastidagi «Menu» tugmasi saytni ochadi
+        app.bot.safe("setChatMenuButton", {"menu_button": {
+            "type": "web_app", "text": "🌐 Sayt", "web_app": {"url": cfg.webapp_url}}})
         log.info("🌐 Sayt ishga tushdi: %s (port %s)", cfg.webapp_url, cfg.web_port)
     else:
         log.warning("🌐 Sayt %s-portda ishlayapti, lekin manzili noma'lum — .env ga WEBAPP_URL=https://... "
