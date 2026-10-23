@@ -250,6 +250,40 @@
     background: rgba(0,0,0,.55); display: grid; place-items: center; }
   .poster .playmark svg { width: 13px; height: 13px; fill: #fff; stroke: none; margin-left: 2px; }
 
+  /* ───── 🎵 pleer ───── */
+  body.has-player { padding-bottom: calc(var(--nav-h) + 72px + env(safe-area-inset-bottom)); }
+  .player { position: fixed; left: 8px; right: 8px; z-index: 29; bottom: calc(var(--nav-h) + 8px + env(safe-area-inset-bottom));
+    height: 64px; border-radius: 18px; overflow: hidden; display: none;
+    background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--line); box-shadow: var(--shadow); }
+  body.has-player .player { display: block; }
+  body.in-shorts .player { display: none; }
+  .pl-bar { position: absolute; left: 0; right: 0; top: 0; height: 14px; margin-top: -5px; cursor: pointer; z-index: 2; }
+  .pl-bar::before { content: ""; position: absolute; left: 0; right: 0; top: 5px; height: 3px; background: var(--line); }
+  .pl-fill { position: absolute; left: 0; top: 5px; height: 3px; width: 0; background: var(--grad); }
+  .pl-row { display: flex; align-items: center; gap: 10px; height: 100%; padding: 0 8px 0 10px; }
+  .pl-cover { width: 44px; height: 44px; border-radius: 11px; overflow: hidden; flex: none; display: grid; place-items: center;
+    background: var(--grad); color: #fff; }
+  .pl-cover img { width: 100%; height: 100%; object-fit: cover; }
+  .pl-cover svg { width: 22px; height: 22px; }
+  .pl-meta { flex: 1; min-width: 0; }
+  .pl-meta b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pl-meta span { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pl-btn { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--text); }
+  .pl-btn svg { width: 20px; height: 20px; }
+  .pl-btn.main { width: 44px; height: 44px; background: var(--grad); color: #fff; }
+  .pl-btn.main svg { fill: currentColor; stroke: none; }
+  .pl-btn.skip svg { fill: currentColor; stroke: none; width: 18px; height: 18px; }
+  .pl-btn.x { color: var(--muted); width: 30px; }
+  .pl-btn.x svg { width: 17px; height: 17px; }
+  .eq { position: absolute; right: 8px; bottom: 8px; display: none; gap: 2px; align-items: flex-end; height: 18px;
+    padding: 4px 5px; border-radius: 7px; background: rgba(0,0,0,.55); }
+  .card.playing .eq { display: flex; }
+  .eq i { width: 3px; background: #fff; border-radius: 2px; animation: eq 1s ease-in-out infinite; }
+  .eq i:nth-child(2) { animation-delay: -.4s; } .eq i:nth-child(3) { animation-delay: -.7s; }
+  .card.playing.paused .eq i { animation-play-state: paused; }
+  @keyframes eq { 0%, 100% { height: 4px; } 50% { height: 12px; } }
+
   /* ───── detail sheet ───── */
   .veil { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6); opacity: 0; pointer-events: none; transition: opacity .25s; }
   .veil.on { opacity: 1; pointer-events: auto; }
@@ -306,6 +340,17 @@
 
 <div class="veil" id="veil"></div>
 <div class="sheet" id="sheet"></div>
+<div class="player" id="player">
+  <div class="pl-bar" id="plBar"><div class="pl-fill" id="plFill"></div></div>
+  <div class="pl-row">
+    <div class="pl-cover" id="plCover"></div>
+    <div class="pl-meta"><b id="plTitle"></b><span id="plSub"></span></div>
+    <button class="pl-btn skip" id="plPrev" aria-label="Oldingi"></button>
+    <button class="pl-btn main" id="plPlay" aria-label="Ijro"></button>
+    <button class="pl-btn skip" id="plNext" aria-label="Keyingi"></button>
+    <button class="pl-btn x" id="plClose" aria-label="Yopish"></button>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -340,6 +385,9 @@
     clap: '<path d="M4 11v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8z"/><path d="m4 11-.9-3.6a1 1 0 0 1 .7-1.2L17 3l1 4z"/><path d="m8.5 4.8 2.4 3.7M13.4 3.9l2.4 3.7"/>',
     vol: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
     mute: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6M16 9l6 6"/>',
+    pause: '<rect x="6" y="4.5" width="4" height="15" rx="1.2"/><rect x="14" y="4.5" width="4" height="15" rx="1.2"/>',
+    next: '<path d="M5 5.5v13a1 1 0 0 0 1.5.86L16 13.7V18a1 1 0 0 0 2 0V6a1 1 0 0 0-2 0v4.3L6.5 4.64A1 1 0 0 0 5 5.5z"/>',
+    prev: '<path d="M19 5.5v13a1 1 0 0 1-1.5.86L8 13.7V18a1 1 0 0 1-2 0V6a1 1 0 0 1 2 0v4.3l9.5-5.66A1 1 0 0 1 19 5.5z"/>',
     gem: '<path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21 8 9l4-6 4 6z"/>'
   };
   var CAT_ICON = { movie: "film", cartoon: "smile", music: "music" };
@@ -470,7 +518,15 @@
     var m = h("div", "m", [icon("eye"), fmt(it.views)]);
     if (it.year) m.appendChild(document.createTextNode(" · " + it.year));
     b.appendChild(m);
-    b.onclick = function () { openSheet(it); };
+    b._item = it;
+    b.dataset.id = it.id;
+    if (it.cat === "music") {
+      p.appendChild(h("span", "eq", [h("i"), h("i"), h("i")]));
+      if (Player.current && Player.current.id === it.id) b.classList.add("playing");
+      b.onclick = function () { Player.playFrom(it, b); };
+    } else {
+      b.onclick = function () { openSheet(it); };
+    }
     return b;
   }
   function skeletonCards(n, cls) {
@@ -559,8 +615,18 @@
     var row = h("div", "actions");
     var watchBtn = h("button", "btn primary" + (it.locked ? " lock" : ""),
       [icon(it.locked ? "lock" : "play"), it.locked ? "Premium" : (it.cat === "music" ? "Tinglash" : "Ko'rish")]);
-    watchBtn.onclick = function (e) { e.stopPropagation(); watch(it, watchBtn); };
+    watchBtn.onclick = function (e) {
+      e.stopPropagation();
+      if (it.cat === "music" && !it.locked) { Player.play(it, [it]); closeSheet(); }
+      else watch(it, watchBtn);
+    };
     row.appendChild(watchBtn);
+    if (it.cat === "music" && !it.locked) {
+      var toBot = h("button", "btn sq", [icon("send")]);
+      toBot.setAttribute("aria-label", "Botga yuborish");
+      toBot.onclick = function (e) { e.stopPropagation(); watch(it, toBot); };
+      row.appendChild(toBot);
+    }
     if (hero) {
       var more = h("button", "btn soft", "Batafsil");
       more.onclick = function (e) { e.stopPropagation(); openSheet(it); };
@@ -844,6 +910,143 @@
     load();
   }
 
+  // ───── 🎵 saytda musiqa tinglash ─────
+  var Player = (function () {
+    var audio = new Audio();
+    audio.preload = "none";
+    var queue = [], idx = -1, req = 0;
+    var self = { current: null };
+    function el(id) { return document.getElementById(id); }
+    function setPlayingFlag() {
+      var on = !audio.paused;
+      el("plPlay").replaceChildren(icon(on ? "pause" : "play"));
+      document.querySelectorAll(".card[data-id]").forEach(function (c) {
+        var mine = self.current && +c.dataset.id === self.current.id;
+        c.classList.toggle("playing", !!mine);
+        c.classList.toggle("paused", !!mine && !on);
+      });
+      try { window.MarvaridApp && window.MarvaridApp.setPlaying && window.MarvaridApp.setPlaying(on); } catch (e) {}
+      if ("mediaSession" in navigator) navigator.mediaSession.playbackState = on ? "playing" : "paused";
+    }
+    function split(title) {
+      var p = (title || "").split(" - ");
+      return p.length > 1 ? { artist: p[0], song: p.slice(1).join(" - ") } : { artist: me.brand, song: title };
+    }
+    function show(it) {
+      var nm = split(it.title);
+      el("plTitle").textContent = nm.song;
+      el("plSub").textContent = nm.artist;
+      var cover = el("plCover");
+      cover.replaceChildren(icon("music"));
+      if (it.poster) {
+        var img = new Image(); img.alt = "";
+        img.onload = function () { cover.replaceChildren(img); };
+        img.src = posterUrl(it);
+      }
+      document.body.classList.add("has-player");
+      if ("mediaSession" in navigator) {
+        try {
+          navigator.mediaSession.metadata = new MediaMetadata({ title: nm.song, artist: nm.artist, album: me.brand,
+            artwork: it.poster ? [{ src: location.origin + posterUrl(it), sizes: "320x320", type: "image/jpeg" }] : [] });
+        } catch (e) {}
+      }
+    }
+    self.play = function (it, list) {
+      // navbatda faqat ochiq qo'shiqlar (Premium qulflilari o'tkazib yuboriladi)
+      queue = (list && list.length ? list : [it]).filter(function (x) {
+        return x.cat === "music" && (!x.locked || x.id === it.id);
+      });
+      idx = Math.max(0, queue.findIndex(function (x) { return x.id === it.id; }));
+      load(queue[idx]);
+    };
+    self.playFrom = function (it, cardEl) {
+      haptic();
+      if (self.current && self.current.id === it.id) { self.toggle(); return; }
+      var list = [];
+      if (cardEl && cardEl.parentNode) {
+        Array.prototype.forEach.call(cardEl.parentNode.children, function (c) { if (c._item) list.push(c._item); });
+      }
+      self.play(it, list);
+    };
+    function load(it) {
+      if (!it) return;
+      if (it.locked) { toast("💎 Bu qo'shiq Premium a'zolar uchun"); openSheet(it); return; }
+      var my = ++req;
+      self.current = it;
+      show(it);
+      audio.pause();
+      el("plPlay").replaceChildren(h("span", null, "…"));
+      setPlayingFlag();
+      api("/api/play", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: it.id }) })
+        .then(function (res) {
+          if (my !== req) return;
+          if (res.ok) {
+            audio.src = res.url;
+            var p = audio.play();
+            if (p && p.catch) p.catch(function () { setPlayingFlag(); });
+            return;
+          }
+          var msg = {
+            premium: "💎 Bu qo'shiq Premium a'zolar uchun",
+            sub: "📢 Tinglash uchun avval kanallarga obuna bo'ling — bot chatida tugmalar chiqdi",
+            big: "📦 Fayl katta — botga yuboramiz",
+            not_found: "😔 Bu qo'shiq o'chirilgan"
+          }[res.reason] || "⚠️ Ijro etib bo'lmadi";
+          toast(msg);
+          if (res.reason === "big") watch(it, el("plPlay"));
+          self.close();
+        })
+        .catch(function () { if (my === req) { toast("⚠️ Ulanishda xatolik"); setPlayingFlag(); } });
+    }
+    self.toggle = function () {
+      if (!self.current) return;
+      if (audio.paused) { var p = audio.play(); if (p && p.catch) p.catch(function () {}); } else audio.pause();
+    };
+    self.next = function () { if (idx < queue.length - 1) { idx++; load(queue[idx]); } else { audio.pause(); audio.currentTime = 0; } };
+    self.prev = function () {
+      if (audio.currentTime > 3 || idx <= 0) { audio.currentTime = 0; return; }
+      idx--; load(queue[idx]);
+    };
+    self.close = function () {
+      audio.pause(); req++;
+      self.current = null;
+      document.body.classList.remove("has-player");
+      setPlayingFlag();
+    };
+    audio.addEventListener("play", setPlayingFlag);
+    audio.addEventListener("pause", setPlayingFlag);
+    audio.addEventListener("ended", function () { self.next(); });
+    audio.addEventListener("error", function () { if (self.current && audio.src) { toast("⚠️ Qo'shiqni yuklab bo'lmadi"); setPlayingFlag(); } });
+    audio.addEventListener("timeupdate", function () {
+      var d = audio.duration;
+      el("plFill").style.width = d ? (audio.currentTime / d * 100) + "%" : "0";
+    });
+    function seek(e) {
+      var r = el("plBar").getBoundingClientRect();
+      var x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+      if (audio.duration) audio.currentTime = Math.max(0, Math.min(1, x / r.width)) * audio.duration;
+    }
+    el("plBar").addEventListener("click", seek);
+    el("plBar").addEventListener("touchstart", seek, { passive: true });
+    el("plPlay").onclick = function () { haptic(); self.toggle(); };
+    el("plNext").onclick = function () { haptic(); self.next(); };
+    el("plPrev").onclick = function () { haptic(); self.prev(); };
+    el("plClose").onclick = function () { haptic(); self.close(); };
+    el("plPlay").appendChild(icon("play"));
+    el("plNext").appendChild(icon("next"));
+    el("plPrev").appendChild(icon("prev"));
+    el("plClose").appendChild(icon("x"));
+    if ("mediaSession" in navigator) {
+      try {
+        navigator.mediaSession.setActionHandler("play", self.toggle);
+        navigator.mediaSession.setActionHandler("pause", self.toggle);
+        navigator.mediaSession.setActionHandler("nexttrack", self.next);
+        navigator.mediaSession.setActionHandler("previoustrack", self.prev);
+      } catch (e) {}
+    }
+    return self;
+  })();
+
   var searchQ = "";
   function renderSearch(view) {
     var input = h("input");
@@ -919,7 +1122,8 @@
       it.desc ? h("p", "desc", it.desc) : null,
       actionRow(it, false),
       h("div", "note", it.locked ? "Bu kontent Premium a'zolar uchun. Bot chatida Premium olish tugmasi chiqadi."
-        : PUB ? "«" + (it.cat === "music" ? "Tinglash" : "Ko'rish") + "» bosilsa, Telegram'da botimiz ochiladi va uni yuboradi."
+        : it.cat === "music" ? "«Tinglash» — shu yerning o'zida eshitasiz. Yonidagi tugma qo'shiqni Telegram botga yuboradi."
+        : PUB ? "«Ko'rish» bosilsa, Telegram'da botimiz ochiladi va uni yuboradi."
         : "«" + (it.cat === "music" ? "Tinglash" : "Ko'rish") + "» bosilsa, bot uni chatga yuboradi.")
     );
     $("veil").classList.add("on");

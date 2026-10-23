@@ -33,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private var fullscreenView: View? = null
     private var fullscreenCallback: WebChromeClient.CustomViewCallback? = null
     private var pageReady = false
+    @Volatile private var audioPlaying = false
 
     private val siteUri: Uri by lazy { Uri.parse(BuildConfig.SITE_URL) }
 
@@ -166,7 +167,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        web.onPause()
+        // musiqa o'ynayotgan bo'lsa — ilova fonga o'tganda ham davom etsin
+        if (!audioPlaying) web.onPause()
     }
 
     override fun onResume() {
@@ -185,6 +187,11 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun setTheme(theme: String) {
             runOnUiThread { applyTheme(theme) }
+        }
+
+        @JavascriptInterface
+        fun setPlaying(playing: Boolean) {
+            audioPlaying = playing
         }
 
         @JavascriptInterface

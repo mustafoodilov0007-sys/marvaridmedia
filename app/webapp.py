@@ -290,11 +290,129 @@ def short_file(app: App, short_id: int, folder: Path) -> Optional[Path]:
     return path
 
 
+# ═════════════════════════ 🎵 Saytda musiqa tinglash ═════════════════════════
+
+AUDIO_LIMIT = 20 * 1024 * 1024        # Telegram bot API shundan katta faylni bermaydi
+AUDIO_CACHE_MAX = 2 * 1024 ** 3       # diskdagi musiqa keshi (2 GB) — oshsa eskilari o'chadi
+AUDIO_TYPES = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".mp4": "audio/mp4", ".aac": "audio/aac",
+               ".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg", ".wav": "audio/wav",
+               ".flac": "audio/flac"}
+_audio_meta: dict = {}                # part_id -> (fayl yo'li Telegram'da, hajmi)
+
+
+def _audio_sig(app: App, movie_id: int, exp: int) -> str:
+    return hmac.new(app.config.token.encode(), f"audio:{movie_id}:{exp}".encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def _audio_part(app: App, movie_id: int):
+    movie = app.db.get_movie(movie_id)
+    if not movie or movie["category"] != "music":
+        return None, None
+    parts = app.db.get_parts(movie_id)
+    return movie, (parts[0] if parts else None)
+
+
+def api_play(app: App, user: dict, body: dict, guest: bool) -> dict:
+    """Musiqani saytda tinglash uchun vaqtinchalik imzolangan havola beradi."""
+    try:
+        movie, part = _audio_part(app, int(body.get("id")))
+    except (TypeError, ValueError):
+        movie, part = None, None
+    if not movie or not part:
+        return {"ok": False, "reason": "not_found"}
+    _, vip = _user_flags(app, user["id"])
+    if movie["is_premium"] and app.setting_bool("premium_enabled") and not vip:
+        return {"ok": False, "reason": "premium"}
+    if not guest:
+        # Telegram ichida: majburiy obuna botdagidek ishlaydi (obuna oynasi chatga yuboriladi)
+        update = {"message": {"message_id": 0, "date": int(time.time()), "from": user,
+                              "chat": {"id": user["id"], "type": "private"}, "text": start_payload(movie["code"])}}
+        ctx = Ctx(app, update)
+        app.db.upsert_user(user)
+        try:
+            if app.router.gate_check and not app.router.gate_check(ctx):
+                return {"ok": False, "reason": "sub"}
+        except TelegramError:
+            pass
+    meta = _audio_meta.get(part["id"])
+    if meta is None:
+        try:
+            info = app.bot.call("getFile", {"file_id": part["file_id"]})
+        except TelegramError as exc:
+            if exc.has("too big"):
+                return {"ok": False, "reason": "big"}
+            log.warning("Musiqa fayli olinmadi (%s): %s", movie_id_str(movie), exc)
+            return {"ok": False, "reason": "error"}
+        size = int(info.get("file_size") or 0)
+        if size > AUDIO_LIMIT:
+            return {"ok": False, "reason": "big"}
+        meta = (info.get("file_path") or "", size)
+        _audio_meta[part["id"]] = meta
+    exp = int(time.time()) + 6 * 3600
+    app.db.inc_views(movie["id"], part["id"])
+    return {"ok": True, "url": f"/media/audio/{movie['id']}?e={exp}&s={_audio_sig(app, movie['id'], exp)}"}
+
+
+def movie_id_str(movie) -> str:
+    return f"{movie['id']}:{movie['title']}"
+
+
+def audio_file(app: App, movie_id: int, folder: Path) -> Optional[Path]:
+    movie, part = _audio_part(app, movie_id)
+    if not part:
+        return None
+    for f in folder.glob(f"{part['id']}.*"):
+        if f.suffix in AUDIO_TYPES:
+            try:
+                os.utime(f)  # oxirgi ishlatilgan vaqt — kesh tozalashda kerak
+            except OSError:
+                pass
+            return f
+    with _short_locks_guard:
+        lock = _short_locks.setdefault(("a", part["id"]), threading.Lock())
+    with lock:
+        for f in folder.glob(f"{part['id']}.*"):
+            if f.suffix in AUDIO_TYPES:
+                return f
+        try:
+            info = app.bot.call("getFile", {"file_id": part["file_id"]})
+            data = app.bot.download_file(info["file_path"], limit=AUDIO_LIMIT)
+        except (TelegramError, KeyError) as exc:
+            log.warning("Musiqa yuklanmadi (%s): %s", movie_id, exc)
+            return None
+        ext = os.path.splitext(info.get("file_path") or "")[1].lower()
+        if ext not in AUDIO_TYPES:
+            ext = ".mp3"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"{part['id']}{ext}"
+        tmp = path.with_suffix(f".{threading.get_ident()}.tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
+    _trim_cache(folder)
+    return path
+
+
+def _trim_cache(folder: Path) -> None:
+    try:
+        files = [f for f in folder.iterdir() if f.suffix in AUDIO_TYPES]
+        total = sum(f.stat().st_size for f in files)
+        if total <= AUDIO_CACHE_MAX:
+            return
+        for f in sorted(files, key=lambda f: f.stat().st_mtime):
+            total -= f.stat().st_size
+            f.unlink()
+            if total <= AUDIO_CACHE_MAX * 0.8:
+                break
+    except OSError:
+        pass
+
+
 # ═════════════════════════ HTTP server ═════════════════════════
 
 def make_handler(app: App):
     cache_dir = Path(app.config.db_path).parent / "posters"
     shorts_dir = Path(app.config.db_path).parent / "shorts"
+    audio_dir = Path(app.config.db_path).parent / "audio"
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "MarvaridWeb/1.0"
@@ -385,6 +503,16 @@ def make_handler(app: App):
                     if f is None:
                         return self._send(404, b"", "text/plain")
                     return self._send_file(f, "video/mp4" if f.suffix == ".mp4" else "image/jpeg")
+                m = re.fullmatch(r"/media/audio/(\d+)", path)
+                if m:
+                    mid, exp = int(m.group(1)), qs.get("e", "")
+                    if not (exp.isdigit() and int(exp) > time.time()
+                            and hmac.compare_digest(qs.get("s", ""), _audio_sig(app, mid, int(exp)))):
+                        return self._send(403, b"", "text/plain")
+                    f = audio_file(app, mid, audio_dir)
+                    if f is None:
+                        return self._send(404, b"", "text/plain")
+                    return self._send_file(f, AUDIO_TYPES.get(f.suffix, "audio/mpeg"))
                 if path.startswith("/pub/"):
                     # 📱 Ilova va oddiy brauzer uchun: Telegram'siz, faqat katalog (mehmon sifatida)
                     path = "/api/" + path[5:]
@@ -420,14 +548,20 @@ def make_handler(app: App):
             try:
                 length = min(int(self.headers.get("Content-Length") or 0), 10_000)
                 raw = self.rfile.read(length) if length else b""
-                user = self._user()
-                if not user:
-                    return self._json({"ok": False, "reason": "auth"}, 401)
                 try:
                     body = json.loads(raw.decode("utf-8") or "{}")
                 except ValueError:
                     body = {}
-                if path == "/api/watch" and isinstance(body, dict):
+                if not isinstance(body, dict):
+                    body = {}
+                if path == "/pub/play":  # 📱 ilova / brauzer — mehmon sifatida tinglash
+                    return self._json(api_play(app, GUEST, body, guest=True))
+                user = self._user()
+                if not user:
+                    return self._json({"ok": False, "reason": "auth"}, 401)
+                if path == "/api/play":
+                    return self._json(api_play(app, user, body, guest=False))
+                if path == "/api/watch":
                     return self._json(api_watch(app, user, body))
                 return self._json({"ok": False, "reason": "not_found"}, 404)
             except (BrokenPipeError, ConnectionResetError):
