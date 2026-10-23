@@ -12,6 +12,7 @@ from ..telegram import TelegramError
 from ..texts import B, CATEGORIES, cat_icon, cat_name
 from ..utils import (entities_to_html, esc, extract_media, fmt_date, fmt_num, message_html, normalize, post_link,
                      truncate, visible_len)
+from .contact import notify_requesters
 from .user import build_list, fmt_item, part_label, search_ids
 
 log = logging.getLogger("admin.movies")
@@ -302,11 +303,13 @@ def save_movie(ctx: Ctx, premium: bool) -> None:
     ctx.clear_state()
     ctx.answer("✅ Saqlandi!")
     code = db.get_movie(movie_id)["code"]
+    notified = notify_requesters(ctx.app, movie_id)
     ctx.edit(f"🎉 <b>{cat_name(cat)} muvaffaqiyatli saqlandi!</b>\n\n"
              f"{cat_icon(cat)} <b>{esc(d['title'])}</b>\n"
              + (f"🔢 Kod: <code>{code}</code>\n" if code > 0 else "") +
              f"{'💎 Turi: Premium' if premium else '🆓 Turi: Oddiy'}\n"
-             f"🔗 Havola: {esc(ctx.app.deep_link(code))}",
+             f"🔗 Havola: {esc(ctx.app.deep_link(code))}"
+             + (f"\n\n📨 Bu kinoni so'ragan <b>{notified}</b> kishiga avtomatik xabar yuborildi!" if notified else ""),
              ikb([btn("📢 Kanalga e'lon qilish", f"an:{movie_id}", style=SUCCESS)],
                  [btn("➕ Keyingi qismni qo'shish", f"am:addpart:{movie_id}", style=PRIMARY)],
                  [btn("🎞 Shorts qo'shish (saytda)", f"dm:shadd:{movie_id}", style=PRIMARY)],
@@ -438,7 +441,7 @@ def st_bulk(ctx: Ctx) -> None:
         code = code or db.next_code()
         cat = _cat(ctx)
         title = title or f"{cat_name(cat)} {code}"
-        mid = db.add_movie(code, title, desc, None, False, ctx.user_id, file_id, file_type, cat)
+        notify_requesters(ctx.app, db.add_movie(code, title, desc, None, False, ctx.user_id, file_id, file_type, cat))
         line = (f"{cat_icon(cat)} {esc(truncate(title, 40))}" if cat == "music" else
                 f"{cat_icon(cat)} <code>{code}</code> — {esc(truncate(title, 40))}")
     saved = list(ctx.sdata.get("saved", [])) + [line]
@@ -915,7 +918,8 @@ def st_edit_title(ctx: Ctx) -> None:
         return
     ctx.db.update_movie(movie["id"], title=title)
     ctx.clear_state()
-    ctx.send("✅ Nom yangilandi!")
+    notified = notify_requesters(ctx.app, movie["id"])
+    ctx.send("✅ Nom yangilandi!" + (f"\n📨 So'ragan {notified} kishiga xabar yuborildi." if notified else ""))
     send_manage(ctx, ctx.db.get_movie(movie["id"]))
 
 
@@ -1038,7 +1042,7 @@ def st_music_bulk(ctx: Ctx) -> None:
     if dup:
         skipped.append(f"♻️ {esc(truncate(name, 45))} — bazada bor")
     else:
-        db.add_movie(0, name, desc, thumb, False, ctx.user_id, file_id, file_type, "music")
+        notify_requesters(ctx.app, db.add_movie(0, name, desc, thumb, False, ctx.user_id, file_id, file_type, "music"))
         saved.append(f"🎵 {esc(truncate(name, 45))}")
     ctx.goto("mu:bulk", ttl=6 * 3600, saved=saved, skipped=skipped)
     lines = (saved + skipped)[-6:]

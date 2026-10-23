@@ -216,6 +216,26 @@ def api_watch(app: App, user: dict, body: dict) -> dict:
     return {"ok": not locked, "reason": "premium" if locked else None}
 
 
+def api_request(app: App, user: dict, body: dict) -> dict:
+    """Saytda topilmagan kinoni so'rash (Telegram ichida): adminlarga yuboriladi, foydalanuvchiga chatda javob."""
+    from .handlers.contact import send_request
+    query = str(body.get("q") or "").strip()[:200]
+    if len(query) < 2:
+        return {"ok": False, "reason": "short"}
+    update = {"message": {"message_id": 0, "date": int(time.time()), "from": user,
+                          "chat": {"id": user["id"], "type": "private"}, "text": query}}
+    ctx = Ctx(app, update)
+    app.db.upsert_user(user)
+    try:
+        send_request(ctx, query)
+    except Forbidden:
+        return {"ok": False, "reason": "blocked"}
+    except TelegramError as exc:
+        log.warning("Saytdan so'rovda xatolik: %s", exc)
+        return {"ok": False, "reason": "error"}
+    return {"ok": True}
+
+
 def poster_bytes(app: App, movie_id: int, cache_dir: Path) -> Optional[bytes]:
     movie = app.db.get_movie(movie_id)
     if not movie or not movie["poster_id"]:
@@ -563,6 +583,8 @@ def make_handler(app: App):
                     return self._json(api_play(app, user, body, guest=False))
                 if path == "/api/watch":
                     return self._json(api_watch(app, user, body))
+                if path == "/api/request":
+                    return self._json(api_request(app, user, body))
                 return self._json({"ok": False, "reason": "not_found"}, 404)
             except (BrokenPipeError, ConnectionResetError):
                 pass

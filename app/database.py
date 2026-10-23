@@ -64,6 +64,17 @@ CREATE TABLE IF NOT EXISTS shorts (
 );
 CREATE INDEX IF NOT EXISTS idx_shorts_movie ON shorts(movie_id);
 
+CREATE TABLE IF NOT EXISTS requests (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    query      TEXT    NOT NULL,
+    norm       TEXT    NOT NULL,
+    created_at INTEGER NOT NULL,
+    done_at    INTEGER NOT NULL DEFAULT 0,
+    movie_id   INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_requests_open ON requests(done_at, created_at);
+
 CREATE TABLE IF NOT EXISTS channels (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
     chat_id  TEXT,
@@ -487,6 +498,21 @@ class Database:
         for r in self.q("SELECT category, COUNT(*) AS n FROM movies GROUP BY category"):
             out[r["category"] if r["category"] in out else "movie"] += r["n"]
         return out
+
+    # ───────── 🎬 kino so'rovlari ─────────
+
+    def add_request(self, uid: int, query: str) -> int:
+        return self.x("INSERT INTO requests(user_id, query, norm, created_at) VALUES (?,?,?,?)",
+                      (uid, query[:300], normalize(query)[:300], now())).lastrowid
+
+    def open_requests(self, since: int) -> List[sqlite3.Row]:
+        return self.q("SELECT * FROM requests WHERE done_at=0 AND created_at>=? ORDER BY id", (since,))
+
+    def close_request(self, request_id: int, movie_id: int) -> None:
+        self.x("UPDATE requests SET done_at=?, movie_id=? WHERE id=?", (now(), movie_id, request_id))
+
+    def count_open_requests(self, since: int) -> int:
+        return self.val("SELECT COUNT(*) FROM requests WHERE done_at=0 AND created_at>=?", (since,))
 
     # ───────── shorts (qisqa video / rasm) ─────────
 

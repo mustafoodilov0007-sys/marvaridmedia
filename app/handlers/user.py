@@ -9,11 +9,11 @@ import urllib.parse
 from typing import List, Optional
 
 from ..core import Ctx, router
-from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, ikb, nav_row, number_rows, user_menu
+from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, nav_row, number_rows, user_menu
 from ..subscription import all_joined, channel_statuses, gate_view, needs_gate
 from ..telegram import BadRequest
 from ..texts import B, HELP_TEXT, cat_icon, cat_name
-from ..utils import (esc, fmt_compact, fmt_num, fmt_short_date, fuzzy_match, normalize, now, render,
+from ..utils import (esc, fmt_num, fuzzy_match, normalize, now, render,
                      truncate, visible_len)
 
 log = logging.getLogger("user")
@@ -39,6 +39,11 @@ def send_welcome(ctx: Ctx) -> None:
 @router.command("start")
 def cmd_start(ctx: Ctx) -> None:
     payload = ctx.args.strip()
+    if payload == "sorov":  # saytdagi «So'rash» tugmasidan
+        from .contact import REQUEST_PROMPT, CONTACT_TTL
+        ctx.set_state("req", ttl=CONTACT_TTL)
+        ctx.send(REQUEST_PROMPT, cancel_kb())
+        return
     code = (CODE_RE.fullmatch(payload) or MUSIC_RE.fullmatch(payload)) if payload else None
     user = ctx.db.get_user(ctx.user_id)
     is_new = user is None or now() - user["joined_at"] < 15
@@ -376,17 +381,8 @@ def list_page(ctx: Ctx, kind: str, page: int):
     pages = max(1, math.ceil(len(rows) / PER_PAGE))
     page %= pages
     chunk = rows[page * PER_PAGE:(page + 1) * PER_PAGE]
-    if kind == "tp":
-        header = "🔥 <b>Eng ko'p ko'rilgan kinolar</b>"
-
-        def fmt(r):
-            return fmt_item(r, f"👁 {fmt_compact(r['views'])}")
-    else:
-        header = "🆕 <b>Yangi qo'shilgan kinolar</b>"
-
-        def fmt(r):
-            return fmt_item(r, f"🗓 {fmt_short_date(r['created_at'])}")
-    return build_list(header, chunk, page * PER_PAGE, page, pages, kind, fmt)
+    header = "🔥 <b>Eng ko'p ko'rilgan kinolar</b>" if kind == "tp" else "🆕 <b>Yangi qo'shilgan kinolar</b>"
+    return build_list(header, chunk, page * PER_PAGE, page, pages, kind, fmt_item)
 
 
 # ═════════════════════════ 🎬 Kinolar / 🧸 Multfilmlar / 🎵 Musiqalar ═════════════════════════

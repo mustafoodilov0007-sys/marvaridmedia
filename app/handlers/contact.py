@@ -6,7 +6,7 @@ import logging
 import time
 
 from ..core import Ctx, router
-from ..keyboards import PRIMARY, SUCCESS, btn, cancel_kb, ikb
+from ..keyboards import PRIMARY, btn, cancel_kb, ikb
 from ..telegram import Forbidden, TelegramError
 from ..texts import B
 from ..utils import esc, message_html, user_link, visible_len
@@ -131,6 +131,7 @@ def send_request(ctx: Ctx, query: str) -> bool:
         ctx.send("⏳ Biroz shoshildingiz 🙂 Bir necha soniyadan so'ng kino nomini qayta yuboring.", cancel_kb())
         return True
     _last_request[ctx.user_id] = (query, time.time())
+    ctx.db.add_request(ctx.user_id, query)  # kino qo'shilganda avtomatik xabar berish uchun
     uname = f" (@{esc(ctx.user['username'])})" if ctx.user.get("username") else ""
     text = (f"🎬 <b>Yangi kino so'rovi</b>\n\n"
             f"🔎 <b>«{esc(query)}»</b>\n\n"
@@ -186,3 +187,55 @@ def cb_request(ctx: Ctx) -> None:
     ctx.answer("📨 Yuborilmoqda...")
     ctx.bot.safe("editMessageReplyMarkup", {"chat_id": ctx.chat_id, "message_id": ctx.cb_message.get("message_id")})
     send_request(ctx, row["query"])
+
+
+# ═════════════════════════ 🎉 so'ralgan kino qo'shilganda xabar berish ═════════════════════════
+
+REQUEST_DAYS = 60   # shuncha kun ichidagi so'rovlar kuzatiladi
+_STOP = {"kino", "kinosi", "film", "filmi", "multfilm", "multfilmi", "multik", "serial", "seriali", "uzbek", "ozbek",
+         "ozbekcha", "tilida", "tarjima", "tarjimasi", "hd", "full", "barcha", "qismlari", "qismi", "qism", "yangi",
+         "the", "uz", "ru", "rus", "tilda", "va", "bilan"}
+
+
+def _need_tokens(norm: str):
+    """So'rovdagi muhim so'zlar (yillar va umumiy so'zlarsiz). Raqamlar (qism raqami) muhim."""
+    out = []
+    for t in norm.split():
+        if t in _STOP or (len(t) == 4 and t.isdigit() and t[:2] in ("19", "20")):
+            continue
+        if len(t) < 2 and not t.isdigit():
+            continue
+        out.append(t)
+    return out
+
+
+def notify_requesters(app, movie_id: int) -> int:
+    """Yangi qo'shilgan kino nomiga mos ochiq so'rovlar egalariga xabar yuboradi. Nechta yuborilganini qaytaradi."""
+    from ..keyboards import SUCCESS
+    from ..utils import now
+    movie = app.db.get_movie(movie_id)
+    if not movie:
+        return 0
+    title_tokens = set(movie["norm_title"].split())
+    sent_to = set()
+    for r in app.db.open_requests(now() - REQUEST_DAYS * 86400):
+        need = _need_tokens(r["norm"])
+        if not need or not set(need) <= title_tokens:
+            continue
+        app.db.close_request(r["id"], movie_id)
+        if r["user_id"] in sent_to:
+            continue
+        sent_to.add(r["user_id"])
+        code = f"\n🔢 Kod: <code>{movie['code']}</code>" if movie["code"] > 0 else ""
+        try:
+            app.bot.send_message(
+                r["user_id"],
+                f"🎉 <b>Siz so'ragan kino qo'shildi!</b>\n\n🔎 So'rovingiz: «{esc(r['query'])}»\n"
+                f"🎬 <b>{esc(movie['title'])}</b>{code}\n\nHoziroq tomosha qiling 🍿",
+                ikb([btn("▶️ Ko'rish", f"mv:{movie_id}", style=SUCCESS)]))
+        except Forbidden:
+            app.db.set_blocked(r["user_id"], True)
+        except TelegramError as exc:
+            log.warning("So'rov egasiga xabar yetmadi (%s): %s", r["user_id"], exc.description)
+        time.sleep(0.05)
+    return len(sent_to)
