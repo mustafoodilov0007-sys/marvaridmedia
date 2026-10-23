@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
 
-from . import keyboards
+from . import genres, keyboards
 from .core import App, Ctx, router, start_payload
 from .database import CATEGORIES
 from .telegram import Forbidden, TelegramError
@@ -88,6 +88,7 @@ def api_catalog(app: App, user: dict, qs: dict) -> dict:
     except ValueError:
         offset = 0
     query = (qs.get("q") or "").strip()[:100]
+    genre = qs.get("genre") if qs.get("genre") in genres.GENRES else None
     _, vip = _user_flags(app, user["id"])
     premium_on = app.setting_bool("premium_enabled")
 
@@ -99,12 +100,25 @@ def api_catalog(app: App, user: dict, qs: dict) -> dict:
         more = False
     else:
         tokens = normalize(query).split()
-        rows = app.db.catalog(cat, sort, tokens, PAGE_SIZE + 1, offset)
+        rows = app.db.catalog(cat, sort, tokens, PAGE_SIZE + 1, offset, genre=genre)
         more = len(rows) > PAGE_SIZE
         rows = rows[:PAGE_SIZE]
 
     items = [_item(r, premium_on, vip) for r in rows]
-    return {"ok": True, "items": items, "more": more, "counts": app.db.count_by_category()}
+    out = {"ok": True, "items": items, "more": more, "counts": app.db.count_by_category()}
+    if offset == 0 and not query and cat != "music":
+        out["genres"] = [{"key": k, "label": genres.label(k), "n": n} for k, n in app.db.genre_counts(cat).items()]
+    return out
+
+
+def api_similar(app: App, user: dict, qs: dict) -> dict:
+    try:
+        movie_id = int(qs.get("id", "0"))
+    except ValueError:
+        return {"ok": False, "reason": "not_found"}
+    _, vip = _user_flags(app, user["id"])
+    premium_on = app.setting_bool("premium_enabled")
+    return {"ok": True, "items": [_item(r, premium_on, vip) for r in app.db.similar(movie_id, 12)]}
 
 
 _YEAR_RE = re.compile(r"\b(19[2-9]\d|20[0-4]\d)\b")
@@ -112,14 +126,19 @@ _YEAR_RE = re.compile(r"\b(19[2-9]\d|20[0-4]\d)\b")
 
 def _item(r, premium_on: bool, vip: bool) -> dict:
     desc = r["description"] or ""
-    year = _YEAR_RE.search(r["title"] + " " + desc)
+    keys = r.keys()
+    year = r["year"] if "year" in keys and r["year"] else None
+    if not year:
+        m = _YEAR_RE.search(r["title"] + " " + desc)
+        year = int(m.group(1)) if m else None
     return {
         "id": r["id"],
         "code": r["code"],
         "cat": r["category"],
         "title": r["title"],
         "desc": truncate(desc, 400),
-        "year": int(year.group(1)) if year else None,
+        "year": year,
+        "genres": [{"key": k, "label": genres.label(k)} for k in genres.parse(r["genres"] if "genres" in keys else "")],
         "parts": r["parts"],
         "views": r["views"],
         "premium": bool(r["is_premium"]),
@@ -143,8 +162,10 @@ def api_home(app: App, user: dict) -> dict:
     newest.sort(key=lambda r: (r["created_at"], r["id"]), reverse=True)
     with_poster = [r for r in newest if r["poster_id"]]
     hero = (with_poster + [r for r in newest if not r["poster_id"]])[:6]
+    history = pack(db.history(user["id"], 15)) if user["id"] else []
     return {
         "ok": True,
+        "history": history,
         "hero": pack(hero),
         "rails": [
             {"key": "movie_new", "title": "Yangi kinolar", "cat": "movie", "sort": "new",
@@ -550,6 +571,8 @@ def make_handler(app: App):
                         return self._json(api_catalog(app, user, qs))
                     if path == "/api/shorts":
                         return self._json(api_shorts(app, user, qs))
+                    if path == "/api/similar":
+                        return self._json(api_similar(app, user, qs))
                 return self._send(404, b"Not found", "text/plain")
             except (BrokenPipeError, ConnectionResetError):
                 pass

@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+from . import genres
 from .utils import escape_like, normalize, now
 
 SCHEMA = """
@@ -38,7 +39,9 @@ CREATE TABLE IF NOT EXISTS movies (
     added_by    INTEGER,
     created_at  INTEGER NOT NULL,
     category    TEXT    NOT NULL DEFAULT 'movie',
-    desc_html   TEXT    NOT NULL DEFAULT ''
+    desc_html   TEXT    NOT NULL DEFAULT '',
+    genres      TEXT    NOT NULL DEFAULT '',
+    year        INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_movies_views   ON movies(views);
 CREATE INDEX IF NOT EXISTS idx_movies_created ON movies(created_at);
@@ -74,6 +77,14 @@ CREATE TABLE IF NOT EXISTS requests (
     movie_id   INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_requests_open ON requests(done_at, created_at);
+
+CREATE TABLE IF NOT EXISTS history (
+    user_id     INTEGER NOT NULL,
+    movie_id    INTEGER NOT NULL,
+    at          INTEGER NOT NULL,
+    PRIMARY KEY (user_id, movie_id)
+);
+CREATE INDEX IF NOT EXISTS idx_history_user ON history(user_id, at);
 
 CREATE TABLE IF NOT EXISTS channels (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -151,6 +162,11 @@ CREATE INDEX IF NOT EXISTS idx_payment_msgs ON payment_msgs(payment_id);
 
 CATEGORIES = ("movie", "cartoon", "music")
 
+_CATALOG_ROW = """
+SELECT m.id, m.code, m.title, m.description, m.is_premium, m.views, m.created_at, m.category, m.poster_id,
+       m.genres, m.year, (SELECT COUNT(*) FROM parts p WHERE p.movie_id = m.id) AS parts
+FROM movies m"""
+
 _MOVIE_ROW = """
 SELECT m.id, m.code, m.title, m.is_premium, m.views, m.created_at, m.category,
        (SELECT COUNT(*) FROM parts p WHERE p.movie_id = m.id) AS parts
@@ -182,6 +198,14 @@ class Database:
         if "desc_html" not in cols:
             # izohning formatlangan nusxasi (premium emoji, qalin/kursiv) — kino yuborilganda shu ishlatiladi
             self.conn.execute("ALTER TABLE movies ADD COLUMN desc_html TEXT NOT NULL DEFAULT ''")
+        if "genres" not in cols:
+            # 🎭 janr va 📅 yil — eski kinolar uchun nom va izohdan avtomatik aniqlanadi
+            self.conn.execute("ALTER TABLE movies ADD COLUMN genres TEXT NOT NULL DEFAULT ''")
+            self.conn.execute("ALTER TABLE movies ADD COLUMN year INTEGER NOT NULL DEFAULT 0")
+            for r in self.conn.execute("SELECT id, title, description, category FROM movies").fetchall():
+                g = "" if r[3] == "music" else genres.dump(genres.detect(r[1], r[2]))
+                self.conn.execute("UPDATE movies SET genres=?, year=? WHERE id=?",
+                                  (g, genres.detect_year(r[1], r[2]), r[0]))
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_movies_category ON movies(category, created_at)")
         # musiqalar kodsiz: avval kod bilan qo'shilganlari ichki (manfiy) raqamga o'tkaziladi
         rows = self.conn.execute("SELECT id FROM movies WHERE category='music' AND code>0 ORDER BY id").fetchall()
@@ -370,18 +394,23 @@ class Database:
 
     def add_movie(self, code: int, title: str, description: str, poster_id: Optional[str],
                   is_premium: bool, added_by: int, file_id: str, file_type: str,
-                  category: str = "movie", desc_html: str = "") -> int:
+                  category: str = "movie", desc_html: str = "", genre_keys=None, year: Optional[int] = None) -> int:
         t = now()
         if category not in CATEGORIES:
             category = "movie"
+        if genre_keys is None:
+            genre_keys = [] if category == "music" else genres.detect(title, description)
+        if year is None:
+            year = genres.detect_year(title, description)
         with self.tx() as c:
             if category == "music":
                 code = (c.execute("SELECT MIN(code) FROM movies WHERE code<0").fetchone()[0] or 0) - 1
             cur = c.execute(
                 "INSERT INTO movies(code, title, description, poster_id, is_premium, norm_title, norm_desc,"
-                " added_by, created_at, category, desc_html) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                " added_by, created_at, category, desc_html, genres, year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (code, title, description or "", poster_id, 1 if is_premium else 0, normalize(title),
-                 normalize(description or ""), added_by, t, category, desc_html or ""))
+                 normalize(description or ""), added_by, t, category, desc_html or "",
+                 genres.dump(genre_keys), year or 0))
             movie_id = cur.lastrowid
             c.execute("INSERT INTO parts(movie_id, part_no, file_id, file_type, created_at) VALUES (?,?,?,?,?)",
                       (movie_id, 1, file_id, file_type, t))
@@ -539,7 +568,7 @@ class Database:
     def shorts_feed(self, limit: int = 10, offset: int = 0) -> List[sqlite3.Row]:
         return self.q(
             "SELECT s.id AS short_id, s.kind AS short_kind, m.id, m.code, m.title, m.description, m.is_premium,"
-            " m.views, m.created_at, m.category, m.poster_id,"
+            " m.views, m.created_at, m.category, m.poster_id, m.genres, m.year,"
             " (SELECT COUNT(*) FROM parts p WHERE p.movie_id = m.id) AS parts"
             " FROM shorts s JOIN movies m ON m.id = s.movie_id ORDER BY s.id DESC LIMIT ? OFFSET ?",
             (limit, offset))
@@ -547,9 +576,13 @@ class Database:
     # ───────── sayt (Mini App) katalogi ─────────
 
     def catalog(self, category: str, sort: str = "new", tokens: Optional[List[str]] = None,
-                limit: int = 30, offset: int = 0, movie_id: Optional[int] = None) -> List[sqlite3.Row]:
+                limit: int = 30, offset: int = 0, movie_id: Optional[int] = None,
+                genre: Optional[str] = None) -> List[sqlite3.Row]:
         where = ["m.category=?"]
         params: list = [category]
+        if genre:
+            where.append("m.genres LIKE ?")
+            params.append(f"%,{genre},%")
         if movie_id is not None:
             where.append("m.id=?")
             params.append(movie_id)
@@ -557,10 +590,52 @@ class Database:
             where.append("(m.norm_title || ' ' || m.norm_desc) LIKE ? ESCAPE '\\'")
             params.append(f"%{escape_like(t)}%")
         order = "m.views DESC, m.id DESC" if sort == "top" else "m.created_at DESC, m.id DESC"
-        sql = ("SELECT m.id, m.code, m.title, m.description, m.is_premium, m.views, m.created_at,"
-               " m.category, m.poster_id, (SELECT COUNT(*) FROM parts p WHERE p.movie_id = m.id) AS parts"
-               f" FROM movies m WHERE {' AND '.join(where)} ORDER BY {order} LIMIT ? OFFSET ?")
+        sql = (_CATALOG_ROW + f" WHERE {' AND '.join(where)} ORDER BY {order} LIMIT ? OFFSET ?")
         return self.q(sql, params + [limit, offset])
+
+    def catalog_rows(self, ids: List[int]) -> List[sqlite3.Row]:
+        if not ids:
+            return []
+        rows = self.q(_CATALOG_ROW + f" WHERE m.id IN ({','.join('?' * len(ids))})", ids)
+        by_id = {r["id"]: r for r in rows}
+        return [by_id[i] for i in ids if i in by_id]
+
+    def genre_counts(self, category: str) -> Dict[str, int]:
+        """Har bir janrda nechta kino bor (faqat bo'sh bo'lmaganlari)."""
+        out: Dict[str, int] = {}
+        for r in self.q("SELECT genres FROM movies WHERE category=? AND genres<>''", (category,)):
+            for k in genres.parse(r[0]):
+                out[k] = out.get(k, 0) + 1
+        return {k: out[k] for k in genres.GENRES if k in out}
+
+    def similar(self, movie_id: int, limit: int = 12) -> List[sqlite3.Row]:
+        """O'xshash kinolar: shu turdagi, umumiy janri ko'p bo'lganlari oldin, keyin eng ko'p ko'rilganlar."""
+        movie = self.get_movie(movie_id)
+        if not movie or movie["category"] == "music":
+            return []
+        mine = set(genres.parse(movie["genres"]))
+        rows = self.q(_CATALOG_ROW + " WHERE m.category=? AND m.id<>? ORDER BY m.views DESC, m.id DESC LIMIT 300",
+                      (movie["category"], movie_id))
+        def score(r):
+            common = len(mine & set(genres.parse(r["genres"])))
+            near = 1 if movie["year"] and r["year"] and abs(movie["year"] - r["year"]) <= 3 else 0
+            return common * 10 + near
+        ranked = sorted(enumerate(rows), key=lambda x: (-score(x[1]), x[0]))
+        return [r for _, r in ranked[:limit]]
+
+    # ───────── 🕘 ko'rilganlar tarixi ─────────
+
+    def touch_history(self, uid: int, movie_id: int) -> None:
+        self.x("INSERT INTO history(user_id, movie_id, at) VALUES (?,?,?)"
+               " ON CONFLICT(user_id, movie_id) DO UPDATE SET at=excluded.at", (uid, movie_id, now()))
+
+    def history(self, uid: int, limit: int = 15) -> List[sqlite3.Row]:
+        return self.q(_CATALOG_ROW.replace("FROM movies m", "FROM history h JOIN movies m ON m.id = h.movie_id")
+                      + " WHERE h.user_id=? AND m.category<>'music' ORDER BY h.at DESC LIMIT ?", (uid, limit))
+
+    def prune_history(self, keep: int = 60) -> None:
+        self.x("DELETE FROM history WHERE rowid IN (SELECT rowid FROM (SELECT rowid, ROW_NUMBER() OVER"
+               " (PARTITION BY user_id ORDER BY at DESC) AS n FROM history) WHERE n>?)", (keep,))
 
     def count_premium_movies(self) -> int:
         return self.val("SELECT COUNT(*) FROM movies WHERE is_premium=1")

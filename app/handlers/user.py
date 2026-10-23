@@ -8,6 +8,9 @@ import re
 import urllib.parse
 from typing import List, Optional
 
+import random
+
+from .. import genres
 from ..core import Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, nav_row, number_rows, user_menu
 from ..subscription import all_joined, channel_statuses, gate_view, needs_gate
@@ -400,7 +403,78 @@ def category_page(ctx: Ctx, cat: str, page: int):
     chunk = rows[page * PER_PAGE:(page + 1) * PER_PAGE]
     header = f"{CAT_TITLES[cat]} — yangi qo'shilganlar"
     hint = "👇 Tanlang:" if cat == "music" else "👇 Kerakli raqamni tanlang:"
-    return build_list(header, chunk, page * PER_PAGE, page, pages, f"cl:{cat}", fmt_item, hint=hint)
+    text, kb = build_list(header, chunk, page * PER_PAGE, page, pages, f"cl:{cat}", fmt_item, hint=hint)
+    if cat != "music" and ctx.db.genre_counts(cat):
+        kb["inline_keyboard"].insert(-1, [btn("🎭 Janr bo'yicha tanlash", f"gl:{cat}", style=SUCCESS)])
+    return text, kb
+
+
+def genres_menu(ctx: Ctx, cat: str):
+    counts = ctx.db.genre_counts(cat)
+    if not counts:
+        return f"{CAT_TITLES[cat]}\n\n🎭 Hozircha janrlar belgilanmagan.", ikb([btn("⬅️ Orqaga", f"cl:{cat}:0")])
+    rows, row = [], []
+    for k, n in counts.items():
+        row.append(btn(f"{genres.label(k)} ({n})", f"gn:{cat}:{k}:0", style=PRIMARY))
+        if len(row) == 2:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    rows.append([btn("⬅️ Orqaga", f"cl:{cat}:0", style=DANGER)])
+    return f"{CAT_TITLES[cat]} — 🎭 <b>janrni tanlang</b>:\n\n🍿 Bugun qanday kayfiyatdasiz?", {"inline_keyboard": rows}
+
+
+def genre_page(ctx: Ctx, cat: str, key: str, page: int):
+    rows = ctx.db.catalog(cat, "top", None, LIST_LIMIT * 4, genre=key)
+    if not rows:
+        return f"{genres.label(key)}\n\n📭 Bu janrda hozircha hech narsa yo'q.", ikb([btn("⬅️ Janrlar", f"gl:{cat}")])
+    pages = max(1, math.ceil(len(rows) / PER_PAGE))
+    page %= pages
+    chunk = rows[page * PER_PAGE:(page + 1) * PER_PAGE]
+    header = f"{CAT_TITLES[cat]} — <b>{genres.label(key)}</b>"
+    text, kb = build_list(header, chunk, page * PER_PAGE, page, pages, f"gn:{cat}:{key}", fmt_item)
+    kb["inline_keyboard"].insert(-1, [btn("⬅️ Janrlar", f"gl:{cat}", style=SUCCESS)])
+    return text, kb
+
+
+@router.callback("gl", gate=True)
+def cb_genres(ctx: Ctx) -> None:
+    parts = ctx.data.split(":")
+    cat = parts[1] if len(parts) > 1 and parts[1] in ("movie", "cartoon") else "movie"
+    text, kb = genres_menu(ctx, cat)
+    ctx.answer()
+    edit_or_send(ctx, text, kb)
+
+
+@router.callback("gn", gate=True)
+def cb_genre_page(ctx: Ctx) -> None:
+    parts = ctx.data.split(":")
+    if len(parts) < 3 or parts[1] not in ("movie", "cartoon") or parts[2] not in genres.GENRES:
+        ctx.answer()
+        return
+    page = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0
+    text, kb = genre_page(ctx, parts[1], parts[2], page)
+    ctx.answer()
+    edit_or_send(ctx, text, kb)
+
+
+@router.callback("sim", gate=True)
+def cb_similar(ctx: Ctx) -> None:
+    parts = ctx.data.split(":")
+    movie = ctx.db.get_movie(int(parts[1])) if len(parts) > 1 and parts[1].isdigit() else None
+    if not movie:
+        ctx.answer("😔 Bu kino o'chirilgan.", alert=True)
+        return
+    rows = ctx.db.similar(movie["id"], PER_PAGE)
+    ctx.answer()
+    if not rows:
+        ctx.send("🎭 Hozircha o'xshash kinolar yo'q — tez orada qo'shiladi!")
+        return
+    g = genres.line(movie["genres"])
+    header = f"🎭 <b>«{esc(truncate(movie['title'], 50))}»</b> ga o'xshashlar" + (f"\n<i>{g}</i>" if g else "")
+    text, kb = build_list(header, rows, 0, 0, 1, None, fmt_item)
+    ctx.send(text, kb)
 
 
 @router.button(B.MOVIES, B.CARTOONS, B.MUSIC)
@@ -471,6 +545,15 @@ def build_caption(app, movie, part, total: int) -> str:
     head = f"{cat_icon(movie['category'])} <b>{esc(movie['title'])}</b>"
     if total > 1:
         head += f"\n📺 <b>{esc(part_label(part))}</b>  <i>({total} qismdan)</i>"
+    info = []
+    if movie["category"] != "music":
+        g = genres.line(movie["genres"])
+        if g:
+            info.append(g)
+        if movie["year"]:
+            info.append(f"📅 {movie['year']}")
+    if info:
+        head += "\n" + "  •  ".join(info)
     meta = (f"🔢 Kod: <code>{movie['code']}</code>  •  " if movie["code"] > 0 else "") + f"👁 {fmt_num(movie['views'] + 1)}"
     if movie["is_premium"]:
         meta += "  •  💎 Premium"
@@ -507,7 +590,10 @@ def part_kb(app, movie, part, total: int, extra_rows=None) -> dict:
         "text": (f"🎵 {movie['title']} — {app.brand} botida tinglang!" if movie["category"] == "music"
                  else f"🎬 {movie['title']} — {app.brand} botida tomosha qiling!"),
     })
-    rows.append([btn("📤 Do'stlarga ulashish", url=share, style=PRIMARY)])
+    last = [btn("📤 Do'stlarga ulashish", url=share, style=PRIMARY)]
+    if movie["category"] != "music":
+        last.append(btn("🎭 O'xshashlari", f"sim:{movie['id']}", style=SUCCESS))
+    rows.append(last)
     if extra_rows:
         rows.extend(extra_rows)
     return {"inline_keyboard": rows}
@@ -539,6 +625,10 @@ def send_part(ctx: Ctx, movie, part, total: int, extra_rows=None) -> None:
                 f"❗️ {esc(exc.description)}\n\nFaylni qayta yuklash tavsiya etiladi.")
         return
     ctx.db.inc_views(movie["id"], part["id"])
+    if movie["category"] != "music" and ctx.user_id:
+        ctx.db.touch_history(ctx.user_id, movie["id"])
+        if random.random() < 0.01:
+            ctx.db.prune_history()
 
 
 def parts_view(movie, parts, page: int, extra_rows=None):
