@@ -101,19 +101,71 @@ def api_catalog(app: App, user: dict, qs: dict) -> dict:
         more = len(rows) > PAGE_SIZE
         rows = rows[:PAGE_SIZE]
 
-    items = [{
+    items = [_item(r, premium_on, vip) for r in rows]
+    return {"ok": True, "items": items, "more": more, "counts": app.db.count_by_category()}
+
+
+_YEAR_RE = re.compile(r"\b(19[2-9]\d|20[0-4]\d)\b")
+
+
+def _item(r, premium_on: bool, vip: bool) -> dict:
+    desc = r["description"] or ""
+    year = _YEAR_RE.search(r["title"] + " " + desc)
+    return {
         "id": r["id"],
         "code": r["code"],
         "cat": r["category"],
         "title": r["title"],
-        "desc": truncate(r["description"] or "", 400),
+        "desc": truncate(desc, 400),
+        "year": int(year.group(1)) if year else None,
         "parts": r["parts"],
         "views": r["views"],
         "premium": bool(r["is_premium"]),
         "locked": bool(r["is_premium"]) and premium_on and not vip,
         "poster": _poster_key(r["poster_id"]),
-    } for r in rows]
-    return {"ok": True, "items": items, "more": more, "counts": app.db.count_by_category()}
+    }
+
+
+def api_home(app: App, user: dict) -> dict:
+    """Bosh sahifa: almashib turadigan yangi kinolar (hero) va bo'limlar."""
+    _, vip = _user_flags(app, user["id"])
+    premium_on = app.setting_bool("premium_enabled")
+    db = app.db
+
+    def pack(rows):
+        return [_item(r, premium_on, vip) for r in rows]
+
+    newest = []
+    for cat in ("movie", "cartoon"):
+        newest += list(db.catalog(cat, "new", None, 12))
+    newest.sort(key=lambda r: (r["created_at"], r["id"]), reverse=True)
+    with_poster = [r for r in newest if r["poster_id"]]
+    hero = (with_poster + [r for r in newest if not r["poster_id"]])[:6]
+    return {
+        "ok": True,
+        "hero": pack(hero),
+        "rails": [
+            {"key": "movie_new", "title": "Yangi kinolar", "cat": "movie", "sort": "new",
+             "items": pack(db.catalog("movie", "new", None, 15))},
+            {"key": "movie_top", "title": "Eng ko'p ko'rilgan", "cat": "movie", "sort": "top",
+             "items": pack(db.catalog("movie", "top", None, 15))},
+            {"key": "cartoon", "title": "Multfilmlar", "cat": "cartoon", "sort": "new",
+             "items": pack(db.catalog("cartoon", "new", None, 15))},
+            {"key": "music", "title": "Musiqalar", "cat": "music", "sort": "new",
+             "items": pack(db.catalog("music", "new", None, 15))},
+        ],
+        "counts": db.count_by_category(),
+    }
+
+
+def _channel_url(app: App) -> Optional[str]:
+    ref = app.setting("post_channel") or ""
+    if ref.startswith("@"):
+        return "https://t.me/" + ref[1:]
+    for ch in app.db.list_channels():
+        if (ch["url"] or "").startswith("https://t.me/"):
+            return ch["url"]
+    return None
 
 
 def api_me(app: App, user: dict) -> dict:
@@ -126,6 +178,7 @@ def api_me(app: App, user: dict) -> dict:
         "premium": vip,
         "premium_on": app.setting_bool("premium_enabled"),
         "counts": app.db.count_by_category(),
+        "channel": _channel_url(app),
     }
 
 
@@ -237,6 +290,8 @@ def make_handler(app: App):
                         return self._json({"ok": False, "reason": "auth"}, 401)
                     if path == "/api/me":
                         return self._json(api_me(app, user))
+                    if path == "/api/home":
+                        return self._json(api_home(app, user))
                     if path == "/api/catalog":
                         return self._json(api_catalog(app, user, qs))
                 return self._send(404, b"Not found", "text/plain")
@@ -300,7 +355,7 @@ def start_web(app: App) -> None:
         keyboards.SITE_ON = True
         # chat pastidagi «Menu» tugmasi saytni ochadi
         app.bot.safe("setChatMenuButton", {"menu_button": {
-            "type": "web_app", "text": "🌐 Sayt", "web_app": {"url": cfg.webapp_url}}})
+            "type": "web_app", "text": app.brand[:30] or "Sayt", "web_app": {"url": cfg.webapp_url}}})
         log.info("🌐 Sayt ishga tushdi: %s (port %s)", cfg.webapp_url, cfg.web_port)
     else:
         log.warning("🌐 Sayt %s-portda ishlayapti, lekin manzili noma'lum — .env ga WEBAPP_URL=https://... "

@@ -5,145 +5,250 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Marvarid Media</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Montserrat:wght@800;900&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: var(--tg-theme-bg-color, #0f1220);
-    --bg2: var(--tg-theme-secondary-bg-color, #171b2e);
-    --text: var(--tg-theme-text-color, #f2f4ff);
-    --hint: var(--tg-theme-hint-color, #8a90ad);
-    --accent: var(--tg-theme-button-color, #3d8bfd);
-    --accent-text: var(--tg-theme-button-text-color, #ffffff);
-    --card: color-mix(in srgb, var(--bg2) 85%, var(--text) 4%);
-    --line: color-mix(in srgb, var(--text) 10%, transparent);
-    --green: #2fbf71;
-    --red: #e5534b;
-    --gold: #f5b84b;
-    --radius: 14px;
+    --bg: #0a0c13;
+    --bg-soft: #0f121c;
+    --surface: #161a28;
+    --surface-2: #1e2335;
+    --line: rgba(255, 255, 255, .07);
+    --text: #f4f5fb;
+    --muted: #8e94ad;
+    --accent: #7c6cff;
+    --accent-2: #4fa3ff;
+    --grad: linear-gradient(135deg, #8b6cff 0%, #5a8dff 55%, #3fc1ff 100%);
+    --gold: #f5c451;
+    --green: #2fd17c;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .45);
+    --nav-h: 64px;
+    --r: 16px;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f6fb;
+    --bg-soft: #eceef6;
+    --surface: #ffffff;
+    --surface-2: #eef0f7;
+    --line: rgba(17, 19, 26, .08);
+    --text: #12141c;
+    --muted: #6b7189;
+    --shadow: 0 10px 28px rgba(30, 36, 70, .14);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { overflow-x: hidden; }
-  html, body { margin: 0; background: var(--bg); color: var(--text);
-    font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-  body { padding-bottom: env(safe-area-inset-bottom); }
-  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden;
+    font: 15px/1.4 "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); transition: background .25s; }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
+  svg { width: 22px; height: 22px; flex: none; stroke: currentColor; fill: none; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; }
+  .hidden { display: none !important; }
 
-  header { padding: 18px 16px 6px; }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .logo { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 22px;
-    background: linear-gradient(135deg, #7f5af0, #3d8bfd 55%, #2fbf71); box-shadow: 0 6px 18px #3d8bfd40; }
-  .brand h1 { margin: 0; font-size: 19px; letter-spacing: .2px; }
-  .brand p { margin: 1px 0 0; color: var(--hint); font-size: 13px; }
+  /* ───── header ───── */
+  .top { position: fixed; inset: 0 0 auto; z-index: 30; display: flex; align-items: center; gap: 7px;
+    padding: 12px 16px; transition: background .25s, box-shadow .25s; }
+  .top.solid { background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px); box-shadow: 0 1px 0 var(--line); }
+  .logo { display: flex; align-items: center; gap: 9px; margin-right: auto; min-width: 0; }
+  .pearl { width: 34px; height: 34px; border-radius: 50%; flex: none; position: relative;
+    background: radial-gradient(circle at 32% 28%, #ffffff 0 12%, #d9d4ff 26%, #8b6cff 62%, #3a2a9e 100%);
+    box-shadow: 0 0 0 2px rgba(255,255,255,.08), 0 6px 18px rgba(124,108,255,.55); }
+  .pearl::after { content: ""; position: absolute; inset: 6px 9px auto auto; width: 7px; height: 7px;
+    border-radius: 50%; background: rgba(255,255,255,.85); filter: blur(.5px); }
+  .word { display: flex; flex-direction: column; min-width: 0; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,.35); }
+  .word .w1 { font: 900 17px/1 "Montserrat", sans-serif; letter-spacing: .6px; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; }
+  .word .w2 { font: 800 10.5px/1 "Montserrat", sans-serif; letter-spacing: 3.2px; margin-top: 4px; text-shadow: none;
+    background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .top.solid .word { color: var(--text); text-shadow: none; }
+  .ibtn { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none;
+    background: rgba(20, 22, 34, .55); color: #fff; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.08); transition: transform .15s; }
+  .top.solid .ibtn { background: var(--surface); color: var(--text); border-color: var(--line); }
+  .ibtn:active { transform: scale(.92); }
+  .ibtn svg { width: 20px; height: 20px; }
+  .avatar { width: 40px; height: 40px; border-radius: 12px; flex: none; overflow: hidden; display: grid;
+    place-items: center; background: var(--grad); color: #fff; font-weight: 800; font-size: 15px; }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
 
-  .sticky { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 8px 16px 10px;
-    border-bottom: 1px solid var(--line); }
-  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; background: var(--bg2);
-    padding: 4px; border-radius: 12px; }
-  @media (max-width: 370px) { .tab small { display: none; } .tab { font-size: 13px; } }
-  .tab { padding: 9px 4px; border-radius: 9px; font-weight: 600; font-size: 14px; color: var(--hint);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: .15s; }
-  .tab small { font-weight: 500; opacity: .75; }
-  .tab.on { background: var(--accent); color: var(--accent-text); box-shadow: 0 2px 10px #0003; }
-  .row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
-  .search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; background: var(--bg2); border-radius: 11px;
-    padding: 0 12px; height: 40px; }
-  .search input { flex: 1; min-width: 0; width: 100%; border: 0; outline: 0; background: none; color: var(--text); font: inherit; }
-  .search input::placeholder { color: var(--hint); }
-  .chip { flex: none; height: 40px; padding: 0 10px; border-radius: 11px; background: var(--bg2); color: var(--hint);
-    font-weight: 600; font-size: 13px; white-space: nowrap; }
-  .chip.on { color: var(--text); box-shadow: inset 0 0 0 1.5px var(--accent); }
+  /* ───── hero ───── */
+  .hero { position: relative; height: min(76vh, 600px); min-height: 440px; overflow: hidden; background: var(--bg-soft);
+    touch-action: pan-y; }
+  .slide { position: absolute; inset: 0; opacity: 0; transition: opacity .7s ease; pointer-events: none; }
+  .slide.on { opacity: 1; pointer-events: auto; }
+  .slide .bg { position: absolute; inset: 0; background-size: cover; background-position: center 20%;
+    transform: scale(1.08); transition: transform 6s ease-out; }
+  .slide.on .bg { transform: scale(1); }
+  .slide .bg.ph { background: radial-gradient(120% 80% at 70% 10%, #5a4bd6 0%, #1b1f3a 45%, var(--bg) 100%); }
+  .slide .ph-icon { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); opacity: .35; }
+  .slide .ph-icon svg { width: 120px; height: 120px; stroke-width: 1.2; color: #fff; }
+  .shade { position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(10,12,19,.55) 0%, rgba(10,12,19,0) 22%, rgba(10,12,19,0) 38%,
+      color-mix(in srgb, var(--bg) 70%, transparent) 66%, var(--bg) 100%); }
+  .hero-body { position: absolute; left: 0; right: 0; bottom: 30px; padding: 0 16px; text-align: center; }
+  .hero-title { font: 900 clamp(30px, 9.5vw, 44px)/1.02 "Montserrat", sans-serif; text-transform: uppercase;
+    letter-spacing: -.5px; margin: 0 0 12px; color: #fff; text-shadow: 0 4px 24px rgba(0,0,0,.55);
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  :root[data-theme="light"] .hero-title { color: var(--text); text-shadow: 0 2px 16px rgba(255,255,255,.6); }
+  .badges { display: flex; justify-content: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .badge { font-size: 12px; font-weight: 800; padding: 4px 9px; border-radius: 8px; background: var(--grad); color: #fff; }
+  .badge.gold { background: var(--gold); color: #2a1f00; }
+  .badge.glass { background: rgba(255,255,255,.14); backdrop-filter: blur(8px); color: #fff; }
+  :root[data-theme="light"] .badge.glass { background: var(--surface-2); color: var(--text); }
+  .meta { font-weight: 700; font-size: 15px; color: var(--text); opacity: .95; }
+  .meta i { font-style: normal; color: var(--muted); padding: 0 6px; }
+  .sub { color: var(--muted); font-size: 14px; margin-top: 4px; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; padding: 0 8px; }
+  .actions { display: flex; gap: 10px; margin-top: 18px; }
+  .btn { height: 52px; border-radius: 15px; display: inline-flex; align-items: center; justify-content: center;
+    gap: 8px; font-weight: 800; font-size: 16px; transition: transform .15s, filter .15s; }
+  .btn:active { transform: scale(.96); }
+  .btn.primary { flex: 1.25; background: var(--grad); color: #fff; box-shadow: 0 10px 26px rgba(108,108,255,.42); }
+  .btn.primary svg { fill: currentColor; stroke: none; width: 18px; height: 18px; }
+  .btn.soft { flex: 1; background: var(--surface-2); color: var(--text); }
+  .btn.sq { width: 52px; flex: none; background: var(--surface-2); color: var(--text); }
+  .btn.sq.on { color: var(--gold); }
+  .btn.sq.on svg { fill: currentColor; }
+  .btn.lock { background: linear-gradient(135deg, #f8d06b, #e9962b); color: #2a1f00; box-shadow: none; }
+  .btn.lock svg { fill: none; stroke: currentColor; stroke-width: 2.2; }
+  .dots { display: flex; justify-content: center; gap: 6px; margin-top: 18px; }
+  .dot { width: 8px; height: 8px; border-radius: 4px; background: var(--muted); opacity: .35; transition: all .35s; }
+  .dot.on { width: 26px; opacity: 1; background: var(--grad); }
 
-  main { padding: 14px 16px 24px; }
-  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 10px; }
+  /* ───── rails ───── */
+  .section { margin-top: 26px; }
+  .sec-head { display: flex; align-items: center; justify-content: space-between; padding: 0 16px; margin-bottom: 12px; }
+  .sec-head h2 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -.2px; }
+  .sec-head h2 span { color: var(--muted); font-weight: 700; font-size: 14px; margin-left: 6px; }
+  .more { display: flex; align-items: center; gap: 2px; color: var(--accent-2); font-weight: 700; font-size: 14px; }
+  .more svg { width: 16px; height: 16px; }
+  .rail { display: flex; gap: 12px; overflow-x: auto; padding: 0 16px 4px; scroll-snap-type: x mandatory;
+    scroll-padding-inline: 16px;
+    scrollbar-width: none; }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail .card { width: 124px; flex: none; scroll-snap-align: start; }
+  .rail.music .card { width: 140px; }
+
+  .card { text-align: left; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+  .poster { position: relative; aspect-ratio: 2 / 3; border-radius: 14px; overflow: hidden; background: var(--surface);
+    box-shadow: var(--shadow); }
+  .music .poster, .grid.music .poster { aspect-ratio: 1; }
+  .poster img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .3s; }
+  .poster img.ok { opacity: 1; }
+  .ph { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; padding: 10px; text-align: center; color: #fff;
+    background: linear-gradient(160deg, var(--c1, #6a5cff), var(--c2, #1d2140)); }
+  .ph svg { width: 34px; height: 34px; opacity: .85; }
+  .ph span { font-size: 12px; font-weight: 700; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical; overflow: hidden; }
+  .tag { position: absolute; top: 7px; font-size: 10.5px; font-weight: 800; padding: 3px 7px; border-radius: 7px;
+    color: #fff; background: rgba(0,0,0,.55); backdrop-filter: blur(6px); }
+  .tag.l { left: 7px; } .tag.r { right: 7px; background: var(--gold); color: #2a1f00; }
+  .card .t { font-size: 13.5px; font-weight: 700; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical; overflow: hidden; }
+  .card .m { font-size: 12px; color: var(--muted); margin-top: -3px; display: flex; align-items: center; gap: 4px; }
+  .card .m svg { width: 13px; height: 13px; }
+  .card:active .poster { transform: scale(.97); }
+  .poster { transition: transform .15s; }
+
+  /* ───── pages ───── */
+  .page { padding: 76px 16px 20px; }
+  .page h1 { font-size: 26px; font-weight: 800; margin: 6px 0 4px; letter-spacing: -.4px; }
+  .page .lead { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
+  .seg { display: inline-flex; background: var(--surface); border-radius: 13px; padding: 4px; gap: 4px; margin-bottom: 16px;
+    border: 1px solid var(--line); }
+  .seg button { padding: 8px 16px; border-radius: 10px; font-weight: 700; font-size: 14px; color: var(--muted); }
+  .seg button.on { background: var(--grad); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px 10px; }
   @media (max-width: 340px) { .grid { grid-template-columns: repeat(2, 1fr); } }
   @media (min-width: 560px) { .grid { grid-template-columns: repeat(4, 1fr); } }
-  .card { text-align: left; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-  .poster { position: relative; aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; background: var(--card);
-    display: grid; place-items: center; box-shadow: 0 4px 14px #0002; }
-  .poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .ph { display: grid; place-items: center; gap: 6px; padding: 8px; text-align: center; width: 100%; height: 100%;
-    background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 35%, var(--bg2)), var(--bg2)); }
-  .ph b { font-size: 30px; }
-  .ph span { font-size: 11px; color: var(--text); opacity: .85; display: -webkit-box; -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical; overflow: hidden; }
-  .badge { position: absolute; top: 6px; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 7px;
-    background: #000a; color: #fff; backdrop-filter: blur(4px); }
-  .badge.l { left: 6px; } .badge.r { right: 6px; background: #f5b84bdd; color: #241a00; }
-  .card .t { font-size: 13px; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-    overflow: hidden; }
-  .card .m { font-size: 11.5px; color: var(--hint); margin-top: -3px; }
+  .grid.music { grid-template-columns: repeat(2, 1fr); }
+  .searchbox { display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 14px; border-radius: 15px;
+    background: var(--surface); border: 1px solid var(--line); margin: 8px 0 18px; }
+  .searchbox svg { color: var(--muted); }
+  .searchbox input { flex: 1; min-width: 0; width: 100%; border: 0; outline: 0; background: none; color: var(--text);
+    font: 600 16px "Manrope", sans-serif; }
+  .searchbox input::placeholder { color: var(--muted); }
+  .group-title { font-weight: 800; font-size: 16px; margin: 20px 0 10px; }
+  .empty { text-align: center; color: var(--muted); padding: 50px 20px; }
+  .empty .big { width: 72px; height: 72px; margin: 0 auto 14px; border-radius: 22px; display: grid; place-items: center;
+    background: var(--surface); color: var(--accent-2); }
+  .empty .big svg { width: 34px; height: 34px; }
+  .empty b { display: block; color: var(--text); font-size: 17px; margin-bottom: 6px; }
+  .loadmore { display: block; margin: 22px auto 0; padding: 12px 22px; border-radius: 13px; background: var(--surface);
+    color: var(--accent-2); font-weight: 700; }
+  .sk { background: linear-gradient(100deg, var(--surface) 30%, var(--surface-2) 50%, var(--surface) 70%);
+    background-size: 300% 100%; animation: sh 1.3s linear infinite; }
+  @keyframes sh { to { background-position: -150% 0; } }
 
-  .list { display: flex; flex-direction: column; gap: 8px; }
-  .track { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: var(--radius);
-    background: var(--bg2); text-align: left; width: 100%; }
-  .cover { width: 54px; height: 54px; border-radius: 10px; overflow: hidden; flex: none; display: grid;
-    place-items: center; font-size: 24px; background: linear-gradient(135deg, #7f5af0, #3d8bfd); }
-  .cover img { width: 100%; height: 100%; object-fit: cover; }
-  .track .info { flex: 1; min-width: 0; }
-  .track .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .track .m { font-size: 12.5px; color: var(--hint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .play { width: 38px; height: 38px; border-radius: 50%; flex: none; display: grid; place-items: center;
-    background: var(--accent); color: var(--accent-text); font-size: 15px; }
+  /* ───── bottom nav ───── */
+  .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(5, 1fr);
+    height: calc(var(--nav-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
+    background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border-top: 1px solid var(--line); }
+  .nav button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    color: var(--muted); font-size: 11.5px; font-weight: 700; position: relative; }
+  .nav button svg { width: 23px; height: 23px; }
+  .nav button.on { color: var(--text); }
+  .nav button.on svg { color: var(--accent-2); }
+  .nav button.on::before { content: ""; position: absolute; top: 0; width: 28px; height: 3px; border-radius: 0 0 3px 3px;
+    background: var(--grad); }
 
-  .empty, .loading { text-align: center; color: var(--hint); padding: 48px 12px; }
-  .empty b { display: block; font-size: 40px; margin-bottom: 8px; }
-  .more { display: block; margin: 18px auto 0; padding: 10px 18px; border-radius: 11px; background: var(--bg2);
-    color: var(--accent); font-weight: 600; }
-  .skeleton { animation: pulse 1.2s ease-in-out infinite; }
-  @keyframes pulse { 50% { opacity: .45; } }
+  /* ───── detail sheet ───── */
+  .veil { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.6); opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .veil.on { opacity: 1; pointer-events: auto; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; max-height: 90vh; overflow: auto;
+    background: var(--bg); border-radius: 24px 24px 0 0; transform: translateY(calc(100% + 40px)); visibility: hidden;
+    transition: transform .3s cubic-bezier(.2,.8,.2,1); padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+  .sheet.on { transform: none; visibility: visible; box-shadow: 0 -12px 40px rgba(0,0,0,.5); }
+  .sheet-top { position: relative; height: 170px; overflow: hidden; }
+  .sheet-top .bg { position: absolute; inset: -20px; background-size: cover; background-position: center; filter: blur(22px) saturate(1.2);
+    opacity: .7; }
+  .sheet-top .bg.ph { background: radial-gradient(100% 100% at 70% 0%, #5a4bd6, var(--bg)); filter: none; }
+  .sheet-top::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent, var(--bg)); }
+  .grip { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 2; width: 40px; height: 5px;
+    border-radius: 3px; background: rgba(255,255,255,.45); }
+  .close { position: absolute; top: 12px; right: 12px; z-index: 2; }
+  .sheet-main { display: flex; gap: 16px; padding: 0 16px; margin-top: -110px; position: relative; z-index: 1; }
+  .sheet-main .poster { width: 118px; flex: none; }
+  .sheet-main .info { padding-top: 70px; min-width: 0; }
+  .sheet-main h3 { margin: 0 0 8px; font-size: 21px; font-weight: 800; line-height: 1.2; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 8px; background: var(--surface-2); color: var(--muted); }
+  .chip.gold { background: var(--gold); color: #2a1f00; }
+  .sheet .desc { padding: 0 16px; margin: 16px 0 0; color: var(--text); opacity: .85; white-space: pre-line; font-size: 14.5px; }
+  .sheet .actions { padding: 0 16px; }
+  .note { text-align: center; color: var(--muted); font-size: 12.5px; margin: 12px 16px 0; }
 
-  .sheet-bg { position: fixed; inset: 0; background: #0009; z-index: 20; opacity: 0; pointer-events: none; transition: .2s; }
-  .sheet-bg.on { opacity: 1; pointer-events: auto; }
-  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; background: var(--bg); border-radius: 20px 20px 0 0;
-    max-height: 88vh; overflow: auto; transform: translateY(calc(100% + 40px)); transition: transform .25s ease;
-    padding: 10px 16px calc(18px + env(safe-area-inset-bottom)); visibility: hidden; }
-  .sheet.on { transform: none; visibility: visible; box-shadow: 0 -10px 30px #0006; }
-  .grip { width: 38px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 12px; }
-  .detail { display: flex; gap: 14px; }
-  .detail .poster { width: 112px; flex: none; }
-  .detail h2 { margin: 2px 0 6px; font-size: 18px; line-height: 1.25; }
-  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
-  .tag { font-size: 12px; padding: 3px 8px; border-radius: 8px; background: var(--bg2); color: var(--hint); }
-  .tag.gold { color: #241a00; background: var(--gold); font-weight: 700; }
-  .desc { margin: 14px 0 0; color: var(--text); opacity: .9; white-space: pre-line; font-size: 14px; }
-  .go { width: 100%; margin-top: 18px; height: 50px; border-radius: 13px; font-weight: 700; font-size: 16px;
-    background: var(--green); color: #fff; box-shadow: 0 6px 18px #2fbf7140; }
-  .go.lock { background: linear-gradient(135deg, #f5b84b, #e58e26); color: #241a00; box-shadow: none; }
-  .go:disabled { opacity: .6; }
-  .note { text-align: center; color: var(--hint); font-size: 12.5px; margin-top: 10px; }
-
-  .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translate(-50%, 30px);
-    background: #111a; color: #fff; backdrop-filter: blur(8px); padding: 11px 16px; border-radius: 12px; font-size: 14px;
-    z-index: 40; opacity: 0; transition: .2s; max-width: calc(100% - 32px); text-align: center; }
+  .toast { position: fixed; left: 50%; bottom: calc(var(--nav-h) + 18px + env(safe-area-inset-bottom)); z-index: 60;
+    transform: translate(-50%, 20px); opacity: 0; transition: .25s; max-width: calc(100% - 32px); text-align: center;
+    background: rgba(20,22,34,.92); color: #fff; padding: 12px 18px; border-radius: 14px; font-weight: 600; font-size: 14px;
+    backdrop-filter: blur(10px); box-shadow: var(--shadow); }
   .toast.on { opacity: 1; transform: translate(-50%, 0); }
 </style>
 </head>
 <body>
-<header>
-  <div class="brand">
-    <div class="logo">💎</div>
-    <div>
-      <h1 id="brand">Marvarid Media</h1>
-      <p id="hello">Kinolar, multfilmlar va musiqalar</p>
-    </div>
-  </div>
+
+<header class="top" id="top">
+  <div class="logo"><div class="pearl"></div><div class="word" id="word"><span class="w1">MARVARID</span><span class="w2">MEDIA</span></div></div>
+  <button class="ibtn" id="bSearch" aria-label="Qidiruv"></button>
+  <button class="ibtn" id="bTheme" aria-label="Rejim"></button>
+  <button class="ibtn hidden" id="bChannel" aria-label="Kanal"></button>
+  <div class="avatar" id="avatar"></div>
 </header>
 
-<div class="sticky">
-  <div class="tabs" id="tabs">
-    <button class="tab on" data-cat="movie">🎬 Kinolar <small id="n-movie"></small></button>
-    <button class="tab" data-cat="cartoon">🧸 Multfilmlar <small id="n-cartoon"></small></button>
-    <button class="tab" data-cat="music">🎵 Musiqalar <small id="n-music"></small></button>
-  </div>
-  <div class="row">
-    <label class="search">🔎<input id="q" type="search" placeholder="Nomi yoki kodi..." autocomplete="off" enterkeyhint="search"></label>
-    <button class="chip on" data-sort="new">🆕 Yangi</button>
-    <button class="chip" data-sort="top">🔥 Top</button>
-  </div>
-</div>
+<main id="view"></main>
 
-<main id="main"><div class="loading">⏳ Yuklanmoqda...</div></main>
+<nav class="nav" id="nav">
+  <button data-view="home" class="on"></button>
+  <button data-view="movie"></button>
+  <button data-view="cartoon"></button>
+  <button data-view="music"></button>
+  <button data-view="saved"></button>
+</nav>
 
-<div class="sheet-bg" id="sheetBg"></div>
+<div class="veil" id="veil"></div>
 <div class="sheet" id="sheet"></div>
 <div class="toast" id="toast"></div>
 
@@ -152,22 +257,47 @@
   "use strict";
   var tg = window.Telegram && window.Telegram.WebApp;
   var initData = tg ? tg.initData : "";
-  var state = { cat: "movie", sort: "new", q: "", offset: 0, more: false, busy: false, items: [], req: 0, me: null };
-  var ICON = { movie: "🎬", cartoon: "🧸", music: "🎵" };
-  var $ = function (id) { return document.getElementById(id); };
+  var me = { bot: "", brand: "Marvarid Media", channel: null };
+  var NAMES = { movie: "Kino", cartoon: "Multfilm", music: "Musiqa" };
+  var PLURAL = { movie: "Kinolar", cartoon: "Multfilmlar", music: "Musiqalar" };
 
-  if (tg) {
-    tg.ready();
-    tg.expand();
-    try { tg.setHeaderColor("bg_color"); tg.setBackgroundColor("bg_color"); } catch (e) {}
+  // ───── ikonkalar (inline SVG) ─────
+  var P = {
+    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+    send: '<path d="m22 2-7 20-4-9-9-4 20-7z"/><path d="M22 2 11 13"/>',
+    home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+    film: '<rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M7 3v18M17 3v18M3 8h4M3 16h4M17 8h4M17 16h4M3 12h18"/>',
+    smile: '<circle cx="12" cy="13" r="8"/><circle cx="6" cy="5.5" r="2.5"/><circle cx="18" cy="5.5" r="2.5"/><path d="M9 15.5c1.6 1.6 4.4 1.6 6 0"/><path d="M9.5 11h.01M14.5 11h.01"/>',
+    music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    bookmark: '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+    share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/>',
+    play: '<path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/>',
+    chev: '<path d="m9 18 6-6-6-6"/>',
+    lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    gem: '<path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21 8 9l4-6 4 6z"/>'
+  };
+  var CAT_ICON = { movie: "film", cartoon: "smile", music: "music" };
+  function icon(name) {
+    var s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    s.setAttribute("viewBox", "0 0 24 24");
+    s.innerHTML = P[name] || "";
+    return s;
   }
-
-  function el(tag, cls, text) {
+  function h(tag, cls, kids) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
-    if (text != null) n.textContent = text;
+    (kids == null ? [] : [].concat(kids)).forEach(function (k) {
+      if (k == null || k === false) return;
+      n.appendChild(typeof k === "string" || typeof k === "number" ? document.createTextNode(String(k)) : k);
+    });
     return n;
   }
+  var $ = function (id) { return document.getElementById(id); };
+
   function fmt(n) {
     n = +n || 0;
     if (n >= 1e6) return (n / 1e6).toFixed(1).replace(".0", "") + "M";
@@ -175,18 +305,13 @@
     if (n >= 1e3) return (n / 1e3).toFixed(1).replace(".0", "") + "K";
     return String(n);
   }
-  function haptic(kind) {
-    try { tg && tg.HapticFeedback && tg.HapticFeedback.impactOccurred(kind || "light"); } catch (e) {}
-  }
-  var toastTimer;
+  function haptic(kind) { try { tg.HapticFeedback.impactOccurred(kind || "light"); } catch (e) {} }
+  function notify(kind) { try { tg.HapticFeedback.notificationOccurred(kind); } catch (e) {} }
+  var toastT;
   function toast(text) {
-    var t = $("toast");
-    t.textContent = text;
-    t.classList.add("on");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.classList.remove("on"); }, 2600);
+    var t = $("toast"); t.textContent = text; t.classList.add("on");
+    clearTimeout(toastT); toastT = setTimeout(function () { t.classList.remove("on"); }, 2600);
   }
-
   function api(path, opts) {
     opts = opts || {};
     opts.headers = Object.assign({ "X-Init-Data": initData }, opts.headers || {});
@@ -194,180 +319,426 @@
       return r.json().catch(function () { return { ok: false, reason: "error" }; });
     });
   }
+  function hue(str) { var x = 0; for (var i = 0; i < str.length; i++) x = (x * 31 + str.charCodeAt(i)) % 360; return x; }
+  function posterUrl(it) { return it.poster ? "/api/poster/" + it.id + "?v=" + it.poster : null; }
 
-  function posterNode(item, cls) {
-    var box = el("div", cls || "poster");
-    if (item.poster) {
-      var img = new Image();
-      img.loading = "lazy";
-      img.alt = "";
-      img.src = "/api/poster/" + item.id + "?v=" + item.poster;
-      img.onerror = function () { box.replaceChildren(placeholder(item, cls)); };
-      box.appendChild(img);
+  // ───── mavzu (yorug' / qorong'i) ─────
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+  function applyTheme(t) {
+    document.documentElement.setAttribute("data-theme", t);
+    $("bTheme").replaceChildren(icon(t === "dark" ? "sun" : "moon"));
+    var c = t === "dark" ? "#0a0c13" : "#f5f6fb";
+    try { tg.setHeaderColor(c); tg.setBackgroundColor(c); tg.setBottomBarColor && tg.setBottomBarColor(c); } catch (e) {}
+  }
+  var theme = store.get("theme") || (tg && tg.colorScheme === "light" ? "light" : "dark");
+  applyTheme(theme);
+  $("bTheme").onclick = function () { haptic(); theme = theme === "dark" ? "light" : "dark"; store.set("theme", theme); applyTheme(theme); };
+
+  // ───── saqlanganlar (Telegram CloudStorage + zaxira localStorage) ─────
+  var saved = {};
+  try { saved = JSON.parse(store.get("saved") || "{}") || {}; } catch (e) { saved = {}; }
+  var cloud = tg && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast("6.9") ? tg.CloudStorage : null;
+  function snap(it) {
+    return { id: it.id, code: it.code, cat: it.cat, title: it.title, poster: it.poster, parts: it.parts,
+             views: it.views, premium: it.premium, locked: it.locked, year: it.year, desc: (it.desc || "").slice(0, 300),
+             t: Date.now() };
+  }
+  function persistSaved() { store.set("saved", JSON.stringify(saved)); }
+  function toggleSaved(it) {
+    var key = "b" + it.id;
+    if (saved[key]) {
+      delete saved[key];
+      if (cloud) cloud.removeItem(key);
+      toast("Saqlanganlardan olib tashlandi");
     } else {
-      box.appendChild(placeholder(item, cls));
+      saved[key] = snap(it);
+      if (cloud) cloud.setItem(key, JSON.stringify(saved[key]).slice(0, 4000));
+      toast("🔖 Saqlanganlarga qo'shildi");
     }
-    return box;
+    haptic("medium");
+    persistSaved();
+    return !!saved[key];
   }
-  function placeholder(item, cls) {
-    if (cls === "cover") return document.createTextNode(ICON[item.cat] || "🎬");
-    var ph = el("div", "ph");
-    ph.appendChild(el("b", null, ICON[item.cat] || "🎬"));
-    ph.appendChild(el("span", null, item.title));
-    return ph;
-  }
-
-  function setCounts(c) {
-    if (!c) return;
-    ["movie", "cartoon", "music"].forEach(function (k) { $("n-" + k).textContent = c[k] ? c[k] : ""; });
-  }
-
-  // ───── ro'yxat ─────
-  function render() {
-    var main = $("main");
-    main.replaceChildren();
-    if (!state.items.length) {
-      var e = el("div", "empty");
-      e.appendChild(el("b", null, state.q ? "🔎" : (ICON[state.cat] || "📭")));
-      e.appendChild(document.createTextNode(state.q ? "Hech narsa topilmadi. Boshqacha yozib ko'ring." :
-        "Bu bo'limda hozircha hech narsa yo'q. Tez orada qo'shiladi!"));
-      main.appendChild(e);
-      return;
-    }
-    var music = state.cat === "music";
-    var wrap = el("div", music ? "list" : "grid");
-    state.items.forEach(function (it) { wrap.appendChild(music ? trackNode(it) : cardNode(it)); });
-    main.appendChild(wrap);
-    if (state.more) {
-      var more = el("button", "more", "⬇️ Yana yuklash");
-      more.id = "moreBtn";
-      more.onclick = function () { load(false); };
-      main.appendChild(more);
-      if (window.IntersectionObserver) {
-        new IntersectionObserver(function (en, obs) {
-          if (en[0].isIntersecting) { obs.disconnect(); load(false); }
-        }, { rootMargin: "400px" }).observe(more);
-      }
-    }
-  }
-  function cardNode(it) {
-    var b = el("button", "card");
-    var p = posterNode(it);
-    if (it.parts > 1) p.appendChild(el("span", "badge l", it.parts + " qism"));
-    if (it.premium) p.appendChild(el("span", "badge r", "💎"));
-    b.appendChild(p);
-    b.appendChild(el("div", "t", it.title));
-    b.appendChild(el("div", "m", "👁 " + fmt(it.views) + "  ·  #" + it.code));
-    b.onclick = function () { openSheet(it); };
-    return b;
-  }
-  function trackNode(it) {
-    var b = el("button", "track");
-    b.appendChild(posterNode(it, "cover"));
-    var info = el("div", "info");
-    info.appendChild(el("div", "t", (it.premium ? "💎 " : "") + it.title));
-    info.appendChild(el("div", "m", it.desc ? it.desc.split("\n")[0] : "🎧 " + fmt(it.views) + " marta tinglangan"));
-    b.appendChild(info);
-    b.appendChild(el("span", "play", it.locked ? "🔒" : "▶"));
-    b.onclick = function () { openSheet(it); };
-    return b;
-  }
-
-  function load(reset) {
-    if (state.busy && !reset) return;
-    if (reset) {
-      state.offset = 0; state.items = []; state.more = false;
-      $("main").replaceChildren(el("div", "loading skeleton", "⏳ Yuklanmoqda..."));
-    } else {
-      var mb = $("moreBtn");
-      if (mb) { mb.textContent = "⏳ Yuklanmoqda..."; mb.disabled = true; }
-    }
-    state.busy = true;
-    var req = ++state.req;
-    var qs = "cat=" + state.cat + "&sort=" + state.sort + "&offset=" + state.offset +
-             "&q=" + encodeURIComponent(state.q);
-    api("/api/catalog?" + qs).then(function (res) {
-      if (req !== state.req) return;
-      state.busy = false;
-      if (!res.ok) { return showError(res.reason); }
-      state.items = state.items.concat(res.items);
-      state.offset += res.items.length;
-      state.more = res.more;
-      setCounts(res.counts);
-      render();
-    }).catch(function () {
-      if (req !== state.req) return;
-      state.busy = false;
-      showError("network");
+  function isSaved(it) { return !!saved["b" + it.id]; }
+  if (cloud) {
+    cloud.getKeys(function (err, keys) {
+      if (err || !keys) return;
+      keys = keys.filter(function (k) { return /^b\d+$/.test(k); });
+      if (!keys.length) return;
+      cloud.getItems(keys, function (err2, vals) {
+        if (err2 || !vals) return;
+        Object.keys(vals).forEach(function (k) { try { if (vals[k]) saved[k] = JSON.parse(vals[k]); } catch (e) {} });
+        persistSaved();
+        if (current === "saved") show("saved");
+      });
     });
   }
 
-  function showError(reason) {
-    var main = $("main");
-    var e = el("div", "empty");
-    if (reason === "auth") {
-      e.appendChild(el("b", null, "🔐"));
-      e.appendChild(document.createTextNode("Saytni Telegram bot ichidan oching: botda «🌐 Sayt» tugmasini bosing."));
-    } else {
-      e.appendChild(el("b", null, "⚠️"));
-      e.appendChild(document.createTextNode("Ulanishda xatolik. Internetni tekshirib, qaytadan urinib ko'ring."));
-      var r = el("button", "more", "🔄 Qayta urinish");
-      r.onclick = function () { load(true); };
-      e.appendChild(r);
+  // ───── kartochkalar ─────
+  function posterNode(it) {
+    var box = h("div", "poster");
+    var ph = h("div", "ph", [icon(CAT_ICON[it.cat] || "film"), h("span", null, it.title)]);
+    var x = hue(it.title || "");
+    ph.style.setProperty("--c1", "hsl(" + x + ",65%,52%)");
+    ph.style.setProperty("--c2", "hsl(" + ((x + 50) % 360) + ",55%,18%)");
+    box.appendChild(ph);
+    var url = posterUrl(it);
+    if (url) {
+      var img = new Image();
+      img.alt = ""; img.loading = "lazy"; img.decoding = "async";
+      img.onload = function () { img.classList.add("ok"); ph.remove(); };
+      img.onerror = function () { img.remove(); };
+      img.src = url;
+      box.appendChild(img);
     }
-    main.replaceChildren(e);
+    return box;
+  }
+  function card(it) {
+    var b = h("button", "card");
+    var p = posterNode(it);
+    if (it.parts > 1) p.appendChild(h("span", "tag l", it.parts + " qism"));
+    if (it.premium) p.appendChild(h("span", "tag r", "PREMIUM"));
+    b.appendChild(p);
+    b.appendChild(h("div", "t", it.title));
+    var m = h("div", "m", [icon("eye"), fmt(it.views)]);
+    if (it.year) m.appendChild(document.createTextNode(" · " + it.year));
+    b.appendChild(m);
+    b.onclick = function () { openSheet(it); };
+    return b;
+  }
+  function skeletonCards(n, cls) {
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      var c = h("div", "card", [h("div", "poster sk"), h("div", "t sk", " "), ]);
+      c.style.pointerEvents = "none";
+      out.push(c);
+    }
+    return out;
+  }
+  function emptyBox(ic, title, text) {
+    var big = h("div", "big", [icon(ic)]);
+    return h("div", "empty", [big, h("b", null, title), text]);
+  }
+
+  // ───── hero karusel ─────
+  var heroTimer = null, heroIdx = 0, heroItems = [];
+  function heroView(items) {
+    heroItems = items;
+    var wrap = h("section", "hero");
+    if (!items.length) {
+      var s = h("div", "slide on", [h("div", "bg ph"), h("div", "ph-icon", [icon("film")]), h("div", "shade")]);
+      s.appendChild(h("div", "hero-body", [h("h1", "hero-title", "Tez orada"),
+        h("div", "sub", "Yangi kinolar va multfilmlar shu yerda chiqadi")]));
+      wrap.appendChild(s);
+      return wrap;
+    }
+    var slides = items.map(function (it, i) {
+      var bg = h("div", "bg" + (it.poster ? "" : " ph"));
+      if (it.poster) bg.style.backgroundImage = "url('" + posterUrl(it) + "')";
+      var s = h("div", "slide" + (i === 0 ? " on" : ""), [bg]);
+      if (!it.poster) s.appendChild(h("div", "ph-icon", [icon(CAT_ICON[it.cat] || "film")]));
+      s.appendChild(h("div", "shade"));
+      var badges = h("div", "badges");
+      badges.appendChild(h("span", "badge", i === 0 ? "YANGI" : "TAVSIYA"));
+      if (it.premium) badges.appendChild(h("span", "badge gold", "PREMIUM"));
+      if (it.parts > 1) badges.appendChild(h("span", "badge glass", it.parts + " qism"));
+      var metaBits = [];
+      if (it.year) metaBits.push(String(it.year));
+      metaBits.push(NAMES[it.cat] || "Kino");
+      metaBits.push(fmt(it.views) + " ko'rish");
+      var meta = h("div", "meta");
+      metaBits.forEach(function (b, k) { if (k) meta.appendChild(h("i", null, "·")); meta.appendChild(document.createTextNode(b)); });
+      var body = h("div", "hero-body", [badges, h("h1", "hero-title", it.title), meta]);
+      if (it.desc) body.appendChild(h("div", "sub", it.desc.split("\n")[0]));
+      body.appendChild(actionRow(it, true));
+      var dots = h("div", "dots");
+      items.forEach(function (_, k) {
+        var d = h("button", "dot" + (k === i ? " on" : ""));
+        d.setAttribute("aria-label", String(k + 1));
+        d.onclick = function (e) { e.stopPropagation(); goSlide(k); restartHero(); };
+        dots.appendChild(d);
+      });
+      body.appendChild(dots);
+      s.appendChild(body);
+      return s;
+    });
+    slides.forEach(function (s) { wrap.appendChild(s); });
+    // surish (swipe)
+    var x0 = null, y0 = null;
+    wrap.addEventListener("touchstart", function (e) { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; stopHero(); }, { passive: true });
+    wrap.addEventListener("touchend", function (e) {
+      if (x0 == null) return;
+      var dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) { goSlide(heroIdx + (dx < 0 ? 1 : -1)); haptic(); }
+      x0 = null; restartHero();
+    }, { passive: true });
+    heroIdx = 0;
+    restartHero();
+    return wrap;
+  }
+  function goSlide(i) {
+    var slides = document.querySelectorAll(".hero .slide");
+    if (!slides.length) return;
+    heroIdx = (i + slides.length) % slides.length;
+    slides.forEach(function (s, k) { s.classList.toggle("on", k === heroIdx); });
+  }
+  function stopHero() { clearInterval(heroTimer); heroTimer = null; }
+  function restartHero() {
+    stopHero();
+    if (heroItems.length > 1) heroTimer = setInterval(function () { goSlide(heroIdx + 1); }, 5500);
+  }
+
+  function actionRow(it, hero) {
+    var row = h("div", "actions");
+    var watchBtn = h("button", "btn primary" + (it.locked ? " lock" : ""),
+      [icon(it.locked ? "lock" : "play"), it.locked ? "Premium" : (it.cat === "music" ? "Tinglash" : "Ko'rish")]);
+    watchBtn.onclick = function (e) { e.stopPropagation(); watch(it, watchBtn); };
+    row.appendChild(watchBtn);
+    if (hero) {
+      var more = h("button", "btn soft", "Batafsil");
+      more.onclick = function (e) { e.stopPropagation(); openSheet(it); };
+      row.appendChild(more);
+    }
+    var bm = h("button", "btn sq" + (isSaved(it) ? " on" : ""), [icon("bookmark")]);
+    bm.setAttribute("aria-label", "Saqlash");
+    bm.onclick = function (e) { e.stopPropagation(); bm.classList.toggle("on", toggleSaved(it)); };
+    var sh = h("button", "btn sq", [icon("share")]);
+    sh.setAttribute("aria-label", "Ulashish");
+    sh.onclick = function (e) { e.stopPropagation(); share(it); };
+    row.appendChild(bm);
+    row.appendChild(sh);
+    return row;
+  }
+
+  function share(it) {
+    haptic();
+    if (!me.bot) return;
+    var link = "https://t.me/" + me.bot + "?start=" + it.code;
+    var url = "https://t.me/share/url?url=" + encodeURIComponent(link) +
+      "&text=" + encodeURIComponent("🎬 " + it.title + " — " + me.brand + " botida tomosha qiling!");
+    try { tg.openTelegramLink(url); } catch (e) { window.open(url, "_blank"); }
+  }
+
+  // ───── sahifalar ─────
+  var current = "home", reqId = 0;
+  function rail(r) {
+    var sec = h("section", "section");
+    var moreBtn = h("button", "more", ["Hammasi", icon("chev")]);
+    moreBtn.onclick = function () { show(r.cat, { sort: r.sort }); };
+    sec.appendChild(h("div", "sec-head", [h("h2", null, r.title), moreBtn]));
+    var list = h("div", "rail" + (r.cat === "music" ? " music" : ""));
+    r.items.forEach(function (it) { list.appendChild(card(it)); });
+    sec.appendChild(list);
+    return sec;
+  }
+  function renderHome(view, data) {
+    view.replaceChildren(heroView(data.hero || []));
+    var any = false;
+    (data.rails || []).forEach(function (r) { if (r.items.length) { any = true; view.appendChild(rail(r)); } });
+    if (!any) view.appendChild(emptyBox("film", "Hozircha bo'sh", "Kinolar qo'shilishi bilan shu yerda paydo bo'ladi."));
+    view.appendChild(h("div", null, " "));
+  }
+
+  function show(name, opts) {
+    opts = opts || {};
+    current = name;
+    stopHero();
+    document.querySelectorAll(".nav button").forEach(function (b) {
+      b.classList.toggle("on", b.dataset.view === name);
+    });
+    window.scrollTo(0, 0);
+    onScroll();
+    updateBack();
+    var view = $("view");
+    var my = ++reqId;
+    if (name === "home") {
+      var sk = h("div", "page", [h("div", "rail", skeletonCards(4))]);
+      view.replaceChildren(h("section", "hero sk"), sk);
+      api("/api/home").then(function (d) {
+        if (my !== reqId) return;
+        if (!d.ok) return renderError(view, d.reason);
+        renderHome(view, d);
+      }).catch(function () { if (my === reqId) renderError(view, "network"); });
+      return;
+    }
+    if (name === "saved") return renderSaved(view);
+    if (name === "search") return renderSearch(view);
+    renderCategory(view, name, opts.sort || "new", my);
+  }
+
+  function renderCategory(view, cat, sort, my) {
+    var page = h("div", "page");
+    var count = h("span");
+    page.appendChild(h("h1", null, PLURAL[cat]));
+    var lead = h("p", "lead", [count]);
+    page.appendChild(lead);
+    var seg = h("div", "seg");
+    [["new", "Yangi"], ["top", "Top"]].forEach(function (o) {
+      var b = h("button", o[0] === sort ? "on" : "", o[1]);
+      b.onclick = function () { if (o[0] !== sort) { haptic(); renderCategory(view, cat, o[0], ++reqId); } };
+      seg.appendChild(b);
+    });
+    page.appendChild(seg);
+    var grid = h("div", "grid" + (cat === "music" ? " music" : ""), skeletonCards(6));
+    page.appendChild(grid);
+    view.replaceChildren(page);
+    var offset = 0, first = true;
+    function load() {
+      api("/api/catalog?cat=" + cat + "&sort=" + sort + "&offset=" + offset).then(function (d) {
+        if (my !== reqId) return;
+        if (!d.ok) return renderError(view, d.reason);
+        if (first) { grid.replaceChildren(); first = false; }
+        if (d.counts) count.textContent = (d.counts[cat] || 0) + " ta";
+        if (!d.items.length && offset === 0) {
+          grid.replaceWith(emptyBox(CAT_ICON[cat], "Hozircha bo'sh", "Bu bo'limga tez orada qo'shiladi."));
+          return;
+        }
+        d.items.forEach(function (it) { grid.appendChild(card(it)); });
+        offset += d.items.length;
+        var old = page.querySelector(".loadmore");
+        if (old) old.remove();
+        if (d.more) {
+          var mb = h("button", "loadmore", "Yana yuklash");
+          mb.onclick = function () { mb.textContent = "Yuklanmoqda..."; load(); };
+          page.appendChild(mb);
+          if (window.IntersectionObserver) {
+            var io = new IntersectionObserver(function (en) {
+              if (en[0].isIntersecting) { io.disconnect(); mb.textContent = "Yuklanmoqda..."; load(); }
+            }, { rootMargin: "500px" });
+            io.observe(mb);
+          }
+        }
+      }).catch(function () { if (my === reqId) renderError(view, "network"); });
+    }
+    load();
+  }
+
+  function renderSaved(view) {
+    var items = Object.keys(saved).map(function (k) { return saved[k]; })
+      .sort(function (a, b) { return (b.t || 0) - (a.t || 0); });
+    var page = h("div", "page", [h("h1", null, "Saqlanganlar"),
+      h("p", "lead", items.length ? items.length + " ta — Telegram akkauntingizda saqlanadi" : "")]);
+    if (!items.length) {
+      page.appendChild(emptyBox("bookmark", "Hali hech narsa saqlanmagan",
+        "Yoqqan kinoni 🔖 belgisi bilan saqlang — shu yerda turadi."));
+    } else {
+      var grid = h("div", "grid");
+      items.forEach(function (it) { grid.appendChild(card(it)); });
+      page.appendChild(grid);
+    }
+    view.replaceChildren(page);
+  }
+
+  var searchQ = "";
+  function renderSearch(view) {
+    var input = h("input");
+    input.type = "search"; input.placeholder = "Kino, multfilm yoki musiqa nomi, kodi...";
+    input.setAttribute("enterkeyhint", "search"); input.autocomplete = "off";
+    input.value = searchQ;
+    var results = h("div");
+    var page = h("div", "page", [h("h1", null, "Qidiruv"), h("label", "searchbox", [icon("search"), input]), results]);
+    view.replaceChildren(page);
+    setTimeout(function () { input.focus(); }, 250);
+    var t;
+    function run() {
+      var q = input.value.trim();
+      searchQ = q;
+      var my = ++reqId;
+      if (q.length < 2) {
+        results.replaceChildren(emptyBox("search", "Nimani qidiramiz?", "Kamida 2 ta harf yoki kino kodini yozing."));
+        return;
+      }
+      results.replaceChildren(h("div", "grid", skeletonCards(6)));
+      var cats = /^#?\d+$/.test(q) ? ["movie"] : ["movie", "cartoon", "music"];
+      Promise.all(cats.map(function (c) {
+        return api("/api/catalog?cat=" + c + "&q=" + encodeURIComponent(q));
+      })).then(function (res) {
+        if (my !== reqId) return;
+        results.replaceChildren();
+        var total = 0;
+        res.forEach(function (d, i) {
+          if (!d.ok || !d.items.length) return;
+          total += d.items.length;
+          var cat = d.items[0].cat || cats[i];
+          results.appendChild(h("div", "group-title", PLURAL[cat] + " · " + d.items.length));
+          var g = h("div", "grid" + (cat === "music" ? " music" : ""));
+          d.items.forEach(function (it) { g.appendChild(card(it)); });
+          results.appendChild(g);
+        });
+        if (!total) results.appendChild(emptyBox("search", "Hech narsa topilmadi", "Boshqacha yozib ko'ring yoki kodini kiriting."));
+      }).catch(function () { if (my === reqId) renderError(results, "network"); });
+    }
+    input.addEventListener("input", function () { clearTimeout(t); t = setTimeout(run, 350); });
+    input.addEventListener("keydown", function (e) { if (e.key === "Enter") { input.blur(); run(); } });
+    run();
+  }
+
+  function renderError(view, reason) {
+    if (reason === "auth") {
+      view.replaceChildren(h("div", "page", [emptyBox("lock", "Bot ichidan oching",
+        "Saytni Telegram botdagi «" + me.brand + "» tugmasi orqali oching.")]));
+      return;
+    }
+    var retry = h("button", "loadmore", "Qayta urinish");
+    retry.onclick = function () { show(current); };
+    view.replaceChildren(h("div", "page", [emptyBox("x", "Ulanishda xatolik", "Internetni tekshirib, qaytadan urinib ko'ring."), retry]));
   }
 
   // ───── batafsil oyna ─────
+  var sheetOpen = false;
   function openSheet(it) {
-    haptic("light");
+    haptic();
     var s = $("sheet");
-    s.replaceChildren();
-    s.appendChild(el("div", "grip"));
-    var d = el("div", "detail");
-    d.appendChild(posterNode(it));
-    var right = el("div");
-    right.appendChild(el("h2", null, it.title));
-    var tags = el("div", "tags");
-    tags.appendChild(el("span", "tag", ICON[it.cat] + " " + ({ movie: "Kino", cartoon: "Multfilm", music: "Musiqa" })[it.cat]));
-    tags.appendChild(el("span", "tag", "🔢 Kod: " + it.code));
-    if (it.parts > 1) tags.appendChild(el("span", "tag", "📺 " + it.parts + " qism"));
-    tags.appendChild(el("span", "tag", "👁 " + fmt(it.views)));
-    if (it.premium) tags.appendChild(el("span", "tag gold", "💎 Premium"));
-    right.appendChild(tags);
-    d.appendChild(right);
-    s.appendChild(d);
-    if (it.desc) s.appendChild(el("p", "desc", it.desc));
-
-    var label = it.locked ? "💎 Premium bilan ochish" :
-      (it.cat === "music" ? "🎵 Botda tinglash" : (it.parts > 1 ? "📺 Qismlarni ko'rish" : "▶️ Botda tomosha qilish"));
-    var go = el("button", "go" + (it.locked ? " lock" : ""), label);
-    go.onclick = function () { watch(it, go); };
-    s.appendChild(go);
-    s.appendChild(el("div", "note", it.locked ?
-      "Bu kontent faqat Premium a'zolar uchun. Bot chatida Premium olish tugmasi chiqadi." :
-      "Bosganingizdan so'ng bot uni chatga yuboradi."));
-    $("sheetBg").classList.add("on");
+    var bg = h("div", "bg" + (it.poster ? "" : " ph"));
+    if (it.poster) bg.style.backgroundImage = "url('" + posterUrl(it) + "')";
+    var closeBtn = h("button", "ibtn close", [icon("x")]);
+    closeBtn.onclick = closeSheet;
+    var chips = h("div", "chips", [h("span", "chip", NAMES[it.cat] || "Kino"), h("span", "chip", "Kod: " + it.code)]);
+    if (it.year) chips.appendChild(h("span", "chip", String(it.year)));
+    if (it.parts > 1) chips.appendChild(h("span", "chip", it.parts + " qism"));
+    chips.appendChild(h("span", "chip", fmt(it.views) + " ko'rish"));
+    if (it.premium) chips.appendChild(h("span", "chip gold", "PREMIUM"));
+    s.replaceChildren(
+      h("div", "sheet-top", [bg, h("div", "grip"), closeBtn]),
+      h("div", "sheet-main", [posterNode(it), h("div", "info", [h("h3", null, it.title), chips])]),
+      it.desc ? h("p", "desc", it.desc) : null,
+      actionRow(it, false),
+      h("div", "note", it.locked ? "Bu kontent Premium a'zolar uchun. Bot chatida Premium olish tugmasi chiqadi."
+        : "«" + (it.cat === "music" ? "Tinglash" : "Ko'rish") + "» bosilsa, bot uni chatga yuboradi.")
+    );
+    $("veil").classList.add("on");
     s.classList.add("on");
-    if (tg && tg.BackButton) tg.BackButton.show();
+    s.scrollTop = 0;
+    sheetOpen = true;
+    stopHero();
+    updateBack();
   }
   function closeSheet() {
-    $("sheetBg").classList.remove("on");
+    $("veil").classList.remove("on");
     $("sheet").classList.remove("on");
-    if (tg && tg.BackButton) tg.BackButton.hide();
+    sheetOpen = false;
+    if (current === "home") restartHero();
+    updateBack();
   }
-  $("sheetBg").onclick = closeSheet;
-  if (tg && tg.BackButton) tg.BackButton.onClick(closeSheet);
+  $("veil").onclick = closeSheet;
+
+  function updateBack() {
+    if (!tg || !tg.BackButton) return;
+    if (sheetOpen || current !== "home") tg.BackButton.show(); else tg.BackButton.hide();
+  }
+  if (tg && tg.BackButton) tg.BackButton.onClick(function () { if (sheetOpen) closeSheet(); else show("home"); });
 
   function watch(it, btn) {
+    haptic("medium");
     btn.disabled = true;
-    var old = btn.textContent;
-    btn.textContent = "⏳ Yuborilmoqda...";
-    api("/api/watch", { method: "POST", headers: { "Content-Type": "application/json" },
-                         body: JSON.stringify({ id: it.id }) })
+    var old = Array.prototype.slice.call(btn.childNodes);
+    btn.replaceChildren("Yuborilmoqda...");
+    api("/api/watch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: it.id }) })
       .then(function (res) {
-        btn.disabled = false;
-        btn.textContent = old;
+        btn.disabled = false; btn.replaceChildren.apply(btn, old);
         var msg = {
           sub: "📢 Avval kanallarga obuna bo'ling — bot chatida tugmalar chiqdi.",
           premium: "💎 Bu Premium kontent — bot chatida Premium olish tugmasi bor.",
@@ -377,67 +748,65 @@
           auth: "🔐 Saytni bot ichidan qayta oching."
         }[res.reason];
         if (res.ok) {
-          try { tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred("success"); } catch (e) {}
+          notify("success");
           toast("✅ Botga yuborildi! Chatni oching.");
           setTimeout(function () { tg ? tg.close() : closeSheet(); }, 1100);
         } else if (res.reason === "sub" || res.reason === "premium") {
+          notify("warning");
           toast(msg);
           setTimeout(function () { tg ? tg.close() : closeSheet(); }, 1800);
         } else {
+          notify("error");
           toast(msg || "⚠️ Xatolik yuz berdi. Qaytadan urinib ko'ring.");
         }
       })
-      .catch(function () {
-        btn.disabled = false;
-        btn.textContent = old;
-        toast("⚠️ Ulanishda xatolik.");
-      });
+      .catch(function () { btn.disabled = false; btn.replaceChildren.apply(btn, old); toast("⚠️ Ulanishda xatolik."); });
   }
 
-  // ───── boshqaruv ─────
-  Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (b) {
-    b.onclick = function () {
-      if (state.cat === b.dataset.cat) return;
-      haptic("light");
-      document.querySelector(".tab.on").classList.remove("on");
-      b.classList.add("on");
-      state.cat = b.dataset.cat;
-      window.scrollTo(0, 0);
-      load(true);
-    };
+  // ───── sarlavha, navigatsiya ─────
+  function onScroll() { $("top").classList.toggle("solid", current !== "home" || window.scrollY > 40); }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  $("bSearch").appendChild(icon("search"));
+  $("bSearch").onclick = function () { haptic(); show("search"); };
+  $("bChannel").appendChild(icon("send"));
+  $("bChannel").onclick = function () { haptic(); if (me.channel) { try { tg.openTelegramLink(me.channel); } catch (e) { window.open(me.channel); } } };
+  var NAV = { home: ["home", "Bosh sahifa"], movie: ["film", "Kinolar"], cartoon: ["smile", "Multfilmlar"],
+              music: ["music", "Musiqa"], saved: ["bookmark", "Saqlangan"] };
+  document.querySelectorAll(".nav button").forEach(function (b) {
+    var n = NAV[b.dataset.view];
+    b.replaceChildren(icon(n[0]), h("span", null, n[1]));
+    b.onclick = function () { haptic(); show(b.dataset.view); };
   });
-  Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (b) {
-    b.onclick = function () {
-      if (state.sort === b.dataset.sort) return;
-      haptic("light");
-      document.querySelector(".chip.on").classList.remove("on");
-      b.classList.add("on");
-      state.sort = b.dataset.sort;
-      load(true);
-    };
-  });
-  var qTimer;
-  $("q").addEventListener("input", function (e) {
-    clearTimeout(qTimer);
-    qTimer = setTimeout(function () {
-      var v = e.target.value.trim();
-      if (v === state.q) return;
-      state.q = v;
-      load(true);
-    }, 350);
-  });
-  $("q").addEventListener("keydown", function (e) { if (e.key === "Enter") e.target.blur(); });
 
-  if (!initData) { showError("auth"); return; }
-  api("/api/me").then(function (me) {
-    if (!me.ok) return;
-    state.me = me;
-    document.title = me.brand;
-    $("brand").textContent = me.brand;
-    $("hello").textContent = (me.name ? "Salom, " + me.name + "! " : "") + (me.premium ? "💎 Premium" : "Xush kelibsiz 🍿");
-    setCounts(me.counts);
+  function setBrand(name) {
+    var parts = (name || "Marvarid Media").toUpperCase().split(" ");
+    var last = parts.length > 1 ? parts.pop() : "";
+    $("word").replaceChildren(h("span", "w1", parts.join(" ")), last ? h("span", "w2", last) : null);
+    document.title = name;
+  }
+  function setAvatar(user) {
+    var a = $("avatar");
+    var name = (user && (user.first_name || "")) || "";
+    var initials = (name.trim()[0] || "M") + ((user && user.last_name ? user.last_name[0] : "") || "");
+    a.replaceChildren(initials.toUpperCase());
+    if (user && user.photo_url) {
+      var img = new Image();
+      img.alt = "";
+      img.onload = function () { a.replaceChildren(img); };
+      img.src = user.photo_url;
+    }
+  }
+
+  if (tg) { tg.ready(); tg.expand(); try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {} }
+  setAvatar(tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null);
+  if (!initData) { renderError($("view"), "auth"); return; }
+  api("/api/me").then(function (d) {
+    if (!d.ok) return;
+    me = d;
+    setBrand(d.brand);
+    if (d.channel) $("bChannel").classList.remove("hidden");
   });
-  load(true);
+  show("home");
 })();
 </script>
 </body>
