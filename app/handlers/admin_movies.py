@@ -714,10 +714,6 @@ def cb_add_movie(ctx: Ctx) -> None:
 LINE = "━━━━━━━━━━━━━━━"
 
 
-def _short_url(url: str) -> str:
-    return url.split("://", 1)[-1]
-
-
 def announce_text(app, movie, parts: int) -> str:
     cat = movie["category"]
     music = cat == "music"
@@ -738,10 +734,11 @@ def announce_text(app, movie, parts: int) -> str:
         meta = (meta + "\n💎 Premium").strip()
     verb = "tinglash" if music else "tomosha qilish"
     bot_url = app.deep_link(movie["code"])
-    links = [LINE, f"🤖 <b>Botda {verb}:</b>", f"👉 <a href=\"{esc(bot_url)}\">{esc(_short_url(bot_url))}</a>"]
+    # havolalar yozuvning o'zida: «Botda tomosha qilish» bosilsa — bot ochilib kinoni yuboradi
+    links = [LINE, f"{'🎵' if music else '🎬'} <b><a href=\"{esc(bot_url)}\">Botda {verb}</a></b>"]
     site_url = app.site_link(movie["code"])
     if site_url:
-        links += [LINE, f"🌐 <b>Saytda {verb}:</b>", f"👉 <a href=\"{esc(site_url)}\">{esc(_short_url(site_url))}</a>"]
+        links += [LINE, f"🌐 <b><a href=\"{esc(site_url)}\">Saytda {verb}</a></b>"]
     links.append(LINE)
     tail = "\n".join(links)
     budget = 1000 - visible_len(head) - visible_len(meta) - visible_len(tail) - 12
@@ -754,16 +751,6 @@ def announce_text(app, movie, parts: int) -> str:
         blocks.append("📝 " + esc(truncate(desc, min(budget, 700))))
     blocks += [b for b in (meta, tail) if b]
     return "\n\n".join(blocks)
-
-
-def announce_kb(app, movie) -> dict:
-    music = movie["category"] == "music"
-    rows = [[btn("🎵 Botda tinglash" if music else "🎬 Botda tomosha qilish", url=app.deep_link(movie["code"]),
-                 style=SUCCESS)]]
-    site_url = app.site_link(movie["code"])
-    if site_url:
-        rows.append([btn("🌐 Saytda tinglash" if music else "🌐 Saytda tomosha qilish", url=site_url, style=PRIMARY)])
-    return ikb(*rows)
 
 
 @router.callback("an", admin=True)
@@ -781,7 +768,7 @@ def cb_announce(ctx: Ctx) -> None:
         ctx.answer("❗️ E'lon kanali sozlanmagan. ⚙️ Matnlar → 📣 E'lon kanali", alert=True)
         return
     text = announce_text(app, movie, ctx.db.count_parts(movie["id"]))
-    kb = announce_kb(app, movie)
+    kb = None  # tugmalar yo'q — havolalar post matnining ichida
     try:
         sent = None
         if movie["poster_id"]:
