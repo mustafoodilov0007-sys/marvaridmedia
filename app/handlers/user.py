@@ -253,9 +253,6 @@ def search_ids(app, norm: str, scope: Optional[str] = None, fuzzy_ok: bool = Tru
 
 def fmt_item(r, extra: Optional[str] = None) -> str:
     title = esc(truncate(r["title"], 60))
-    category = r["category"] if "category" in r.keys() else "movie"
-    if category != "movie":
-        title = cat_icon(category) + " " + title
     if r["is_premium"]:
         title = "💎 " + title
     bits = []
@@ -407,8 +404,7 @@ def category_page(ctx: Ctx, cat: str, page: int):
     chunk = rows[page * PER_PAGE:(page + 1) * PER_PAGE]
     header = f"{CAT_TITLES[cat]} — yangi qo'shilganlar"
     hint = "👇 Tanlang:" if cat == "music" else "👇 Kerakli raqamni tanlang:"
-    return build_list(header, chunk, page * PER_PAGE, page, pages, f"cl:{cat}",
-                      lambda r: fmt_item(r, f"👁 {fmt_compact(r['views'])}"), hint=hint)
+    return build_list(header, chunk, page * PER_PAGE, page, pages, f"cl:{cat}", fmt_item, hint=hint)
 
 
 @router.button(B.MOVIES, B.CARTOONS, B.MUSIC)
