@@ -198,6 +198,18 @@ class Database:
             finally:
                 dst.close()
 
+    def restore_from(self, source: Path) -> None:
+        """Boshqa bazani (zaxira nusxani) joriy bazaning o'rniga yozadi."""
+        src = sqlite3.connect(str(source))
+        try:
+            with self.lock:
+                src.backup(self.conn)
+                self.conn.execute("PRAGMA foreign_keys=ON")
+                self.conn.executescript(SCHEMA)
+                self._migrate()
+        finally:
+            src.close()
+
     def close(self) -> None:
         with self.lock:
             self.conn.close()
