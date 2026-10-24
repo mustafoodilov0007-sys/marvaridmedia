@@ -910,11 +910,9 @@ def cb_add_movie(ctx: Ctx) -> None:
 
 # ═════════════════════════ 📢 Kanalga e'lon ═════════════════════════
 
-SYUJET_MAX = 320  # kanal postidagi syujet uzunligi (belgi)
-
-
 def announce_text(app, movie, parts: int) -> str:
-    """Kanal posti: sarlavha → ma'lumot qatorlari → 🍿 Syujet → reaksiya taklifi. Havolalar — pastdagi tugmalarda."""
+    """Kanal posti: sarlavha → ma'lumot qatorlari → reaksiya taklifi. Syujet kanalga qo'yilmaydi (u botda va saytda);
+    havolalar — pastdagi tugmalarda."""
     cat = movie["category"]
     music = cat == "music"
     head = f"{cat_icon(cat)} <b>{esc(movie['title'])}</b>"
@@ -929,14 +927,6 @@ def announce_text(app, movie, parts: int) -> str:
     blocks = [head]
     if rows:
         blocks.append("\n".join(rows))
-    desc = (movie["description"] or "").strip()
-    desc_html = (movie["desc_html"] if "desc_html" in movie.keys() else "") or ""
-    if desc and not music:
-        if desc_html and len(desc) <= SYUJET_MAX:
-            story = desc_html  # premium emoji va formatlash saqlanadi
-        else:
-            story = esc(truncate(desc, SYUJET_MAX))
-        blocks.append("🍿 <b>Syujet:</b>\n" + story)
     blocks.append(tail)
     return "\n\n".join(blocks)
 
