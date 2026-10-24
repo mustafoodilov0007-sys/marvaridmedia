@@ -89,6 +89,9 @@ def api_catalog(app: App, user: dict, qs: dict) -> dict:
         offset = 0
     query = (qs.get("q") or "").strip()[:100]
     genre = qs.get("genre") if qs.get("genre") in genres.GENRES else None
+    country = qs.get("country") if qs.get("country") in genres.COUNTRIES else None
+    lang = qs.get("lang") if qs.get("lang") in genres.LANGS else None
+    year = int(qs["year"]) if (qs.get("year") or "").isdigit() and len(qs["year"]) == 4 else None
     _, vip = _user_flags(app, user["id"])
     premium_on = app.setting_bool("premium_enabled")
 
@@ -106,7 +109,8 @@ def api_catalog(app: App, user: dict, qs: dict) -> dict:
         more = False
     else:
         tokens = normalize(query).split()
-        rows = app.db.catalog(cat, sort, tokens, PAGE_SIZE + 1, offset, genre=genre)
+        rows = app.db.catalog(cat, sort, tokens, PAGE_SIZE + 1, offset, genre=genre, country=country, year=year,
+                              lang=lang)
         more = len(rows) > PAGE_SIZE
         rows = rows[:PAGE_SIZE]
 
@@ -114,6 +118,13 @@ def api_catalog(app: App, user: dict, qs: dict) -> dict:
     out = {"ok": True, "items": items, "more": more, "counts": app.db.count_by_category()}
     if offset == 0 and not query and cat != "music":
         out["genres"] = [{"key": k, "label": genres.label(k), "n": n} for k, n in app.db.genre_counts(cat).items()]
+        f = app.db.facets(cat)
+        out["filters"] = {
+            "country": [{"key": k, "label": genres.country_label(k), "n": f["country"][k]}
+                        for k in genres.COUNTRIES if k in f["country"]],
+            "year": [{"key": str(y), "label": str(y), "n": n} for y, n in sorted(f["year"].items(), reverse=True)],
+            "lang": [{"key": k, "label": genres.lang_label(k), "n": f["lang"][k]} for k in genres.LANGS if k in f["lang"]],
+        }
     return out
 
 
@@ -145,6 +156,8 @@ def _item(r, premium_on: bool, vip: bool) -> dict:
         "desc": truncate(desc, 400),
         "year": year,
         "genres": [{"key": k, "label": genres.label(k)} for k in genres.parse(r["genres"] if "genres" in keys else "")],
+        "country": genres.country_label(r["country"]) if "country" in keys else "",
+        "lang": genres.lang_label(r["lang"]) if "lang" in keys else "",
         "parts": r["parts"],
         "views": r["views"],
         "premium": bool(r["is_premium"]),

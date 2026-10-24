@@ -177,6 +177,17 @@
   .gchip i { font-style: normal; color: var(--muted); font-weight: 600; margin-left: 4px; }
   .gchip.on { background: var(--grad); color: var(--on-grad); border-color: transparent; }
   .gchip.on i { color: var(--on-grad); opacity: .7; }
+  .fsel { display: flex; flex-wrap: wrap; gap: 8px; margin: -6px 0 18px; }
+  .fpill { position: relative; display: inline-flex; align-items: center; height: 38px; border-radius: 12px;
+    background: var(--surface); border: 1px solid var(--line); font-size: 13.5px; font-weight: 700; color: var(--text); }
+  .fpill select { appearance: none; -webkit-appearance: none; border: 0; background: none; color: inherit; font: inherit;
+    height: 100%; padding: 0 30px 0 12px; outline: 0; max-width: 46vw; text-overflow: ellipsis; }
+  .fpill::after { content: ""; position: absolute; right: 12px; top: 15px; width: 6px; height: 6px; pointer-events: none;
+    border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); opacity: .6; }
+  .fpill.on { background: var(--grad); color: var(--on-grad); border-color: transparent; }
+  .fpill select option { color: #111; background: #fff; }
+  .fpill.reset { padding: 0 12px; color: var(--muted); }
+  .fpill.reset::after { display: none; }
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px 10px; }
   @media (max-width: 340px) { .grid { grid-template-columns: repeat(2, 1fr); } }
   @media (min-width: 560px) { .grid { grid-template-columns: repeat(4, 1fr); } }
@@ -498,7 +509,7 @@
   function snap(it) {
     return { id: it.id, code: it.code, cat: it.cat, title: it.title, poster: it.poster, parts: it.parts,
              views: it.views, premium: it.premium, locked: it.locked, year: it.year, desc: (it.desc || "").slice(0, 300),
-             genres: it.genres || [], t: Date.now() };
+             genres: it.genres || [], country: it.country || "", lang: it.lang || "", t: Date.now() };
   }
   function gname(g) { return (g.label || "").replace(/^\S+\s/, ""); }
   function shortMeta(it) {
@@ -794,54 +805,87 @@
     if (name === "saved") return renderSaved(view);
     if (name === "shorts") return renderShorts(view, opts.start);
     if (name === "search") return renderSearch(view);
-    renderCategory(view, name, opts.sort || "new", my, opts.genre || "");
+    renderCategory(view, name, opts.sort || "new", my, opts.f || {});
   }
 
-  function renderCategory(view, cat, sort, my, genre) {
-    genre = genre || "";
+  // filtrlar: janr (chiplar) + davlat, yil, til (tanlash maydonlari)
+  var FILTERS = [["country", "🌍 Davlat"], ["year", "📅 Yil"], ["lang", "🗣 Til"]];
+  function renderCategory(view, cat, sort, my, f) {
+    f = f || {};
+    var any = !!(f.genre || f.country || f.year || f.lang);
+    function go(changes) {
+      haptic();
+      renderCategory(view, cat, sort, ++reqId, Object.assign({}, f, changes));
+    }
     var page = h("div", "page");
     var count = h("span");
     page.appendChild(h("h1", null, PLURAL[cat]));
-    var lead = h("p", "lead", [count]);
-    page.appendChild(lead);
+    page.appendChild(h("p", "lead", [count]));
     var seg = h("div", "seg");
     [["new", "Yangi"], ["top", "Top"]].forEach(function (o) {
       var b = h("button", o[0] === sort ? "on" : "", o[1]);
-      b.onclick = function () { if (o[0] !== sort) { haptic(); renderCategory(view, cat, o[0], ++reqId, genre); } };
+      b.onclick = function () { if (o[0] !== sort) { haptic(); renderCategory(view, cat, o[0], ++reqId, f); } };
       seg.appendChild(b);
     });
     page.appendChild(seg);
     var chipsRow = h("div", "gchips hidden");
+    var selRow = h("div", "fsel hidden");
     page.appendChild(chipsRow);
-    function fillChips(list) {
-      if (!list || !list.length) return;
-      var all = h("button", "gchip" + (genre ? "" : " on"), "Hammasi");
-      all.onclick = function () { if (genre) { haptic(); renderCategory(view, cat, sort, ++reqId, ""); } };
-      chipsRow.replaceChildren(all);
-      list.forEach(function (g) {
-        var c = h("button", "gchip" + (g.key === genre ? " on" : ""), [g.label, h("i", null, String(g.n))]);
-        c.onclick = function () { haptic(); renderCategory(view, cat, sort, ++reqId, g.key === genre ? "" : g.key); };
-        chipsRow.appendChild(c);
+    page.appendChild(selRow);
+    function fillFilters(genresList, filters) {
+      if (genresList && genresList.length) {
+        var all = h("button", "gchip" + (f.genre ? "" : " on"), "Barcha janrlar");
+        all.onclick = function () { if (f.genre) go({ genre: "" }); };
+        chipsRow.replaceChildren(all);
+        genresList.forEach(function (g) {
+          var c = h("button", "gchip" + (g.key === f.genre ? " on" : ""), [g.label, h("i", null, String(g.n))]);
+          c.onclick = function () { go({ genre: g.key === f.genre ? "" : g.key }); };
+          chipsRow.appendChild(c);
+        });
+        chipsRow.classList.remove("hidden");
+        var on = chipsRow.querySelector(".on");
+        if (on && f.genre) setTimeout(function () { on.scrollIntoView({ inline: "center", block: "nearest" }); }, 0);
+      }
+      var shown = 0;
+      selRow.replaceChildren();
+      FILTERS.forEach(function (fl) {
+        var opts = (filters && filters[fl[0]]) || [];
+        if (!opts.length) return;
+        shown++;
+        var sel = document.createElement("select");
+        sel.appendChild(new Option(fl[1] + ": hammasi", ""));
+        opts.forEach(function (o) { sel.appendChild(new Option(o.label + " (" + o.n + ")", o.key)); });
+        sel.value = f[fl[0]] || "";
+        var box = h("label", "fpill" + (f[fl[0]] ? " on" : ""), [sel]);
+        sel.onchange = function () { var c = {}; c[fl[0]] = sel.value; go(c); };
+        selRow.appendChild(box);
       });
-      chipsRow.classList.remove("hidden");
-      var on = chipsRow.querySelector(".on");
-      if (on && genre) setTimeout(function () { on.scrollIntoView({ inline: "center", block: "nearest" }); }, 0);
+      if (any) {
+        var reset = h("button", "fpill reset", "✕ Tozalash");
+        reset.onclick = function () { go({ genre: "", country: "", year: "", lang: "" }); };
+        selRow.appendChild(reset);
+      }
+      if (shown || any) selRow.classList.remove("hidden");
     }
     var grid = h("div", "grid" + (cat === "music" ? " music" : ""), skeletonCards(6));
     page.appendChild(grid);
     view.replaceChildren(page);
     var offset = 0, first = true;
+    function query() {
+      var q = "";
+      ["genre", "country", "year", "lang"].forEach(function (k) { if (f[k]) q += "&" + k + "=" + encodeURIComponent(f[k]); });
+      return q;
+    }
     function load() {
-      api("/api/catalog?cat=" + cat + "&sort=" + sort + "&offset=" + offset + (genre ? "&genre=" + genre : "")).then(function (d) {
+      api("/api/catalog?cat=" + cat + "&sort=" + sort + "&offset=" + offset + query()).then(function (d) {
         if (my !== reqId) return;
         if (!d.ok) return renderError(view, d.reason);
-        if (first) { grid.replaceChildren(); first = false; fillChips(d.genres); }
-        if (d.counts) {
-          var gsel = genre && (d.genres || []).filter(function (g) { return g.key === genre; })[0];
-          count.textContent = gsel ? gsel.label + " — " + gsel.n + " ta" : (d.counts[cat] || 0) + " ta";
-        }
+        if (first) { grid.replaceChildren(); first = false; fillFilters(d.genres, d.filters); }
+        if (offset === 0) count.textContent = any ? "Topildi: " + (d.items.length + (d.more ? "+" : "")) + " ta"
+          : (d.counts ? (d.counts[cat] || 0) + " ta" : "");
         if (!d.items.length && offset === 0) {
-          grid.replaceWith(emptyBox(CAT_ICON[cat], "Hozircha bo'sh", genre ? "Bu janrda hozircha hech narsa yo'q." : "Bu bo'limga tez orada qo'shiladi."));
+          grid.replaceWith(emptyBox(CAT_ICON[cat], any ? "Hech narsa topilmadi" : "Hozircha bo'sh",
+            any ? "Boshqa filtrni tanlab ko'ring." : "Bu bo'limga tez orada qo'shiladi."));
           return;
         }
         d.items.forEach(function (it) { grid.appendChild(card(it)); });
@@ -1231,6 +1275,8 @@
     if (it.year) chips.appendChild(h("span", "chip", String(it.year)));
     if (it.parts > 1) chips.appendChild(h("span", "chip", it.parts + " qism"));
     (it.genres || []).forEach(function (g) { chips.appendChild(h("span", "chip g", g.label)); });
+    if (it.country) chips.appendChild(h("span", "chip", it.country));
+    if (it.lang) chips.appendChild(h("span", "chip", it.lang));
     if (it.premium) chips.appendChild(h("span", "chip gold", "PREMIUM"));
     var similar = it.cat === "music" ? null : h("div", "similar");
     s.replaceChildren(

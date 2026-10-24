@@ -545,15 +545,9 @@ def build_caption(app, movie, part, total: int) -> str:
     head = f"{cat_icon(movie['category'])} <b>{esc(movie['title'])}</b>"
     if total > 1:
         head += f"\n📺 <b>{esc(part_label(part))}</b>  <i>({total} qismdan)</i>"
-    info = []
-    if movie["category"] != "music":
-        g = genres.line(movie["genres"])
-        if g:
-            info.append(g)
-        if movie["year"]:
-            info.append(f"📅 {movie['year']}")
+    info = [] if movie["category"] == "music" else genres.info_lines(movie)
     if info:
-        head += "\n" + "  •  ".join(info)
+        head += "\n— — — — — — — — — —\n" + "\n".join(info)
     meta = (f"🔢 Kod: <code>{movie['code']}</code>  •  " if movie["code"] > 0 else "") + f"👁 {fmt_num(movie['views'] + 1)}"
     if movie["is_premium"]:
         meta += "  •  💎 Premium"

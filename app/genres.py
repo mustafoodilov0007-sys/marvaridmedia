@@ -73,3 +73,80 @@ def detect_year(*texts: str) -> int:
 def line(stored: Optional[str]) -> str:
     """«💥 Jangari • 😂 Komediya» — xabarlarda ko'rsatish uchun."""
     return " • ".join(label(k) for k in parse(stored))
+
+
+# ───────── 🌍 davlat va 🗣 til ─────────
+
+# kalit → (bayroq, nomi, izohdagi kalit so'zlar — so'z boshi bo'yicha)
+COUNTRIES = {
+    "us": ("🇺🇸", "AQSH",            ("aqsh", "amerika", "usa", "ssha")),
+    "gb": ("🇬🇧", "Buyuk Britaniya", ("britaniya", "angliya", "england")),
+    "fr": ("🇫🇷", "Fransiya",        ("fransiya", "frantsiya", "fransuz")),
+    "de": ("🇩🇪", "Germaniya",       ("germaniya", "nemis")),
+    "it": ("🇮🇹", "Italiya",         ("italiya",)),
+    "es": ("🇪🇸", "Ispaniya",        ("ispaniya",)),
+    "ru": ("🇷🇺", "Rossiya",         ("rossiya",)),
+    "tr": ("🇹🇷", "Turkiya",         ("turkiya",)),
+    "in": ("🇮🇳", "Hindiston",       ("hindiston",)),
+    "kr": ("🇰🇷", "Janubiy Koreya",  ("koreya",)),
+    "jp": ("🇯🇵", "Yaponiya",        ("yaponiya",)),
+    "cn": ("🇨🇳", "Xitoy",           ("xitoy",)),
+    "uz": ("🇺🇿", "O'zbekiston",     ("ozbekiston",)),
+    "kz": ("🇰🇿", "Qozog'iston",     ("qozogiston",)),
+    "ca": ("🇨🇦", "Kanada",          ("kanada",)),
+    "au": ("🇦🇺", "Avstraliya",      ("avstraliya",)),
+    "ir": ("🇮🇷", "Eron",            ("eron",)),
+    "ua": ("🇺🇦", "Ukraina",         ("ukraina",)),
+    "br": ("🇧🇷", "Braziliya",       ("braziliya",)),
+    "mx": ("🇲🇽", "Meksika",         ("meksika",)),
+}
+
+LANGS = {
+    "uz": ("🇺🇿", "O'zbek tilida",  ("ozbek tilida", "ozbekcha", "uzbek")),
+    "ru": ("🇷🇺", "Rus tilida",     ("rus tilida", "ruscha", "russkiy")),
+    "en": ("🇬🇧", "Ingliz tilida",  ("ingliz tilida", "inglizcha", "english")),
+}
+
+YEAR_MIN, YEAR_MAX = 1920, 2049
+
+
+def country_label(key: str) -> str:
+    c = COUNTRIES.get(key or "")
+    return f"{c[0]} {c[1]}" if c else ""
+
+
+def lang_label(key: str) -> str:
+    lg = LANGS.get(key or "")
+    return f"{lg[0]} {lg[1]}" if lg else ""
+
+
+def detect_country(*texts: str) -> str:
+    words = normalize(" ".join(t or "" for t in texts)).split()
+    for key, (_, _, keys) in COUNTRIES.items():
+        if any(w.startswith(kw) for kw in keys for w in words):
+            return key
+    return ""
+
+
+def detect_lang(*texts: str) -> str:
+    text = " " + normalize(" ".join(t or "" for t in texts)) + " "
+    for key, (_, _, keys) in LANGS.items():
+        if any(f" {kw}" in text for kw in keys):
+            return key
+    return ""
+
+
+def info_lines(movie) -> list:
+    """Kino ma'lumotlari: davlat, yil, janr, til — xabar va e'lonlarda bir xil ko'rinishda."""
+    keys = movie.keys()
+    lines = []
+    if "country" in keys and movie["country"] in COUNTRIES:
+        lines.append(f"🌍 Davlati: {country_label(movie['country'])}")
+    if movie["year"]:
+        lines.append(f"📅 Yili: {movie['year']}")
+    g = ", ".join(name(k) for k in parse(movie["genres"]))
+    if g:
+        lines.append(f"🎭 Janri: {g}")
+    if "lang" in keys and movie["lang"] in LANGS:
+        lines.append(f"🗣 Tili: {LANGS[movie['lang']][1]}")
+    return lines
