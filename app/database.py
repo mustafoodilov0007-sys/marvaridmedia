@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS movies (
     year        INTEGER NOT NULL DEFAULT 0,
     country     TEXT    NOT NULL DEFAULT '',
     lang        TEXT    NOT NULL DEFAULT '',
-    quality     TEXT    NOT NULL DEFAULT ''
+    quality     TEXT    NOT NULL DEFAULT '',
+    group_link  TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_movies_views   ON movies(views);
 CREATE INDEX IF NOT EXISTS idx_movies_created ON movies(created_at);
@@ -186,7 +187,7 @@ CREATE TABLE IF NOT EXISTS payment_msgs (
 CREATE INDEX IF NOT EXISTS idx_payment_msgs ON payment_msgs(payment_id);
 """
 
-CATEGORIES = ("movie", "cartoon", "music")
+CATEGORIES = ("movie", "serial", "cartoon", "music")
 
 _CATALOG_ROW = """
 SELECT m.id, m.code, m.title, m.description, m.is_premium, m.views, m.created_at, m.category, m.poster_id,
@@ -241,6 +242,8 @@ class Database:
             for r in self.conn.execute("SELECT id, description FROM movies WHERE category<>'music'").fetchall():
                 self.conn.execute("UPDATE movies SET country=?, lang=? WHERE id=?",
                                   (genres.detect_country(r[1]), genres.detect_lang(r[1]), r[0]))
+        if "group_link" not in cols:  # 📺 serialning qolgan qismlari joylangan guruh havolasi
+            self.conn.execute("ALTER TABLE movies ADD COLUMN group_link TEXT NOT NULL DEFAULT ''")
         if "quality" not in cols:
             self.conn.execute("ALTER TABLE movies ADD COLUMN quality TEXT NOT NULL DEFAULT ''")  # 🎞 «,720,1080,»
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_movies_category ON movies(category, created_at)")
@@ -432,7 +435,8 @@ class Database:
     def add_movie(self, code: int, title: str, description: str, poster_id: Optional[str],
                   is_premium: bool, added_by: int, file_id: str, file_type: str,
                   category: str = "movie", desc_html: str = "", genre_keys=None, year: Optional[int] = None,
-                  country: Optional[str] = None, lang: Optional[str] = None, quality: str = "") -> int:
+                  country: Optional[str] = None, lang: Optional[str] = None, quality: str = "",
+                  group_link: str = "") -> int:
         t = now()
         if category not in CATEGORIES:
             category = "movie"
@@ -449,11 +453,11 @@ class Database:
                 code = (c.execute("SELECT MIN(code) FROM movies WHERE code<0").fetchone()[0] or 0) - 1
             cur = c.execute(
                 "INSERT INTO movies(code, title, description, poster_id, is_premium, norm_title, norm_desc,"
-                " added_by, created_at, category, desc_html, genres, year, country, lang, quality)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " added_by, created_at, category, desc_html, genres, year, country, lang, quality, group_link)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (code, title, description or "", poster_id, 1 if is_premium else 0, normalize(title),
                  normalize(description or ""), added_by, t, category, desc_html or "",
-                 genres.dump(genre_keys), year or 0, country or "", lang or "", quality or ""))
+                 genres.dump(genre_keys), year or 0, country or "", lang or "", quality or "", group_link or ""))
             movie_id = cur.lastrowid
             c.execute("INSERT INTO parts(movie_id, part_no, file_id, file_type, created_at) VALUES (?,?,?,?,?)",
                       (movie_id, 1, file_id, file_type, t))

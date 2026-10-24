@@ -208,7 +208,7 @@ def api_home(app: App, user: dict) -> dict:
         return [_item(r, premium_on, vip) for r in rows]
 
     newest = []
-    for cat in ("movie", "cartoon"):
+    for cat in ("movie", "serial", "cartoon"):
         newest += list(db.catalog(cat, "new", None, 12))
     newest.sort(key=lambda r: (r["created_at"], r["id"]), reverse=True)
     with_poster = [r for r in newest if r["poster_id"]]
@@ -227,6 +227,8 @@ def api_home(app: App, user: dict) -> dict:
              "items": pack(db.catalog("movie", "new", None, 15))},
             {"key": "movie_top", "title": "Eng ko'p ko'rilgan", "cat": "movie", "sort": "top",
              "items": pack(db.catalog("movie", "top", None, 15))},
+            {"key": "serial", "title": "Seriallar", "cat": "serial", "sort": "new",
+             "items": pack(db.catalog("serial", "new", None, 15))},
             {"key": "cartoon", "title": "Multfilmlar", "cat": "cartoon", "sort": "new",
              "items": pack(db.catalog("cartoon", "new", None, 15))},
             {"key": "music", "title": "Musiqalar", "cat": "music", "sort": "new",

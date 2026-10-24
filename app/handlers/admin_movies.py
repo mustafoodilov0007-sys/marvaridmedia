@@ -71,7 +71,8 @@ def st_file(ctx: Ctx) -> None:
 
 
 def category_rows(prefix: str) -> list:
-    return [[btn("🎬 Kino", f"{prefix}:movie", style=SUCCESS), btn("🧸 Multfilm", f"{prefix}:cartoon", style=PRIMARY)],
+    return [[btn("🎬 Kino", f"{prefix}:movie", style=SUCCESS), btn("📺 Serial", f"{prefix}:serial", style=PRIMARY),
+             btn("🧸 Multfilm", f"{prefix}:cartoon", style=SUCCESS)],
             [btn("❌ Bekor qilish", "cancel", style=DANGER)]]
 
 
@@ -181,6 +182,8 @@ def ask_title(ctx: Ctx, code: int) -> None:
         example = "Shahzoda — Yoningdaman"
     elif _cat(ctx) == "cartoon":
         example = "Shrek 2 (2004)"
+    elif _cat(ctx) == "serial":
+        example = "Katta sichqon"
     else:
         example = "Avatar: Suv yo'li (2022)"
     ready = f"✅ Kod: <b>{code}</b>, fayl tayyor." if code else "✅ Fayl tayyor."
@@ -384,13 +387,58 @@ def ask_quality(ctx: Ctx) -> None:
     ctx.send(quality_prompt(sel), {"inline_keyboard": quality_rows(sel, "am:q:", "am:qok")})
 
 
+LINK_RE = re.compile(r"(?:https?://)?(?:t\.me|telegram\.me)/\S+|https?://\S+", re.I)
+
+
+def clean_link(text: str) -> str:
+    m = LINK_RE.search(text or "")
+    if not m:
+        return ""
+    url = m.group(0).rstrip(").,")
+    return url if url.lower().startswith("http") else "https://" + url
+
+
 def after_desc(ctx: Ctx, desc: str, desc_html: str = "") -> None:
     ctx.goto("am:desc", desc=desc, desc_html=desc_html)
-    if ctx.sdata.get("poster_pre"):
+    if _cat(ctx) == "serial":
+        ctx.goto("am:link")
+        ctx.send("🔗 <b>Qolgan qismlar linki</b>\n\n"
+                 "Serialning qolgan qismlari joylangan Telegram guruh yoki post havolasini yuboring.\n"
+                 "💡 Masalan: <code>https://t.me/MarvaridMediaderial/1170</code>\n\n"
+                 "Bot serialni yuborganda «qolgan qismlari bu yerda 👇» deb shu linkni qo'shadi.\n"
+                 "📢 Kanal e'loniga bu link <b>qo'yilmaydi</b>.",
+                 ikb([btn("⏭ O'tkazib yuborish", "am:lskip", style=DANGER)]))
+        return
+    to_poster(ctx)
+
+
+def to_poster(ctx: Ctx) -> None:
+    d = ctx.sdata
+    if d.get("poster_pre"):
         ctx.goto("am:poster")
-        show_confirm(ctx, ctx.sdata["poster_pre"])
+        show_confirm(ctx, d["poster_pre"])
     else:
-        ask_poster(ctx, desc, desc_html)
+        ask_poster(ctx, d.get("desc") or "", d.get("desc_html") or "")
+
+
+@router.state("am:link", admin=True)
+def st_link(ctx: Ctx) -> None:
+    if has_image(ctx.message):
+        poster = poster_from(ctx)
+        if not poster:
+            poster_error(ctx)
+            return
+        ctx.goto("am:link", poster_pre=poster)
+        ctx.send("🖼 Poster saqlandi! Endi linkni yuboring yoki «⏭ O'tkazib yuborish» ni bosing.")
+        return
+    link = clean_link(ctx.text)
+    if not link or len(link) > 300:
+        ctx.send("❗️ Havolani yuboring (masalan <code>https://t.me/guruh/123</code>) "
+                 "yoki «⏭ O'tkazib yuborish» ni bosing.", ikb([btn("⏭ O'tkazib yuborish", "am:lskip", style=DANGER)]))
+        return
+    ctx.goto("am:link", group_link=link)
+    ctx.send(f"🔗 Link saqlandi ✅\n{esc(link)}", preview=False)
+    to_poster(ctx)
 
 
 @router.state("am:genre", "am:country", "am:year", "am:lang", "am:quality", admin=True)
@@ -494,6 +542,7 @@ def show_confirm(ctx: Ctx, poster) -> None:
                f"📅 Yil: {d.get('year') or '—'}\n"
                f"🗣 Til: {genres.lang_label(d.get('lang')) or '—'}\n"
                f"🎞 Sifat: {genres.quality_text(genres.quality_dump(d.get('quality') or [])) or '—'}\n") +
+            (f"🔗 Qismlar linki: {esc(d.get('group_link') or '—')}\n" if cat == "serial" else "") +
             f"📹 Fayl: {file_txt}\n"
             f"🖼 Poster: {poster_txt}\n\n"
             "Qanday saqlaymiz? 👇")
@@ -521,7 +570,8 @@ def save_movie(ctx: Ctx, premium: bool) -> None:
                             ctx.user_id, d["file_id"], d["file_type"], cat, d.get("desc_html") or "",
                             genre_keys=d.get("genres"), year=d.get("year"),
                             country=d.get("country"), lang=d.get("lang"),
-                            quality=genres.quality_dump(d.get("quality") or []))
+                            quality=genres.quality_dump(d.get("quality") or []),
+                            group_link=d.get("group_link") or "" if cat == "serial" else "")
     ctx.clear_state()
     ctx.answer("✅ Saqlandi!")
     code = db.get_movie(movie_id)["code"]
@@ -830,6 +880,13 @@ def cb_add_movie(ctx: Ctx) -> None:
         ctx.answer()
         ctx.edit(f"🎞 Sifat: <b>{genres.quality_text(genres.quality_dump(ctx.sdata.get('quality') or [])) or '—'}</b> ✅")
         ask_desc(ctx)
+    elif action == "lskip":
+        if state != "am:link":
+            _stale(ctx)
+            return
+        ctx.answer()
+        ctx.goto("am:link", group_link="")
+        to_poster(ctx)
     elif action == "save":
         if state != "am:confirm":
             _stale(ctx)
@@ -948,6 +1005,7 @@ def manage_view(ctx: Ctx, movie):
                f"📅 Yil: <b>{movie['year'] or '—'}</b>\n"
                f"🗣 Til: <b>{genres.lang_label(movie['lang']) or '—'}</b>\n"
                f"🎞 Sifat: <b>{genres.quality_text(movie['quality']) or '—'}</b>\n") +
+            (f"🔗 Qismlar linki: {esc(movie['group_link'] or '—')}\n" if cat == "serial" else "") +
             f"👁 Ko'rishlar: <b>{fmt_num(movie['views'])}</b>\n"
             f"💎 Premium: <b>{premium_txt}</b>\n"
             f"🖼 Poster: <b>{poster_txt}</b>\n"
@@ -961,6 +1019,8 @@ def manage_view(ctx: Ctx, movie):
                  btn("🖼 Poster", f"dm:ep:{mid}", style=PRIMARY)])
     if cat != "music":
         rows.append([btn("🏷 Janr • Davlat • Yil • Til • Sifat", f"dm:meta:{mid}", style=SUCCESS)])
+    if cat == "serial":
+        rows.append([btn("🔗 Qolgan qismlar linki", f"dm:el:{mid}", style=PRIMARY)])
     rows.append([btn(f"🏷 Turini o'zgartirish ({cat_icon(cat)} {cat_name(cat)})", f"dm:cat:{mid}",
                      style=SUCCESS)])
     if ctx.app.setting_bool("premium_enabled") or movie["is_premium"]:
@@ -1126,9 +1186,9 @@ def cb_manage(ctx: Ctx) -> None:
     elif action == "cat":
         ctx.answer()
         cur = movie["category"]
-        rows = [[btn(("✅ " if c == cur else "") + f"{cat_icon(c)} {cat_name(c)}", f"dm:to{c}:{mid}",
-                     style=SUCCESS if c == cur else PRIMARY) for c in CATEGORIES],
-                [btn("⬅️ Orqaga", f"dm:open:{mid}", style=DANGER)]]
+        cats = [btn(("✅ " if c == cur else "") + f"{cat_icon(c)} {cat_name(c)}", f"dm:to{c}:{mid}",
+                    style=SUCCESS if c == cur else PRIMARY) for c in CATEGORIES]
+        rows = [cats[:2], cats[2:], [btn("⬅️ Orqaga", f"dm:open:{mid}", style=DANGER)]]
         warn = ("\n\n⚠️ Musiqaga o'tkazilsa, <b>kodi olib tashlanadi</b> (musiqalar kodsiz)."
                 if cur != "music" and movie["code"] > 0 else "")
         ctx.edit(f"🏷 <b>{esc(movie['title'])}</b> — turini tanlang:{warn}", ikb(*rows))
@@ -1218,6 +1278,12 @@ def cb_manage(ctx: Ctx) -> None:
         db.update_movie(mid, is_premium=not movie["is_premium"])
         ctx.answer("💎 Premium qilindi" if not movie["is_premium"] else "🆓 Oddiy qilindi")
         send_manage(ctx, db.get_movie(mid), edit=True)
+    elif action == "el":
+        ctx.answer()
+        ctx.set_state("dm:link", movie_id=mid)
+        cur = movie["group_link"] or "—"
+        ctx.send(f"📺 <b>{esc(movie['title'])}</b>\n\nHozirgi link: {esc(cur)}\n\n"
+                 "Yangi <b>linkni</b> yuboring (olib tashlash uchun <code>-</code>):", cancel_kb(), preview=False)
     elif action in ("et", "ed", "ep"):
         ctx.answer()
         state = {"et": "dm:title", "ed": "dm:desc", "ep": "dm:poster"}[action]
@@ -1336,6 +1402,22 @@ def st_edit_desc(ctx: Ctx) -> None:
         ctx.db.update_movie(movie["id"], description=desc, desc_html=message_html(ctx.message).strip(), **extra)
     ctx.clear_state()
     ctx.send("✅ Ma'lumot yangilandi!")
+    send_manage(ctx, ctx.db.get_movie(movie["id"]))
+
+
+@router.state("dm:link", admin=True)
+def st_edit_link(ctx: Ctx) -> None:
+    movie = _edit_target(ctx)
+    if not movie:
+        return
+    text = ctx.text.strip()
+    link = "" if text == "-" else clean_link(text)
+    if text != "-" and (not link or len(link) > 300):
+        ctx.send("❗️ Havolani yuboring (masalan <code>https://t.me/guruh/123</code>) yoki <code>-</code>.", cancel_kb())
+        return
+    ctx.db.update_movie(movie["id"], group_link=link)
+    ctx.clear_state()
+    ctx.send("✅ Link yangilandi!" if link else "🗑 Link olib tashlandi.")
     send_manage(ctx, ctx.db.get_movie(movie["id"]))
 
 

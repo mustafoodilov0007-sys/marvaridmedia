@@ -390,8 +390,10 @@ def list_page(ctx: Ctx, kind: str, page: int):
 
 # ═════════════════════════ 🎬 Kinolar / 🧸 Multfilmlar / 🎵 Musiqalar ═════════════════════════
 
-CAT_BUTTONS = {B.MOVIES: "movie", B.CARTOONS: "cartoon", B.MUSIC: "music"}
-CAT_TITLES = {"movie": "🎬 <b>Kinolar</b>", "cartoon": "🧸 <b>Multfilmlar</b>", "music": "🎵 <b>Musiqalar</b>"}
+CAT_BUTTONS = {B.MOVIES: "movie", B.SERIALS: "serial", B.CARTOONS: "cartoon", B.MUSIC: "music"}
+CAT_TITLES = {"movie": "🎬 <b>Kinolar</b>", "serial": "📺 <b>Seriallar</b>", "cartoon": "🧸 <b>Multfilmlar</b>",
+              "music": "🎵 <b>Musiqalar</b>"}
+VIDEO_CATS = ("movie", "serial", "cartoon")
 
 
 def category_page(ctx: Ctx, cat: str, page: int):
@@ -500,7 +502,7 @@ def cb_rate(ctx: Ctx) -> None:
 @router.callback("gl", gate=True)
 def cb_genres(ctx: Ctx) -> None:
     parts = ctx.data.split(":")
-    cat = parts[1] if len(parts) > 1 and parts[1] in ("movie", "cartoon") else "movie"
+    cat = parts[1] if len(parts) > 1 and parts[1] in VIDEO_CATS else "movie"
     text, kb = genres_menu(ctx, cat)
     ctx.answer()
     edit_or_send(ctx, text, kb)
@@ -509,7 +511,7 @@ def cb_genres(ctx: Ctx) -> None:
 @router.callback("gn", gate=True)
 def cb_genre_page(ctx: Ctx) -> None:
     parts = ctx.data.split(":")
-    if len(parts) < 3 or parts[1] not in ("movie", "cartoon") or parts[2] not in genres.GENRES:
+    if len(parts) < 3 or parts[1] not in VIDEO_CATS or parts[2] not in genres.GENRES:
         ctx.answer()
         return
     page = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0
@@ -536,7 +538,7 @@ def cb_similar(ctx: Ctx) -> None:
     ctx.send(text, kb)
 
 
-@router.button(B.MOVIES, B.CARTOONS, B.MUSIC)
+@router.button(B.MOVIES, B.SERIALS, B.CARTOONS, B.MUSIC)
 def btn_category(ctx: Ctx) -> None:
     key = ctx.text.replace("\ufe0f", "").strip()
     cat = next((v for k, v in CAT_BUTTONS.items() if k.replace("\ufe0f", "") == key), "movie")
@@ -611,14 +613,19 @@ def build_caption(app, movie, part, total: int) -> str:
     if movie["is_premium"]:
         meta += "  •  💎 Premium"
     footer = render(app.setting("caption_footer"), brand=esc(app.brand), bot=app.bot_username).strip()
+    link = (movie["group_link"] if "group_link" in movie.keys() else "") or ""
+    link_block = (f"📺 <b>{esc(movie['title'])}</b> qolgan qismlari bu yerda 👇👇\n{esc(link)}"
+                  if link and movie["category"] == "serial" else "")
     blocks = [head]
-    budget = 1000 - visible_len(head) - visible_len(meta) - visible_len(footer) - 12
+    budget = 1000 - visible_len(head) - visible_len(meta) - visible_len(footer) - visible_len(link_block) - 14
     desc = (movie["description"] or "").strip()
     desc_html = (movie["desc_html"] if "desc_html" in movie.keys() else "") or ""
     if desc_html and visible_len(desc_html) <= budget - 3:
         blocks.append("📝 " + desc_html)  # premium emoji va formatlash saqlanadi
     elif desc and budget > 30:
         blocks.append("📝 " + esc(truncate(desc, budget - 3)))
+    if link_block:
+        blocks.append(link_block)
     blocks.append(meta)
     if footer:
         blocks.append(footer)
@@ -647,6 +654,9 @@ def part_kb(app, movie, part, total: int, extra_rows=None) -> dict:
         r = app.db.rating(movie["id"])
         rows.append([btn(f"👍 {r['likes']}", f"rt:{movie['id']}:{part['id']}:1", style=SUCCESS),
                      btn(f"👎 {r['dislikes']}", f"rt:{movie['id']}:{part['id']}:-1", style=DANGER)])
+    link = (movie["group_link"] if "group_link" in movie.keys() else "") or ""
+    if link and movie["category"] == "serial":
+        rows.append([btn("📺 Qolgan qismlar", url=link, style=SUCCESS)])
     last = [btn("📤 Do'stlarga ulashish", url=share, style=PRIMARY)]
     if movie["category"] != "music":
         last.append(btn("🎭 O'xshashlari", f"sim:{movie['id']}", style=SUCCESS))

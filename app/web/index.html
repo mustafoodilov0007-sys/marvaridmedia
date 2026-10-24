@@ -215,13 +215,14 @@
   @keyframes sh { to { background-position: -150% 0; } }
 
   /* ───── bottom nav ───── */
-  .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(6, 1fr);
+  .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(7, 1fr);
     height: calc(var(--nav-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
     background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
     border-top: 1px solid var(--line); }
   .nav button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
     color: var(--muted); font-size: 10.5px; font-weight: 700; position: relative; white-space: nowrap; min-width: 0; }
-  @media (max-width: 380px) { .nav button { font-size: 9.5px; letter-spacing: -.1px; } .nav button svg { width: 21px; height: 21px; } }
+  @media (max-width: 430px) { .nav button { font-size: 9.5px; letter-spacing: -.2px; } .nav button svg { width: 21px; height: 21px; } }
+  @media (max-width: 350px) { .nav button { font-size: 8.5px; } }
   body.in-shorts .nav { background: rgba(0,0,0,.92); border-top-color: rgba(255,255,255,.08); }
   body.in-shorts .nav button { color: rgba(255,255,255,.55); }
   body.in-shorts .nav button.on { color: #fff; }
@@ -394,6 +395,7 @@
 <nav class="nav" id="nav">
   <button data-view="home" class="on"></button>
   <button data-view="movie"></button>
+  <button data-view="serial"></button>
   <button data-view="shorts"></button>
   <button data-view="cartoon"></button>
   <button data-view="music"></button>
@@ -424,8 +426,8 @@
   var PUB = !initData;
   var APP = /MarvaridApp/.test(navigator.userAgent);
   var me = { bot: "", brand: "Marvarid Media", channel: null };
-  var NAMES = { movie: "Kino", cartoon: "Multfilm", music: "Musiqa" };
-  var PLURAL = { movie: "Kinolar", cartoon: "Multfilmlar", music: "Musiqalar" };
+  var NAMES = { movie: "Kino", serial: "Serial", cartoon: "Multfilm", music: "Musiqa" };
+  var PLURAL = { movie: "Kinolar", serial: "Seriallar", cartoon: "Multfilmlar", music: "Musiqalar" };
 
   // ───── ikonkalar (inline SVG) ─────
   var P = {
@@ -450,9 +452,10 @@
     pause: '<rect x="6" y="4.5" width="4" height="15" rx="1.2"/><rect x="14" y="4.5" width="4" height="15" rx="1.2"/>',
     next: '<path d="M5 5.5v13a1 1 0 0 0 1.5.86L16 13.7V18a1 1 0 0 0 2 0V6a1 1 0 0 0-2 0v4.3L6.5 4.64A1 1 0 0 0 5 5.5z"/>',
     prev: '<path d="M19 5.5v13a1 1 0 0 1-1.5.86L8 13.7V18a1 1 0 0 1-2 0V6a1 1 0 0 1 2 0v4.3l9.5-5.66A1 1 0 0 1 19 5.5z"/>',
+    tv: '<rect x="2.5" y="6" width="19" height="13.5" rx="2.5"/><path d="m8 2.5 4 3.5 4-3.5M8 22h8"/>',
     gem: '<path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21 8 9l4-6 4 6z"/>'
   };
-  var CAT_ICON = { movie: "film", cartoon: "smile", music: "music" };
+  var CAT_ICON = { movie: "film", serial: "tv", cartoon: "smile", music: "music" };
   function icon(name) {
     var s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     s.setAttribute("viewBox", "0 0 24 24");
@@ -1287,7 +1290,7 @@
         return;
       }
       results.replaceChildren(h("div", "grid", skeletonCards(6)));
-      var cats = /^#?\d+$/.test(q) ? ["movie"] : ["movie", "cartoon", "music"];
+      var cats = /^#?\d+$/.test(q) ? ["movie"] : ["movie", "serial", "cartoon", "music"];
       Promise.all(cats.map(function (c) {
         return api("/api/catalog?cat=" + c + "&q=" + encodeURIComponent(q));
       })).then(function (res) {
@@ -1433,7 +1436,7 @@
   $("bSearch").onclick = function () { haptic(); show("search"); };
   $("bChannel").appendChild(icon("send"));
   $("bChannel").onclick = function () { haptic(); if (me.channel) openLink(me.channel); };
-  var NAV = { home: ["home", "Asosiy"], movie: ["film", "Kinolar"], shorts: ["clap", "Shorts"],
+  var NAV = { home: ["home", "Asosiy"], movie: ["film", "Kinolar"], serial: ["tv", "Serial"], shorts: ["clap", "Shorts"],
               cartoon: ["smile", "Multfilm"], music: ["music", "Musiqa"], saved: ["bookmark", "Saqlangan"] };
   document.querySelectorAll(".nav button").forEach(function (b) {
     var n = NAV[b.dataset.view];

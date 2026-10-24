@@ -16,6 +16,7 @@ class B:
     SITE = "🌐 Sayt"
     MOVIES = "🎬 Kinolar"
     CARTOONS = "🧸 Multfilmlar"
+    SERIALS = "📺 Seriallar"
     MUSIC = "🎵 Musiqalar"
 
     # admin menyusi
@@ -35,6 +36,7 @@ class B:
 # Kontent turlari: kod → (belgi, nomi, ko'plikda)
 CATEGORIES = {
     "movie": ("🎬", "Kino", "Kinolar"),
+    "serial": ("📺", "Serial", "Seriallar"),
     "cartoon": ("🧸", "Multfilm", "Multfilmlar"),
     "music": ("🎵", "Musiqa", "Musiqalar"),
 }
