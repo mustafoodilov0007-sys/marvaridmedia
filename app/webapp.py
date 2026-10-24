@@ -158,6 +158,7 @@ def _item(r, premium_on: bool, vip: bool) -> dict:
         "genres": [{"key": k, "label": genres.label(k)} for k in genres.parse(r["genres"] if "genres" in keys else "")],
         "country": genres.country_label(r["country"]) if "country" in keys else "",
         "lang": genres.lang_label(r["lang"]) if "lang" in keys else "",
+        "quality": genres.quality_text(r["quality"]) if "quality" in keys else "",
         "parts": r["parts"],
         "views": r["views"],
         "premium": bool(r["is_premium"]),

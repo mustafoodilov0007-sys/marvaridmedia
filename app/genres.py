@@ -80,6 +80,9 @@ def line(stored: Optional[str]) -> str:
 # kalit → (bayroq, nomi, izohdagi kalit so'zlar — so'z boshi bo'yicha)
 COUNTRIES = {
     "us": ("🇺🇸", "AQSH",            ("aqsh", "amerika", "usa", "ssha")),
+    "uz": ("🇺🇿", "O'zbekiston",     ("ozbekiston",)),
+    "kz": ("🇰🇿", "Qozog'iston",     ("qozogiston",)),
+    "kg": ("🇰🇬", "Qirg'iziston",    ("qirgiziston", "qirgizstan")),
     "gb": ("🇬🇧", "Buyuk Britaniya", ("britaniya", "angliya", "england")),
     "fr": ("🇫🇷", "Fransiya",        ("fransiya", "frantsiya", "fransuz")),
     "de": ("🇩🇪", "Germaniya",       ("germaniya", "nemis")),
@@ -91,8 +94,6 @@ COUNTRIES = {
     "kr": ("🇰🇷", "Janubiy Koreya",  ("koreya",)),
     "jp": ("🇯🇵", "Yaponiya",        ("yaponiya",)),
     "cn": ("🇨🇳", "Xitoy",           ("xitoy",)),
-    "uz": ("🇺🇿", "O'zbekiston",     ("ozbekiston",)),
-    "kz": ("🇰🇿", "Qozog'iston",     ("qozogiston",)),
     "ca": ("🇨🇦", "Kanada",          ("kanada",)),
     "au": ("🇦🇺", "Avstraliya",      ("avstraliya",)),
     "ir": ("🇮🇷", "Eron",            ("eron",)),
@@ -108,6 +109,27 @@ LANGS = {
 }
 
 YEAR_MIN, YEAR_MAX = 1920, 2049
+
+# 🎞 video sifati (bir nechtasi tanlanadi) — kalit → yozuv; tartib: pastdan yuqoriga
+QUALITIES = {"480": "480p", "720": "720p", "1080": "1080p", "2k": "2K"}
+
+
+def quality_text(stored: Optional[str]) -> str:
+    """«,720,1080,» → «1080p va 720p» (yuqori sifat oldin)."""
+    keys = [k for k in reversed(list(QUALITIES)) if f",{k}," in (stored or "")]
+    names = [QUALITIES[k] for k in keys]
+    if len(names) > 1:
+        return ", ".join(names[:-1]) + " va " + names[-1]
+    return names[0] if names else ""
+
+
+def quality_dump(keys) -> str:
+    keys = [k for k in QUALITIES if k in set(keys)]
+    return ("," + ",".join(keys) + ",") if keys else ""
+
+
+def quality_parse(stored: Optional[str]) -> list:
+    return [k for k in QUALITIES if f",{k}," in (stored or "")]
 
 
 def country_label(key: str) -> str:
@@ -149,4 +171,7 @@ def info_lines(movie) -> list:
         lines.append(f"🎭 Janri: {g}")
     if "lang" in keys and movie["lang"] in LANGS:
         lines.append(f"🗣 Tili: {LANGS[movie['lang']][1]}")
+    q = quality_text(movie["quality"]) if "quality" in keys else ""
+    if q:
+        lines.append(f"🎞 Sifati: {q}")
     return lines

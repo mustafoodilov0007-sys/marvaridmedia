@@ -509,7 +509,7 @@
   function snap(it) {
     return { id: it.id, code: it.code, cat: it.cat, title: it.title, poster: it.poster, parts: it.parts,
              views: it.views, premium: it.premium, locked: it.locked, year: it.year, desc: (it.desc || "").slice(0, 300),
-             genres: it.genres || [], country: it.country || "", lang: it.lang || "", t: Date.now() };
+             genres: it.genres || [], country: it.country || "", lang: it.lang || "", quality: it.quality || "", t: Date.now() };
   }
   function gname(g) { return (g.label || "").replace(/^\S+\s/, ""); }
   function shortMeta(it) {
@@ -1277,6 +1277,7 @@
     (it.genres || []).forEach(function (g) { chips.appendChild(h("span", "chip g", g.label)); });
     if (it.country) chips.appendChild(h("span", "chip", it.country));
     if (it.lang) chips.appendChild(h("span", "chip", it.lang));
+    if (it.quality) chips.appendChild(h("span", "chip", "🎞 " + it.quality));
     if (it.premium) chips.appendChild(h("span", "chip gold", "PREMIUM"));
     var similar = it.cat === "music" ? null : h("div", "similar");
     s.replaceChildren(

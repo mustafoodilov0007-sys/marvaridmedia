@@ -12,7 +12,7 @@ from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, number_ro
 from ..telegram import InputFile, TelegramError
 from ..texts import B, CATEGORIES, cat_icon, cat_name
 from ..utils import (entities_to_html, esc, extract_media, fmt_date, fmt_num, message_html, normalize, post_link,
-                     truncate, visible_len)
+                     truncate)
 from .contact import notify_requesters
 from .user import build_list, fmt_item, part_label, search_ids
 
@@ -243,8 +243,8 @@ def ask_desc(ctx: Ctx) -> None:
         ctx.send(f"4️⃣ Musiqa haqida <b>qisqacha ma'lumot</b> yuboring:\n💡 Masalan: ijrochi, albom, yil.\n\n"
                  "Yoki bu bosqichni o'tkazib yuboring 👇", ikb(*rows))
         return
-    ctx.send(f"8️⃣ Endi {_noun(ctx)} haqida <b>izoh</b> yozing ✍️\n"
-             "💡 Masalan: syujeti, sifati (1080p, 720p), IMDb reytingi.\n"
+    ctx.send(f"9️⃣ Endi {_noun(ctx)} haqida <b>izoh</b> yozing ✍️\n"
+             "💡 Masalan: syujeti, IMDb reytingi. Izoh botda kino bilan chiqadi, kanal postiga qo'yilmaydi.\n"
              "Premium emoji, <b>qalin</b>, <i>kursiv</i> yozuvlar saqlanadi.\n\nYoki o'tkazib yuboring 👇", ikb(*rows))
 
 
@@ -366,6 +366,24 @@ def ask_lang(ctx: Ctx) -> None:
     ctx.send("7️⃣ <b>Tilini</b> tanlang 🗣", {"inline_keyboard": lang_rows(sel, "am:l:", _skip_row("am:l:-"))})
 
 
+def quality_rows(selected, prefix: str, done_cb: str, done_text: str = "✅ Tayyor — davom etish") -> list:
+    row = [btn(("✅ " if k in selected else "") + v, f"{prefix}{k}", style=SUCCESS if k in selected else None)
+           for k, v in genres.QUALITIES.items()]
+    return [row, [btn(done_text, done_cb, style=PRIMARY)]]
+
+
+def quality_prompt(selected) -> str:
+    chosen = genres.quality_text(genres.quality_dump(selected)) or "—"
+    return (f"8️⃣ <b>Video sifatini</b> tanlang 🎞 (bir nechtasini tanlash mumkin)\n\n"
+            f"Tanlangan: <b>{chosen}</b>\n\n💡 Tanlab bo'lgach «✅ Tayyor» ni bosing.")
+
+
+def ask_quality(ctx: Ctx) -> None:
+    ctx.goto("am:quality")
+    sel = ctx.sdata.get("quality") or []
+    ctx.send(quality_prompt(sel), {"inline_keyboard": quality_rows(sel, "am:q:", "am:qok")})
+
+
 def after_desc(ctx: Ctx, desc: str, desc_html: str = "") -> None:
     ctx.goto("am:desc", desc=desc, desc_html=desc_html)
     if ctx.sdata.get("poster_pre"):
@@ -375,7 +393,7 @@ def after_desc(ctx: Ctx, desc: str, desc_html: str = "") -> None:
         ask_poster(ctx, desc, desc_html)
 
 
-@router.state("am:genre", "am:country", "am:year", "am:lang", admin=True)
+@router.state("am:genre", "am:country", "am:year", "am:lang", "am:quality", admin=True)
 def st_meta(ctx: Ctx) -> None:
     if has_image(ctx.message):  # poster oldinroq yuborildi — saqlab qo'yamiz, bosqichlar davom etadi
         poster = poster_from(ctx)
@@ -395,7 +413,8 @@ def st_meta(ctx: Ctx) -> None:
         ask_lang(ctx)
         return
     hint = {"am:genre": "janrlarni tanlab «✅ Tayyor» ni bosing", "am:country": "davlatni tanlang",
-            "am:year": "yilni tanlang yoki yozib yuboring (masalan <code>2017</code>)", "am:lang": "tilni tanlang"}
+            "am:year": "yilni tanlang yoki yozib yuboring (masalan <code>2017</code>)", "am:lang": "tilni tanlang",
+            "am:quality": "sifatni tanlab «✅ Tayyor» ni bosing"}
     ctx.send(f"👆 Yuqoridagi tugmalardan {hint.get(ctx.state, 'tanlang')}.")
 
 
@@ -443,7 +462,7 @@ def poster_error(ctx: Ctx, extra: str = "") -> None:
 def ask_poster(ctx: Ctx, desc: str, desc_html: str = "") -> None:
     ctx.goto("am:poster", desc=desc, desc_html=desc_html)
     what = "muqovasini" if _is_music(ctx) else "posterini"
-    step = "5️⃣" if _is_music(ctx) else "9️⃣"
+    step = "5️⃣" if _is_music(ctx) else "🔟"
     ctx.send(f"{step} {cat_name(_cat(ctx))} <b>{what}</b> (rasm) yuboring 🖼\n"
              "Rasm saytda, kanal e'lonida va qismlar ro'yxatida chiroyli ko'rinadi.\n\nYoki o'tkazib yuboring 👇",
              ikb([btn("⏭ O'tkazib yuborish", "am:skip", style=SUCCESS)], [btn("❌ Bekor qilish", "cancel", style=DANGER)]))
@@ -473,7 +492,8 @@ def show_confirm(ctx: Ctx, poster) -> None:
                f"🎭 Janr: {genres.line(genres.dump(d.get('genres') or [])) or '—'}\n"
                f"🌍 Davlat: {genres.country_label(d.get('country')) or '—'}\n"
                f"📅 Yil: {d.get('year') or '—'}\n"
-               f"🗣 Til: {genres.lang_label(d.get('lang')) or '—'}\n") +
+               f"🗣 Til: {genres.lang_label(d.get('lang')) or '—'}\n"
+               f"🎞 Sifat: {genres.quality_text(genres.quality_dump(d.get('quality') or [])) or '—'}\n") +
             f"📹 Fayl: {file_txt}\n"
             f"🖼 Poster: {poster_txt}\n\n"
             "Qanday saqlaymiz? 👇")
@@ -500,7 +520,8 @@ def save_movie(ctx: Ctx, premium: bool) -> None:
     movie_id = db.add_movie(d["code"], d["title"], d.get("desc") or "", d.get("poster"), premium,
                             ctx.user_id, d["file_id"], d["file_type"], cat, d.get("desc_html") or "",
                             genre_keys=d.get("genres"), year=d.get("year"),
-                            country=d.get("country"), lang=d.get("lang"))
+                            country=d.get("country"), lang=d.get("lang"),
+                            quality=genres.quality_dump(d.get("quality") or []))
     ctx.clear_state()
     ctx.answer("✅ Saqlandi!")
     code = db.get_movie(movie_id)["code"]
@@ -792,6 +813,22 @@ def cb_add_movie(ctx: Ctx) -> None:
         ctx.goto("am:lang", lang=key)
         ctx.answer()
         ctx.edit(f"🗣 Til: <b>{genres.lang_label(key) or '—'}</b> ✅")
+        ask_quality(ctx)
+    elif action == "q" and len(parts) > 2 and parts[2] in genres.QUALITIES:
+        if state != "am:quality":
+            _stale(ctx)
+            return
+        sel = list(ctx.sdata.get("quality") or [])
+        sel.remove(parts[2]) if parts[2] in sel else sel.append(parts[2])
+        ctx.goto("am:quality", quality=sel)
+        ctx.answer(genres.QUALITIES[parts[2]])
+        ctx.edit(quality_prompt(sel), {"inline_keyboard": quality_rows(sel, "am:q:", "am:qok")})
+    elif action == "qok":
+        if state != "am:quality":
+            _stale(ctx)
+            return
+        ctx.answer()
+        ctx.edit(f"🎞 Sifat: <b>{genres.quality_text(genres.quality_dump(ctx.sdata.get('quality') or [])) or '—'}</b> ✅")
         ask_desc(ctx)
     elif action == "save":
         if state != "am:confirm":
@@ -835,7 +872,6 @@ def announce_text(app, movie, parts: int) -> str:
         rows.append("💎 Premium")
     if rows:
         head += "\n" + DASHES + "\n" + "\n".join(rows)
-    meta = ""
     verb = "tinglash" if music else "tomosha qilish"
     bot_url = app.deep_link(movie["code"])
     # havolalar yozuvning o'zida: «Botda tomosha qilish» bosilsa — bot ochilib kinoni yuboradi
@@ -845,16 +881,8 @@ def announce_text(app, movie, parts: int) -> str:
         links += [LINE, f"🌐 <b><a href=\"{esc(site_url)}\">Saytda {verb}</a></b>"]
     links.append(LINE)
     tail = "\n".join(links)
-    budget = 1000 - visible_len(head) - visible_len(meta) - visible_len(tail) - 12
-    blocks = [head]
-    desc = (movie["description"] or "").strip()
-    desc_html = (movie["desc_html"] if "desc_html" in movie.keys() else "") or ""
-    if desc_html and visible_len(desc_html) <= min(budget, 700):
-        blocks.append("📝 " + desc_html)  # premium emoji va formatlash saqlanadi
-    elif desc and budget > 30:
-        blocks.append("📝 " + esc(truncate(desc, min(budget, 700))))
-    blocks += [b for b in (meta, tail) if b]
-    return "\n\n".join(blocks)
+    # izoh kanal postiga qo'yilmaydi — u faqat bot kinoni yuborganda chiqadi
+    return "\n\n".join(b for b in (head, tail) if b)
 
 
 @router.callback("an", admin=True)
@@ -918,7 +946,8 @@ def manage_view(ctx: Ctx, movie):
                f"🎭 Janr: <b>{genres.line(movie['genres']) or '—'}</b>\n"
                f"🌍 Davlat: <b>{genres.country_label(movie['country']) or '—'}</b>\n"
                f"📅 Yil: <b>{movie['year'] or '—'}</b>\n"
-               f"🗣 Til: <b>{genres.lang_label(movie['lang']) or '—'}</b>\n") +
+               f"🗣 Til: <b>{genres.lang_label(movie['lang']) or '—'}</b>\n"
+               f"🎞 Sifat: <b>{genres.quality_text(movie['quality']) or '—'}</b>\n") +
             f"👁 Ko'rishlar: <b>{fmt_num(movie['views'])}</b>\n"
             f"💎 Premium: <b>{premium_txt}</b>\n"
             f"🖼 Poster: <b>{poster_txt}</b>\n"
@@ -931,7 +960,7 @@ def manage_view(ctx: Ctx, movie):
     rows.append([btn("✏️ Nomi", f"dm:et:{mid}", style=PRIMARY), btn("📝 Ma'lumoti", f"dm:ed:{mid}", style=PRIMARY),
                  btn("🖼 Poster", f"dm:ep:{mid}", style=PRIMARY)])
     if cat != "music":
-        rows.append([btn("🏷 Janr • Davlat • Yil • Til", f"dm:meta:{mid}", style=SUCCESS)])
+        rows.append([btn("🏷 Janr • Davlat • Yil • Til • Sifat", f"dm:meta:{mid}", style=SUCCESS)])
     rows.append([btn(f"🏷 Turini o'zgartirish ({cat_icon(cat)} {cat_name(cat)})", f"dm:cat:{mid}",
                      style=SUCCESS)])
     if ctx.app.setting_bool("premium_enabled") or movie["is_premium"]:
@@ -951,10 +980,12 @@ def meta_menu(ctx: Ctx, movie) -> None:
             f"🎭 Janr: <b>{genres.line(movie['genres']) or '—'}</b>\n"
             f"🌍 Davlat: <b>{genres.country_label(movie['country']) or '—'}</b>\n"
             f"📅 Yil: <b>{movie['year'] or '—'}</b>\n"
-            f"🗣 Til: <b>{genres.lang_label(movie['lang']) or '—'}</b>\n\n"
+            f"🗣 Til: <b>{genres.lang_label(movie['lang']) or '—'}</b>\n"
+            f"🎞 Sifat: <b>{genres.quality_text(movie['quality']) or '—'}</b>\n\n"
             "👇 Nimani o'zgartiramiz?")
     ctx.edit(text, ikb([btn("🎭 Janr", f"dm:gen:{mid}", style=PRIMARY), btn("🌍 Davlat", f"dm:ctr:{mid}", style=PRIMARY)],
                        [btn("📅 Yil", f"dm:yr:{mid}", style=PRIMARY), btn("🗣 Til", f"dm:lg:{mid}", style=PRIMARY)],
+                       [btn("🎞 Sifat", f"dm:ql:{mid}", style=PRIMARY)],
                        [btn("⬅️ Orqaga", f"dm:open:{mid}", style=DANGER)]))
 
 
@@ -1112,6 +1143,20 @@ def cb_manage(ctx: Ctx) -> None:
             db.update_movie(mid, **fields)
         ctx.answer(f"🏷 Turi: {cat_icon(new)} {cat_name(new)}")
         send_manage(ctx, db.get_movie(mid), edit=True)
+    elif action == "ql" or (action[:2] == "qt" and action[2:] in genres.QUALITIES):
+        sel = genres.quality_parse(movie["quality"])
+        if action != "ql":
+            key = action[2:]
+            sel.remove(key) if key in sel else sel.append(key)
+            db.update_movie(mid, quality=genres.quality_dump(sel))
+            ctx.answer(genres.QUALITIES[key])
+        else:
+            ctx.answer()
+        rows = quality_rows(sel, "dm:qt", f"dm:meta:{mid}", "✅ Tayyor")
+        for b in rows[0]:
+            b["callback_data"] += f":{mid}"
+        ctx.edit(f"🎞 <b>{esc(movie['title'])}</b> — video sifatini belgilang:\n\n"
+                 f"Tanlangan: <b>{genres.quality_text(genres.quality_dump(sel)) or '—'}</b>", {"inline_keyboard": rows})
     elif action == "meta":
         ctx.answer()
         meta_menu(ctx, movie)
