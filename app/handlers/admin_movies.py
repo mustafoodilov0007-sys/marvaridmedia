@@ -910,13 +910,11 @@ def cb_add_movie(ctx: Ctx) -> None:
 
 # ═════════════════════════ 📢 Kanalga e'lon ═════════════════════════
 
-LINE = "━━━━━━━━━━━━━━━"
-
-
-DASHES = "— — — — — — — — — —"
+SYUJET_MAX = 320  # kanal postidagi syujet uzunligi (belgi)
 
 
 def announce_text(app, movie, parts: int) -> str:
+    """Kanal posti: sarlavha → ma'lumot qatorlari → 🍿 Syujet → reaksiya taklifi. Havolalar — pastdagi tugmalarda."""
     cat = movie["category"]
     music = cat == "music"
     head = f"{cat_icon(cat)} <b>{esc(movie['title'])}</b>"
@@ -927,19 +925,30 @@ def announce_text(app, movie, parts: int) -> str:
         rows.append(f"🔢 Kodi: <code>{movie['code']}</code>")
     if movie["is_premium"]:
         rows.append("💎 Premium")
+    tail = "❤️ Yoqsa, reaksiya qoldiring!"
+    blocks = [head]
     if rows:
-        head += "\n" + DASHES + "\n" + "\n".join(rows)
+        blocks.append("\n".join(rows))
+    desc = (movie["description"] or "").strip()
+    desc_html = (movie["desc_html"] if "desc_html" in movie.keys() else "") or ""
+    if desc and not music:
+        if desc_html and len(desc) <= SYUJET_MAX:
+            story = desc_html  # premium emoji va formatlash saqlanadi
+        else:
+            story = esc(truncate(desc, SYUJET_MAX))
+        blocks.append("🍿 <b>Syujet:</b>\n" + story)
+    blocks.append(tail)
+    return "\n\n".join(blocks)
+
+
+def announce_kb(app, movie) -> dict:
+    music = movie["category"] == "music"
     verb = "tinglash" if music else "tomosha qilish"
-    bot_url = app.deep_link(movie["code"])
-    # havolalar yozuvning o'zida: «Botda tomosha qilish» bosilsa — bot ochilib kinoni yuboradi
-    links = [LINE, f"{'🎵' if music else '🎬'} <b><a href=\"{esc(bot_url)}\">Botda {verb}</a></b>"]
+    rows = [[btn(f"🤖 Botda {verb}", url=app.deep_link(movie["code"]), style=PRIMARY)]]
     site_url = app.site_link(movie["code"])
     if site_url:
-        links += [LINE, f"🌐 <b><a href=\"{esc(site_url)}\">Saytda {verb}</a></b>"]
-    links.append(LINE)
-    tail = "\n".join(links)
-    # izoh kanal postiga qo'yilmaydi — u faqat bot kinoni yuborganda chiqadi
-    return "\n\n".join(b for b in (head, tail) if b)
+        rows.append([btn(f"🌐 Saytda {verb}", url=site_url, style=PRIMARY)])
+    return ikb(*rows)
 
 
 @router.callback("an", admin=True)
@@ -962,7 +971,7 @@ def cb_announce(ctx: Ctx) -> None:
         ctx.answer("❗️ E'lon kanali sozlanmagan. ⚙️ Matnlar → 📣 E'lon kanali", alert=True)
         return
     text = announce_text(app, movie, ctx.db.count_parts(movie["id"]))
-    kb = None  # tugmalar yo'q — havolalar post matnining ichida
+    kb = announce_kb(app, movie)
     try:
         sent = None
         if movie["poster_id"]:
@@ -1006,12 +1015,12 @@ def send_premium_preview(ctx: Ctx, movie) -> None:
         sent = None
         if movie["poster_id"]:
             try:
-                sent = ctx.bot.send_photo(ctx.chat_id, movie["poster_id"], text)
+                sent = ctx.bot.send_photo(ctx.chat_id, movie["poster_id"], text, announce_kb(app, movie))
             except TelegramError as exc:
                 if not exc.has("file", "photo", "identifier", "wrong type"):
                     raise
         if sent is None:
-            sent = ctx.bot.send_message(ctx.chat_id, text)
+            sent = ctx.bot.send_message(ctx.chat_id, text, announce_kb(app, movie))
     except TelegramError as exc:
         ctx.send(f"❌ Yuborib bo'lmadi: <i>{esc(str(exc))}</i>")
         return
