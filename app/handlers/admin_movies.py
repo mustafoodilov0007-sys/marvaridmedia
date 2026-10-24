@@ -12,7 +12,7 @@ from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, number_ro
 from ..telegram import InputFile, TelegramError
 from ..texts import B, CATEGORIES, cat_icon, cat_name
 from ..utils import (entities_to_html, esc, extract_media, fmt_date, fmt_num, message_html, normalize, post_link,
-                     truncate)
+                     premium_html, truncate)
 from .contact import notify_requesters
 from .user import build_list, fmt_item, part_label, search_ids
 
@@ -945,12 +945,17 @@ def announce_text(app, movie, parts: int) -> str:
 @router.callback("an", admin=True)
 def cb_announce(ctx: Ctx) -> None:
     app = ctx.app
+    parts = ctx.data.split(":")
+    preview = len(parts) > 2 and parts[1] == "pv"  # «premium ko'rinishini menga yuborish»
     try:
-        movie = ctx.db.get_movie(int(ctx.data.split(":")[1]))
+        movie = ctx.db.get_movie(int(parts[2] if preview else parts[1]))
     except (IndexError, ValueError):
         return
     if not movie:
         ctx.answer("😔 Kino topilmadi", alert=True)
+        return
+    if preview:
+        send_premium_preview(ctx, movie)
         return
     channel = app.setting("post_channel")
     if not channel:
@@ -976,8 +981,49 @@ def cb_announce(ctx: Ctx) -> None:
         return
     ctx.answer("✅ Kanalga e'lon qilindi!")
     link = post_link(sent.get("chat") or {}, sent.get("message_id"))
-    ctx.send("📢 <b>E'lon kanalga joylandi!</b>",
-             ikb([btn("👁 Postni ko'rish", url=link, style=PRIMARY)]) if link else None)
+    rows = [[btn("👁 Postni ko'rish", url=link, style=PRIMARY)]] if link else []
+    note = ""
+    if "tg-emoji" in premium_html(text, app.bot.emoji_map) and not _has_custom_emoji(sent):
+        # Telegram kanalda botning premium emojisini oddiy emojiga aylantirdi
+        note = ("\n\n⚠️ <b>Kanal postida premium emoji ko'rinmadi</b> — Telegram kanallarda botlarga buni "
+                "cheklaydi. Premium ko'rinishdagi postni o'zingiz kanalga ko'chirishingiz mumkin 👇")
+        rows.append([btn("💎 Premium ko'rinishini menga yuborish", f"an:pv:{movie['id']}", style=SUCCESS)])
+    ctx.send("📢 <b>E'lon kanalga joylandi!</b>" + note, ikb(*rows) if rows else None)
+
+
+def _has_custom_emoji(message: dict) -> bool:
+    ents = (message or {}).get("caption_entities") or (message or {}).get("entities") or []
+    return any(e.get("type") == "custom_emoji" for e in ents)
+
+
+def send_premium_preview(ctx: Ctx, movie) -> None:
+    """E'lon postini adminning o'ziga yuboradi (shaxsiy chatda premium emoji ishlaydi).
+    Admin uni «Jo'natuvchi nomini yashirish» bilan kanalga uzatadi — premium emoji saqlanib qoladi."""
+    app = ctx.app
+    text = announce_text(app, movie, ctx.db.count_parts(movie["id"]))
+    ctx.answer()
+    try:
+        sent = None
+        if movie["poster_id"]:
+            try:
+                sent = ctx.bot.send_photo(ctx.chat_id, movie["poster_id"], text)
+            except TelegramError as exc:
+                if not exc.has("file", "photo", "identifier", "wrong type"):
+                    raise
+        if sent is None:
+            sent = ctx.bot.send_message(ctx.chat_id, text)
+    except TelegramError as exc:
+        ctx.send(f"❌ Yuborib bo'lmadi: <i>{esc(str(exc))}</i>")
+        return
+    if _has_custom_emoji(sent):
+        ctx.send("👆 <b>Shu postni kanalga ko'chiring:</b>\n"
+                 "1. Postni bosib turing → <b>Forward</b> (Uzatish)\n"
+                 "2. Kanalingizni tanlang\n"
+                 "3. <b>«Hide sender name»</b> (Jo'natuvchi nomini yashirish) ni yoqing\n\n"
+                 "💡 Kanaldagi eski (oddiy emojili) postni o'chirib qo'ying.")
+    else:
+        ctx.send("❌ Shaxsiy chatda ham premium emoji chiqmadi — bot egasi akkauntida <b>Telegram Premium</b> "
+                 "yo'q yoki obuna tugagan. /almashtir → «🧪 Sinab ko'rish» orqali tekshiring.")
 
 
 # ═════════════════════════ 🗑️ Kino o'chirish / tahrirlash ═════════════════════════
