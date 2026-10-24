@@ -15,6 +15,8 @@ import urllib.request
 import uuid
 from typing import Any, Dict, List, Optional
 
+from .utils import premium_html, premium_markup
+
 log = logging.getLogger("telegram")
 
 
@@ -191,9 +193,37 @@ class Bot:
 
     # ───────── asosiy chaqiruv ─────────
 
+    # 💎 botning o'z emojilari → premium emoji (admin /almashtir orqali sozlaydi)
+    emoji_map: Dict[str, str] = {}
+    emoji_fail = 0
+    _EMOJI_METHODS = {"sendMessage", "editMessageText", "editMessageCaption", "editMessageReplyMarkup", "sendPhoto",
+                      "sendVideo", "sendAudio", "sendDocument", "sendAnimation"}
+
     def call(self, method: str, params: Optional[Dict[str, Any]] = None,
              files: Optional[Dict[str, InputFile]] = None, timeout: Optional[float] = None,
              retries: int = 2):
+        mapping = self.emoji_map
+        if mapping and params and method in self._EMOJI_METHODS:
+            fancy = dict(params)
+            if fancy.get("parse_mode", "HTML") == "HTML":
+                for key in ("text", "caption"):
+                    if isinstance(fancy.get(key), str):
+                        fancy[key] = premium_html(fancy[key], mapping)
+            if "reply_markup" in fancy:
+                fancy["reply_markup"] = premium_markup(fancy["reply_markup"], mapping)
+            try:
+                return self._call(method, fancy, files, timeout, retries)
+            except BadRequest as exc:
+                # premium emoji qabul qilinmadi (masalan, bot egasida Premium yo'q) — oddiy emoji bilan qayta yuboramiz
+                if not exc.has("emoji", "entit", "custom", "icon"):
+                    raise
+                self.emoji_fail += 1
+                log.warning("Premium emoji bilan yuborilmadi (%s): %s — oddiy emoji bilan yuboriladi", method, exc)
+        return self._call(method, params, files, timeout, retries)
+
+    def _call(self, method: str, params: Optional[Dict[str, Any]] = None,
+              files: Optional[Dict[str, InputFile]] = None, timeout: Optional[float] = None,
+              retries: int = 2):
         params = {k: v for k, v in (params or {}).items() if v is not None}
         timeout = timeout or self.timeout
         if files:

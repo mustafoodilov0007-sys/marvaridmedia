@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import queue
 import threading
@@ -286,6 +287,21 @@ class App:
     def load_settings(self) -> None:
         with self._lock:
             self._settings = self.db.get_settings()
+        self.sync_emoji()
+
+    def emoji_mapping(self) -> dict:
+        """Admin ulagan premium emojilar: {oddiy emoji: custom_emoji_id}."""
+        try:
+            data = json.loads(self.setting("emoji_map") or "{}")
+        except ValueError:
+            return {}
+        return {k: str(v) for k, v in data.items() if isinstance(v, (str, int))} if isinstance(data, dict) else {}
+
+    def sync_emoji(self) -> None:
+        """Bot yuboradigan hamma xabarda ishlatiladigan almashtirish jadvalini yangilaydi."""
+        bot = getattr(self, "bot", None)
+        if bot is not None:
+            bot.emoji_map = self.emoji_mapping() if self.setting("emoji_on") != "0" else {}
 
     def setting(self, key: str) -> str:
         value = self._settings.get(key)

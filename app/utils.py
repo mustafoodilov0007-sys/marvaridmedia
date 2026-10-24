@@ -385,3 +385,88 @@ def parse_url_buttons(text: str, entities: Optional[Sequence[dict]] = None) -> T
     if not rows:
         return None, text
     return rows[:10], ""
+
+
+# ───────── 💎 botning o'z emojilarini premium emojiga almashtirish ─────────
+
+_FE0F = "️"
+_TAG_SPLIT = re.compile(r"(<[^>]*>)")
+_emoji_re_cache: dict = {}
+
+
+def emoji_key(emoji: str) -> str:
+    """Emojini solishtirish uchun: variant belgisi (FE0F) va bo'sh joylarsiz."""
+    return (emoji or "").replace(_FE0F, "").strip()
+
+
+def entity_text(text: str, entity: dict) -> str:
+    """Xabar matnidan entity egallagan qismni oladi (Telegram offsetlari UTF-16 da)."""
+    raw = (text or "").encode("utf-16-le")
+    a, b = entity["offset"] * 2, (entity["offset"] + entity["length"]) * 2
+    return raw[a:b].decode("utf-16-le", errors="ignore")
+
+
+def _emoji_pattern(keys):
+    keys = tuple(sorted(keys, key=len, reverse=True))
+    pat = _emoji_re_cache.get(keys)
+    if pat is None:
+        alts = [(_FE0F + "?").join(re.escape(c) for c in k) + _FE0F + "?" for k in keys]
+        pat = _emoji_re_cache[keys] = re.compile("|".join(alts)) if alts else None
+    return pat
+
+
+def premium_html(html: str, mapping: dict, limit: int = 80) -> str:
+    """HTML matndagi oddiy emojilarni <tg-emoji> (premium emoji) ga almashtiradi.
+    Teglar ichi va allaqachon premium emoji bo'lgan joylar o'zgarmaydi."""
+    if not html or not mapping:
+        return html
+    pat = _emoji_pattern(mapping.keys())
+    if pat is None:
+        return html
+    out, depth, left = [], 0, limit
+    for part in _TAG_SPLIT.split(html):
+        if part.startswith("<"):
+            low = part.lower()
+            if low.startswith(("<tg-emoji", "<code", "<pre")):
+                depth += 1  # premium emoji yoki kod ichida almashtirilmaydi
+            elif low.startswith(("</tg-emoji", "</code", "</pre")):
+                depth = max(0, depth - 1)
+            out.append(part)
+            continue
+        if depth or left <= 0:
+            out.append(part)
+            continue
+
+        def sub(m):
+            nonlocal left
+            eid = mapping.get(emoji_key(m.group(0)))
+            if not eid or left <= 0:
+                return m.group(0)
+            left -= 1
+            return f'<tg-emoji emoji-id="{eid}">{m.group(0)}</tg-emoji>'
+        out.append(pat.sub(sub, part))
+    return "".join(out)
+
+
+def premium_markup(markup, mapping: dict):
+    """Inline tugmalar boshidagi emojini tugma ikonkasiga aylantiradi (Bot API 9.4).
+    Pastki (reply) menyuga TEGMAYDI: tugma matni o'zgarsa, menyu bosilganini taniy olmaymiz."""
+    if not isinstance(markup, dict) or not markup.get("inline_keyboard") or not mapping:
+        return markup
+    pat = _emoji_pattern(mapping.keys())
+    if pat is None:
+        return markup
+    rows, changed = [], False
+    for row in markup["inline_keyboard"]:
+        new_row = []
+        for b in row:
+            text = b.get("text") or ""
+            m = pat.match(text) if text else None
+            eid = mapping.get(emoji_key(m.group(0))) if m else None
+            rest = text[m.end():].strip() if m else ""
+            if eid and rest and not b.get("icon_custom_emoji_id"):
+                b = dict(b, text=rest, icon_custom_emoji_id=eid)
+                changed = True
+            new_row.append(b)
+        rows.append(new_row)
+    return dict(markup, inline_keyboard=rows) if changed else markup

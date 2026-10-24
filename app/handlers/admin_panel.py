@@ -24,6 +24,7 @@ ADMIN_COMMANDS = [
     {"command": "premium", "description": "💎 Premium obuna"},
     {"command": "id", "description": "🆔 ID raqamni bilish"},
     {"command": "emoji", "description": "💎 Premium emoji tekshiruvi"},
+    {"command": "almashtir", "description": "💎 Bot emojilarini premium qilish"},
     {"command": "cancel", "description": "❌ Amalni bekor qilish"},
 ]
 
