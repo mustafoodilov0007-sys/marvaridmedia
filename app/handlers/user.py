@@ -114,6 +114,7 @@ def btn_site(ctx: Ctx) -> None:
     c = ctx.db.count_by_category()
     ctx.send(f"🌐 <b>{esc(ctx.app.brand)} sayti</b>\n\n"
              f"🎬 Kinolar: <b>{fmt_num(c['movie'])}</b>\n"
+             f"📺 Seriallar: <b>{fmt_num(c['serial'])}</b>\n"
              f"🧸 Multfilmlar: <b>{fmt_num(c['cartoon'])}</b>\n"
              f"🎵 Musiqalar: <b>{fmt_num(c['music'])}</b>\n\n"
              "Hammasi bir joyda — tanlang, bot darhol yuboradi 👇",

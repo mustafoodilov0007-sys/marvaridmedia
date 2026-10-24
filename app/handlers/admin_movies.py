@@ -1361,7 +1361,9 @@ def _edit_target(ctx: Ctx):
     movie = ctx.db.get_movie(ctx.sdata.get("movie_id") or 0)
     if not movie:
         ctx.clear_state()
-        ctx.send("😔 Kino topilmadi (o'chirilgan bo'lishi mumkin).")
+        # tahrirlanayotgan kino o'chirilgan — yuborilgan fayl yo'qolmasin, yangi qo'shishga o'tadi
+        if not admin_media_shortcut(ctx):
+            ctx.send("😔 Kino topilmadi (o'chirilgan bo'lishi mumkin).")
     return movie
 
 

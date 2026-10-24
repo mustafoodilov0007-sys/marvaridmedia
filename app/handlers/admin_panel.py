@@ -49,7 +49,7 @@ def panel_text(ctx: Ctx) -> str:
             f"👥 Foydalanuvchilar: <b>{fmt_num(db.count_users())}</b> "
             f"(+{fmt_num(db.count_joined_since(day_start()))} bugun)\n"
             f"🎬 Kontent: <b>{fmt_num(db.count_movies())}</b>"
-            f" (🎬 {c['movie']} • 🧸 {c['cartoon']} • 🎵 {c['music']})\n"
+            f" (🎬 {c['movie']} • 📺 {c['serial']} • 🧸 {c['cartoon']} • 🎵 {c['music']})\n"
             f"💎 Premiumlar: <b>{fmt_num(db.count_premium())}</b>\n"
             f"⏳ Tekshirilmagan cheklar: <b>{fmt_num(db.count_pending())}</b>\n\n")
     bad = _channels_without_admin(ctx)
@@ -98,9 +98,10 @@ def stats_text(ctx: Ctx) -> str:
         "",
         f"🎬 <b>Kontent:</b> {fmt_num(db.count_movies())}",
         f"├ 🎬 Kinolar: {fmt_num(cats['movie'])}",
+        f"├ 📺 Seriallar: {fmt_num(cats['serial'])}",
         f"├ 🧸 Multfilmlar: {fmt_num(cats['cartoon'])}",
         f"├ 🎵 Musiqalar: {fmt_num(cats['music'])}",
-        f"├ 📺 Seriallar: {fmt_num(db.count_serials())}",
+        f"├ 🎞 Ko'p qismlilar: {fmt_num(db.count_serials())}",
         f"├ 💎 Premium kinolar: {fmt_num(db.count_premium_movies())}",
         f"├ 🎞 Jami fayllar (qismlar): {fmt_num(db.count_parts_total())}",
         f"└ 👁 Jami ko'rishlar: {fmt_num(db.total_views())}",
