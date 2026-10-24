@@ -404,9 +404,48 @@ def category_page(ctx: Ctx, cat: str, page: int):
     header = f"{CAT_TITLES[cat]} — yangi qo'shilganlar"
     hint = "👇 Tanlang:" if cat == "music" else "👇 Kerakli raqamni tanlang:"
     text, kb = build_list(header, chunk, page * PER_PAGE, page, pages, f"cl:{cat}", fmt_item, hint=hint)
+    extra = []
     if cat != "music" and ctx.db.genre_counts(cat):
-        kb["inline_keyboard"].insert(-1, [btn("🎭 Janr bo'yicha tanlash", f"gl:{cat}", style=SUCCESS)])
+        extra.append(btn("🎭 Janrlar", f"gl:{cat}", style=SUCCESS))
+    if cat != "music" and any(c["n"] for c in ctx.db.list_collections()):
+        extra.append(btn("📚 To'plamlar", "tl", style=SUCCESS))
+    if extra:
+        kb["inline_keyboard"].insert(-1, extra)
     return text, kb
+
+
+def collections_menu(ctx: Ctx):
+    cols = [c for c in ctx.db.list_collections() if c["n"]]
+    if not cols:
+        return "📚 Hozircha to'plamlar yo'q — tez orada qo'shiladi!", ikb([btn("❌ Yopish", "x", style=DANGER)])
+    rows = [[btn(f"{c['title'][:40]} ({c['n']})", f"tv:{c['id']}:0", style=PRIMARY)] for c in cols]
+    rows.append([btn("❌ Yopish", "x", style=DANGER)])
+    return "📚 <b>To'plamlar</b> — biz siz uchun saralab qo'ydik 🍿\n\n👇 Tanlang:", {"inline_keyboard": rows}
+
+
+@router.callback("tl", gate=True)
+def cb_collections(ctx: Ctx) -> None:
+    ctx.answer()
+    edit_or_send(ctx, *collections_menu(ctx))
+
+
+@router.callback("tv", gate=True)
+def cb_collection(ctx: Ctx) -> None:
+    parts = ctx.data.split(":")
+    col = ctx.db.get_collection(int(parts[1])) if len(parts) > 1 and parts[1].isdigit() else None
+    if not col:
+        ctx.answer("😔 To'plam topilmadi", alert=True)
+        return
+    rows = ctx.db.collection_movies(col["id"])
+    page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
+    pages = max(1, math.ceil(len(rows) / PER_PAGE))
+    page %= pages
+    chunk = rows[page * PER_PAGE:(page + 1) * PER_PAGE]
+    text, kb = build_list(f"📚 <b>{esc(col['title'])}</b>", chunk, page * PER_PAGE, page, pages, f"tv:{col['id']}",
+                          fmt_item)
+    kb["inline_keyboard"].insert(-1, [btn("⬅️ To'plamlar", "tl", style=SUCCESS)])
+    ctx.answer()
+    edit_or_send(ctx, text, kb)
 
 
 def genres_menu(ctx: Ctx, cat: str):
@@ -436,6 +475,26 @@ def genre_page(ctx: Ctx, cat: str, key: str, page: int):
     text, kb = build_list(header, chunk, page * PER_PAGE, page, pages, f"gn:{cat}:{key}", fmt_item)
     kb["inline_keyboard"].insert(-1, [btn("⬅️ Janrlar", f"gl:{cat}", style=SUCCESS)])
     return text, kb
+
+
+@router.callback("rt")
+def cb_rate(ctx: Ctx) -> None:
+    try:
+        _, mid, pid, val = ctx.data.split(":")
+        movie, part, val = ctx.db.get_movie(int(mid)), ctx.db.get_part(int(pid)), int(val)
+    except ValueError:
+        return
+    if not movie or not part or val not in (1, -1):
+        ctx.answer("😔 Bu kino o'chirilgan.", alert=True)
+        return
+    state = ctx.db.rate(ctx.user_id, movie["id"], val)
+    ctx.answer({1: "👍 Rahmat! Sizga yoqqani uchun xursandmiz", -1: "👎 Fikringiz uchun rahmat!",
+                0: "↩️ Bahoingiz bekor qilindi"}[state])
+    kb = part_kb(ctx.app, movie, part, ctx.db.count_parts(movie["id"]))
+    msg = ctx.cb_message
+    if msg.get("message_id"):
+        ctx.bot.safe("editMessageReplyMarkup", {"chat_id": ctx.chat_id, "message_id": msg["message_id"],
+                                                "reply_markup": kb})
 
 
 @router.callback("gl", gate=True)
@@ -584,6 +643,10 @@ def part_kb(app, movie, part, total: int, extra_rows=None) -> dict:
         "text": (f"🎵 {movie['title']} — {app.brand} botida tinglang!" if movie["category"] == "music"
                  else f"🎬 {movie['title']} — {app.brand} botida tomosha qiling!"),
     })
+    if movie["category"] != "music":
+        r = app.db.rating(movie["id"])
+        rows.append([btn(f"👍 {r['likes']}", f"rt:{movie['id']}:{part['id']}:1", style=SUCCESS),
+                     btn(f"👎 {r['dislikes']}", f"rt:{movie['id']}:{part['id']}:-1", style=DANGER)])
     last = [btn("📤 Do'stlarga ulashish", url=share, style=PRIMARY)]
     if movie["category"] != "music":
         last.append(btn("🎭 O'xshashlari", f"sim:{movie['id']}", style=SUCCESS))

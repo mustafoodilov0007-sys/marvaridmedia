@@ -157,7 +157,8 @@
   .tag.l { left: 7px; } .tag.r { right: 7px; background: rgba(18,16,20,.85); color: var(--gold); box-shadow: inset 0 0 0 1px #c9973a; }
   .card .t { font-size: 13.5px; font-weight: 700; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2;
     -webkit-box-orient: vertical; overflow: hidden; }
-  .card .m { font-size: 12px; color: var(--muted); margin-top: -3px; display: flex; align-items: center; gap: 4px; }
+  .card .m { font-size: 12px; color: var(--muted); margin-top: -3px; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; }
   .card .m svg { width: 13px; height: 13px; }
   .card:active .poster { transform: scale(.97); }
   .poster { transition: transform .15s; }
@@ -339,6 +340,14 @@
   .chip { font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 8px; background: var(--surface-2); color: var(--muted); }
   .chip.gold { background: #121014; color: var(--gold); box-shadow: inset 0 0 0 1px #c9973a; }
   .chip.g { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent-2); }
+  .rate { display: flex; align-items: center; gap: 8px; margin: 14px 16px 0; padding: 10px 12px; border-radius: 15px;
+    background: var(--surface); border: 1px solid var(--line); }
+  .rlabel { flex: 1; font-size: 13.5px; font-weight: 700; color: var(--muted); }
+  .rbtn { height: 38px; padding: 0 13px; border-radius: 11px; background: var(--surface-2); font-size: 15px;
+    display: inline-flex; align-items: center; gap: 2px; transition: transform .15s; }
+  .rbtn b { font-size: 14px; }
+  .rbtn:active { transform: scale(.92); }
+  .rbtn.on { background: var(--grad); color: var(--on-grad); }
   .sheet .similar { margin-top: 22px; }
   .sheet .similar .sec-head { margin-bottom: 10px; }
   .sheet .similar h2 { font-size: 17px; }
@@ -512,12 +521,18 @@
              genres: it.genres || [], country: it.country || "", lang: it.lang || "", quality: it.quality || "", t: Date.now() };
   }
   function gname(g) { return (g.label || "").replace(/^\S+\s/, ""); }
+  function score(it) {
+    var n = (it.likes || 0) + (it.dislikes || 0);
+    return n >= 3 ? Math.round(it.likes * 100 / n) : null;
+  }
   function shortMeta(it) {
     var bits = [];
+    var sc = score(it);
+    if (sc !== null) bits.push("👍 " + sc + "%");
     if (it.year) bits.push(it.year);
     if (it.genres && it.genres.length) bits.push(gname(it.genres[0]));
     if (!bits.length) bits.push(NAMES[it.cat] || "Kino");
-    return bits.join(" · ");
+    return bits.slice(0, 2).join(" · ");
   }
   // 🕘 ko'rilganlar: Telegram'da serverda (bot va saytdan), ilova/brauzerda shu qurilmada
   var localHist = [];
@@ -731,9 +746,9 @@
   function rail(r) {
     var sec = h("section", "section");
     var moreBtn = null;
-    if (r.cat) {
+    if (r.cat || r.more) {
       moreBtn = h("button", "more", ["Hammasi", icon("chev")]);
-      moreBtn.onclick = function () { show(r.cat, { sort: r.sort }); };
+      moreBtn.onclick = r.more || function () { show(r.cat, { sort: r.sort }); };
     }
     sec.appendChild(h("div", "sec-head", [h("h2", null, r.title), moreBtn]));
     var list = h("div", "rail" + (r.cat === "music" ? " music" : "") + (r.cls ? " " + r.cls : ""));
@@ -774,6 +789,11 @@
       view.appendChild(sec);
     }
     var any = false;
+    if (data.choice && data.choice.length) { any = true; view.appendChild(rail({ title: "👑 Tomoshabinlar tanlovi", items: data.choice })); }
+    (data.collections || []).forEach(function (c) {
+      any = true;
+      view.appendChild(rail({ title: c.title, items: c.items, more: function () { show("col", { id: c.id }); } }));
+    });
     (data.rails || []).forEach(function (r) { if (r.items.length) { any = true; view.appendChild(rail(r)); } });
     if (!any) view.appendChild(emptyBox("film", "Hozircha bo'sh", "Kinolar qo'shilishi bilan shu yerda paydo bo'ladi."));
     view.appendChild(h("div", null, " "));
@@ -805,6 +825,7 @@
     if (name === "saved") return renderSaved(view);
     if (name === "shorts") return renderShorts(view, opts.start);
     if (name === "search") return renderSearch(view);
+    if (name === "col") return renderCollection(view, opts.id, my);
     renderCategory(view, name, opts.sort || "new", my, opts.f || {});
   }
 
@@ -906,6 +927,48 @@
       }).catch(function () { if (my === reqId) renderError(view, "network"); });
     }
     load();
+  }
+
+  function renderCollection(view, id, my) {
+    var title = h("h1", null, "📚 To'plam");
+    var grid = h("div", "grid", skeletonCards(6));
+    var page = h("div", "page", [title, h("p", "lead", "Biz siz uchun saralab qo'ydik 🍿"), grid]);
+    view.replaceChildren(page);
+    api("/api/collection?id=" + id).then(function (d) {
+      if (my !== reqId) return;
+      if (!d.ok) return renderError(view, d.reason);
+      title.textContent = d.title;
+      grid.replaceChildren();
+      if (!d.items.length) return grid.replaceWith(emptyBox("film", "Hozircha bo'sh", "Tez orada kinolar qo'shiladi."));
+      d.items.forEach(function (it) { grid.appendChild(card(it)); });
+    }).catch(function () { if (my === reqId) renderError(view, "network"); });
+  }
+
+  function rateRow(it) {
+    var row = h("div", "rate");
+    var up = h("button", "rbtn", ["👍 ", h("b", null, String(it.likes || 0))]);
+    var down = h("button", "rbtn", ["👎 ", h("b", null, String(it.dislikes || 0))]);
+    var label = h("span", "rlabel", "Kino yoqdimi?");
+    function paint(r) {
+      up.lastChild.textContent = r.likes; down.lastChild.textContent = r.dislikes;
+      up.classList.toggle("on", r.mine === 1); down.classList.toggle("on", r.mine === -1);
+      var n = r.likes + r.dislikes;
+      label.textContent = n >= 3 ? "Tomoshabinlarning " + Math.round(r.likes * 100 / n) + "% iga yoqdi" : "Kino yoqdimi?";
+      it.likes = r.likes; it.dislikes = r.dislikes;
+    }
+    function vote(v) {
+      haptic("medium");
+      if (PUB) { toast("⭐ Baho berish uchun saytni Telegram botdagi tugma orqali oching"); return; }
+      api("/api/rate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: it.id, v: v }) })
+        .then(function (r) { if (r.ok) { paint(r); notify("success"); } else toast("⚠️ Baho saqlanmadi"); })
+        .catch(function () { toast("⚠️ Ulanishda xatolik"); });
+    }
+    up.onclick = function () { vote(1); };
+    down.onclick = function () { vote(-1); };
+    paint({ likes: it.likes || 0, dislikes: it.dislikes || 0, mine: 0 });
+    if (!PUB) api("/api/rating?id=" + it.id).then(function (r) { if (r.ok) paint(r); }).catch(function () {});
+    row.appendChild(label); row.appendChild(up); row.appendChild(down);
+    return row;
   }
 
   function renderSaved(view) {
@@ -1285,6 +1348,7 @@
       h("div", "sheet-main", [posterNode(it), h("div", "info", [h("h3", null, it.title), chips])]),
       it.desc ? h("p", "desc", it.desc) : null,
       actionRow(it, false),
+      it.cat === "music" ? null : rateRow(it),
       h("div", "note", it.locked ? "Bu kontent Premium a'zolar uchun. Bot chatida Premium olish tugmasi chiqadi."
         : it.cat === "music" ? "«Tinglash» — shu yerning o'zida eshitasiz. Yonidagi tugma qo'shiqni Telegram botga yuboradi."
         : PUB ? "«Ko'rish» bosilsa, Telegram'da botimiz ochiladi va uni yuboradi."

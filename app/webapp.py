@@ -128,6 +128,35 @@ def api_catalog(app: App, user: dict, qs: dict) -> dict:
     return out
 
 
+def api_collection(app: App, user: dict, qs: dict) -> dict:
+    col = app.db.get_collection(int(qs["id"])) if (qs.get("id") or "").isdigit() else None
+    if not col:
+        return {"ok": False, "reason": "not_found"}
+    _, vip = _user_flags(app, user["id"])
+    premium_on = app.setting_bool("premium_enabled")
+    return {"ok": True, "title": col["title"],
+            "items": [_item(r, premium_on, vip) for r in app.db.collection_movies(col["id"])]}
+
+
+def api_rating(app: App, user: dict, qs: dict) -> dict:
+    if not (qs.get("id") or "").isdigit():
+        return {"ok": False, "reason": "not_found"}
+    return dict(app.db.rating(int(qs["id"]), user["id"]), ok=True)
+
+
+def api_rate(app: App, user: dict, body: dict) -> dict:
+    """👍 / 👎 — faqat Telegram ichida (foydalanuvchi aniq bo'lishi kerak)."""
+    try:
+        movie_id, value = int(body.get("id")), int(body.get("v"))
+    except (TypeError, ValueError):
+        return {"ok": False, "reason": "bad"}
+    if value not in (1, -1) or not app.db.get_movie(movie_id):
+        return {"ok": False, "reason": "not_found"}
+    app.db.upsert_user(user)
+    app.db.rate(user["id"], movie_id, value)
+    return dict(app.db.rating(movie_id, user["id"]), ok=True)
+
+
 def api_similar(app: App, user: dict, qs: dict) -> dict:
     try:
         movie_id = int(qs.get("id", "0"))
@@ -159,6 +188,8 @@ def _item(r, premium_on: bool, vip: bool) -> dict:
         "country": genres.country_label(r["country"]) if "country" in keys else "",
         "lang": genres.lang_label(r["lang"]) if "lang" in keys else "",
         "quality": genres.quality_text(r["quality"]) if "quality" in keys else "",
+        "likes": r["likes"] if "likes" in keys else 0,
+        "dislikes": r["dislikes"] if "dislikes" in keys else 0,
         "parts": r["parts"],
         "views": r["views"],
         "premium": bool(r["is_premium"]),
@@ -183,9 +214,13 @@ def api_home(app: App, user: dict) -> dict:
     with_poster = [r for r in newest if r["poster_id"]]
     hero = (with_poster + [r for r in newest if not r["poster_id"]])[:6]
     history = pack(db.history(user["id"], 15)) if user["id"] else []
+    collections = [{"id": c["id"], "title": c["title"], "items": pack(db.collection_movies(c["id"], 15))}
+                   for c in db.list_collections() if c["n"]]
     return {
         "ok": True,
         "history": history,
+        "choice": pack(db.audience_choice(15)),
+        "collections": collections,
         "hero": pack(hero),
         "rails": [
             {"key": "movie_new", "title": "Yangi kinolar", "cat": "movie", "sort": "new",
@@ -593,6 +628,10 @@ def make_handler(app: App):
                         return self._json(api_shorts(app, user, qs))
                     if path == "/api/similar":
                         return self._json(api_similar(app, user, qs))
+                    if path == "/api/collection":
+                        return self._json(api_collection(app, user, qs))
+                    if path == "/api/rating":
+                        return self._json(api_rating(app, user, qs))
                 return self._send(404, b"Not found", "text/plain")
             except (BrokenPipeError, ConnectionResetError):
                 pass
@@ -628,6 +667,8 @@ def make_handler(app: App):
                     return self._json(api_watch(app, user, body))
                 if path == "/api/request":
                     return self._json(api_request(app, user, body))
+                if path == "/api/rate":
+                    return self._json(api_rate(app, user, body))
                 return self._json({"ok": False, "reason": "not_found"}, 404)
             except (BrokenPipeError, ConnectionResetError):
                 pass

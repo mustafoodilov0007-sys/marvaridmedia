@@ -89,6 +89,29 @@ CREATE TABLE IF NOT EXISTS history (
 );
 CREATE INDEX IF NOT EXISTS idx_history_user ON history(user_id, at);
 
+CREATE TABLE IF NOT EXISTS ratings (
+    user_id     INTEGER NOT NULL,
+    movie_id    INTEGER NOT NULL,
+    value       INTEGER NOT NULL,          -- 1 = 👍, -1 = 👎
+    at          INTEGER NOT NULL,
+    PRIMARY KEY (user_id, movie_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ratings_movie ON ratings(movie_id, value);
+
+CREATE TABLE IF NOT EXISTS collections (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT    NOT NULL,
+    pos         INTEGER NOT NULL DEFAULT 0,
+    created_at  INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS collection_items (
+    collection_id INTEGER NOT NULL,
+    movie_id      INTEGER NOT NULL,
+    pos           INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (collection_id, movie_id)
+);
+
 CREATE TABLE IF NOT EXISTS channels (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
     chat_id  TEXT,
@@ -167,7 +190,9 @@ CATEGORIES = ("movie", "cartoon", "music")
 
 _CATALOG_ROW = """
 SELECT m.id, m.code, m.title, m.description, m.is_premium, m.views, m.created_at, m.category, m.poster_id,
-       m.genres, m.year, m.country, m.lang, m.quality, (SELECT COUNT(*) FROM parts p WHERE p.movie_id = m.id) AS parts
+       m.genres, m.year, m.country, m.lang, m.quality,
+       (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = 1) AS likes,
+       (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = -1) AS dislikes, (SELECT COUNT(*) FROM parts p WHERE p.movie_id = m.id) AS parts
 FROM movies m"""
 
 _MOVIE_ROW = """
@@ -449,6 +474,9 @@ class Database:
 
     def delete_movie(self, movie_id: int) -> None:
         with self.tx() as c:
+            c.execute("DELETE FROM ratings WHERE movie_id=?", (movie_id,))
+            c.execute("DELETE FROM collection_items WHERE movie_id=?", (movie_id,))
+            c.execute("DELETE FROM history WHERE movie_id=?", (movie_id,))
             c.execute("DELETE FROM shorts WHERE movie_id=?", (movie_id,))
             c.execute("DELETE FROM parts WHERE movie_id=?", (movie_id,))
             c.execute("DELETE FROM movies WHERE id=?", (movie_id,))
@@ -659,6 +687,78 @@ class Database:
             return common * 10 + near
         ranked = sorted(enumerate(rows), key=lambda x: (-score(x[1]), x[0]))
         return [r for _, r in ranked[:limit]]
+
+    # ───────── 👍 / 👎 tomoshabin bahosi ─────────
+
+    def rate(self, uid: int, movie_id: int, value: int) -> int:
+        """Baho qo'yadi; xuddi shu bahoni qayta bossa — bekor qiladi. Yangi holatni qaytaradi (1, -1 yoki 0)."""
+        with self.tx() as c:
+            row = c.execute("SELECT value FROM ratings WHERE user_id=? AND movie_id=?", (uid, movie_id)).fetchone()
+            if row and row[0] == value:
+                c.execute("DELETE FROM ratings WHERE user_id=? AND movie_id=?", (uid, movie_id))
+                return 0
+            c.execute("INSERT INTO ratings(user_id, movie_id, value, at) VALUES (?,?,?,?)"
+                      " ON CONFLICT(user_id, movie_id) DO UPDATE SET value=excluded.value, at=excluded.at",
+                      (uid, movie_id, value, now()))
+            return value
+
+    def rating(self, movie_id: int, uid: int = 0) -> Dict[str, int]:
+        likes = self.val("SELECT COUNT(*) FROM ratings WHERE movie_id=? AND value=1", (movie_id,))
+        dislikes = self.val("SELECT COUNT(*) FROM ratings WHERE movie_id=? AND value=-1", (movie_id,))
+        mine = self.val("SELECT value FROM ratings WHERE movie_id=? AND user_id=?", (movie_id, uid)) if uid else 0
+        return {"likes": likes, "dislikes": dislikes, "mine": mine or 0}
+
+    def audience_choice(self, limit: int = 15, min_votes: int = 3) -> List[sqlite3.Row]:
+        """👑 Tomoshabinlar tanlovi: eng ko'p 👍 olgan kino va multfilmlar (ovozlar soni hisobga olinadi)."""
+        return self.q("SELECT * FROM (" + _CATALOG_ROW + " WHERE m.category<>'music') t"
+                      " WHERE likes + dislikes >= ?"
+                      " ORDER BY (likes + 1.0) / (likes + dislikes + 2.0) DESC, likes DESC LIMIT ?", (min_votes, limit))
+
+    # ───────── 📚 to'plamlar ─────────
+
+    def list_collections(self) -> List[sqlite3.Row]:
+        return self.q("SELECT c.*, (SELECT COUNT(*) FROM collection_items i WHERE i.collection_id=c.id) AS n"
+                      " FROM collections c ORDER BY c.pos, c.id")
+
+    def get_collection(self, cid: int) -> Optional[sqlite3.Row]:
+        return self.q1("SELECT * FROM collections WHERE id=?", (cid,))
+
+    def add_collection(self, title: str) -> int:
+        pos = self.val("SELECT COALESCE(MAX(pos), 0) + 1 FROM collections")
+        return self.x("INSERT INTO collections(title, pos, created_at) VALUES (?,?,?)", (title, pos, now())).lastrowid
+
+    def rename_collection(self, cid: int, title: str) -> None:
+        self.x("UPDATE collections SET title=? WHERE id=?", (title, cid))
+
+    def delete_collection(self, cid: int) -> None:
+        with self.tx() as c:
+            c.execute("DELETE FROM collection_items WHERE collection_id=?", (cid,))
+            c.execute("DELETE FROM collections WHERE id=?", (cid,))
+
+    def move_collection(self, cid: int, up: bool) -> None:
+        rows = [r["id"] for r in self.list_collections()]
+        if cid not in rows:
+            return
+        i = rows.index(cid)
+        j = i - 1 if up else i + 1
+        if 0 <= j < len(rows):
+            rows[i], rows[j] = rows[j], rows[i]
+            with self.tx() as c:
+                for pos, x in enumerate(rows):
+                    c.execute("UPDATE collections SET pos=? WHERE id=?", (pos, x))
+
+    def add_to_collection(self, cid: int, movie_id: int) -> bool:
+        pos = self.val("SELECT COALESCE(MAX(pos), 0) + 1 FROM collection_items WHERE collection_id=?", (cid,))
+        cur = self.x("INSERT OR IGNORE INTO collection_items(collection_id, movie_id, pos) VALUES (?,?,?)",
+                     (cid, movie_id, pos))
+        return cur.rowcount > 0
+
+    def remove_from_collection(self, cid: int, movie_id: int) -> None:
+        self.x("DELETE FROM collection_items WHERE collection_id=? AND movie_id=?", (cid, movie_id))
+
+    def collection_movies(self, cid: int, limit: int = 200) -> List[sqlite3.Row]:
+        return self.q(_CATALOG_ROW.replace("FROM movies m", "FROM collection_items ci JOIN movies m ON m.id = ci.movie_id")
+                      + " WHERE ci.collection_id=? ORDER BY ci.pos, ci.movie_id LIMIT ?", (cid, limit))
 
     # ───────── 🕘 ko'rilganlar tarixi ─────────
 

@@ -6,6 +6,7 @@ from . import payments  # noqa: F401
 from . import contact  # noqa: F401
 from . import admin_panel  # noqa: F401
 from . import admin_movies  # noqa: F401
+from . import admin_collections  # noqa: F401
 from . import admin_channels  # noqa: F401
 from . import admin_broadcast  # noqa: F401
 from . import admin_settings  # noqa: F401

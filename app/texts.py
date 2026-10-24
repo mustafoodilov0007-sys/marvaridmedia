@@ -21,6 +21,7 @@ class B:
     # admin menyusi
     ADD_MOVIE = "🎬 Kino qo'shish"
     ADD_MUSIC = "🎵 Musiqa qo'shish"
+    COLLECTIONS = "📚 To'plamlar"
     DEL_MOVIE = "🗑️ Kino o'chirish"
     STATS = "📊 Statistika"
     CHANNELS = "🔗 Majburiy kanallar"
