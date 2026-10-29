@@ -193,7 +193,9 @@ _CATALOG_ROW = """
 SELECT m.id, m.code, m.title, m.description, m.is_premium, m.views, m.created_at, m.category, m.poster_id,
        m.genres, m.year, m.country, m.lang, m.quality,
        (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = 1) AS likes,
-       (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = -1) AS dislikes, (SELECT COUNT(*) FROM parts p WHERE p.movie_id = m.id) AS parts
+       (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = -1) AS dislikes,
+       (SELECT s.id FROM shorts s WHERE s.movie_id = m.id AND s.kind = 'video' ORDER BY s.id LIMIT 1) AS trailer,
+       (SELECT COUNT(*) FROM parts p WHERE p.movie_id = m.id) AS parts
 FROM movies m"""
 
 _MOVIE_ROW = """
@@ -629,8 +631,10 @@ class Database:
                 limit: int = 30, offset: int = 0, movie_id: Optional[int] = None,
                 genre: Optional[str] = None, country: Optional[str] = None, year: Optional[int] = None,
                 lang: Optional[str] = None) -> List[sqlite3.Row]:
-        where = ["m.category=?"]
-        params: list = [category]
+        if category in (None, "video"):  # kino + serial + multfilm (musiqasiz)
+            where, params = ["m.category<>'music'"], []
+        else:
+            where, params = ["m.category=?"], [category]
         if genre:
             where.append("m.genres LIKE ?")
             params.append(f"%,{genre},%")
@@ -649,7 +653,9 @@ class Database:
         for t in tokens or []:
             where.append("(m.norm_title || ' ' || m.norm_desc) LIKE ? ESCAPE '\\'")
             params.append(f"%{escape_like(t)}%")
-        order = "m.views DESC, m.id DESC" if sort == "top" else "m.created_at DESC, m.id DESC"
+        order = {"top": "m.views DESC, m.id DESC",
+                 "rating": "(likes + 1.0) / (likes + dislikes + 2.0) DESC, likes DESC, m.views DESC, m.id DESC"
+                 }.get(sort, "m.created_at DESC, m.id DESC")
         sql = (_CATALOG_ROW + f" WHERE {' AND '.join(where)} ORDER BY {order} LIMIT ? OFFSET ?")
         return self.q(sql, params + [limit, offset])
 
@@ -663,7 +669,8 @@ class Database:
     def genre_counts(self, category: str) -> Dict[str, int]:
         """Har bir janrda nechta kino bor (faqat bo'sh bo'lmaganlari)."""
         out: Dict[str, int] = {}
-        for r in self.q("SELECT genres FROM movies WHERE category=? AND genres<>''", (category,)):
+        where, params = (("category<>'music'", ()) if category == "video" else ("category=?", (category,)))
+        for r in self.q(f"SELECT genres FROM movies WHERE {where} AND genres<>''", params):
             for k in genres.parse(r[0]):
                 out[k] = out.get(k, 0) + 1
         return {k: out[k] for k in genres.GENRES if k in out}
@@ -671,9 +678,10 @@ class Database:
     def facets(self, category: str) -> Dict[str, Dict]:
         """Saytdagi filtrlar uchun: qaysi davlat, yil va tilda nechta kino bor."""
         out: Dict[str, Dict] = {}
+        where, params = (("category<>'music'", ()) if category == "video" else ("category=?", (category,)))
         for col in ("country", "year", "lang"):
-            rows = self.q(f"SELECT {col} AS v, COUNT(*) AS n FROM movies WHERE category=? AND {col}<>'' AND {col}<>0"
-                          f" GROUP BY {col}", (category,))
+            rows = self.q(f"SELECT {col} AS v, COUNT(*) AS n FROM movies WHERE {where} AND {col}<>'' AND {col}<>0"
+                          f" GROUP BY {col}", params)
             out[col] = {r["v"]: r["n"] for r in rows}
         return out
 
@@ -774,6 +782,9 @@ class Database:
         return self.q(_CATALOG_ROW.replace("FROM movies m", "FROM history h JOIN movies m ON m.id = h.movie_id")
                       + " WHERE h.user_id=? AND m.category<>'music' ORDER BY h.at DESC LIMIT ?", (uid, limit))
 
+    def clear_history(self, uid: int) -> int:
+        return self.x("DELETE FROM history WHERE user_id=?", (uid,)).rowcount
+
     def prune_history(self, keep: int = 60) -> None:
         self.x("DELETE FROM history WHERE rowid IN (SELECT rowid FROM (SELECT rowid, ROW_NUMBER() OVER"
                " (PARTITION BY user_id ORDER BY at DESC) AS n FROM history) WHERE n>?)", (keep,))
@@ -858,6 +869,38 @@ class Database:
         return self.q("SELECT norm, MIN(query) AS query, COUNT(*) AS n FROM searches"
                       " WHERE results=0 AND created_at>=? AND norm<>'' GROUP BY norm ORDER BY n DESC LIMIT ?",
                       (since, limit))
+
+    def popular_queries(self, since: int, limit: int = 12, min_count: int = 2) -> List[sqlite3.Row]:
+        """Eng ko'p qidirilgan (va natija topilgan) so'rovlar — kamida `min_count` marta, shaxsiy so'rov chiqmasin."""
+        return self.q("SELECT norm, MIN(query) AS query, COUNT(*) AS n FROM searches WHERE results>0 AND created_at>=?"
+                      " AND norm<>'' AND LENGTH(norm)>=3 GROUP BY norm HAVING COUNT(DISTINCT COALESCE(user_id, 0))>=?"
+                      " ORDER BY n DESC LIMIT ?", (since, min_count, limit))
+
+    def recommend(self, uid: int, limit: int = 15) -> List[sqlite3.Row]:
+        """🎯 Siz uchun: foydalanuvchining ko'rgan va 👍 bergan kinolari janrlariga o'xshash, hali ko'rmaganlari."""
+        if not uid:
+            return []
+        liked = self.q("SELECT m.id, m.genres FROM history h JOIN movies m ON m.id = h.movie_id WHERE h.user_id=?"
+                       " UNION ALL SELECT m.id, m.genres FROM ratings r JOIN movies m ON m.id = r.movie_id"
+                       " WHERE r.user_id=? AND r.value=1", (uid, uid))
+        freq: Dict[str, int] = {}
+        seen = set()
+        for r in liked:
+            seen.add(r["id"])
+            for g in genres.parse(r["genres"]):
+                freq[g] = freq.get(g, 0) + 1
+        if not freq:
+            return []
+        rows = self.q(_CATALOG_ROW + " WHERE m.category<>'music' ORDER BY m.views DESC, m.id DESC LIMIT 400")
+        scored = []
+        for i, r in enumerate(rows):
+            if r["id"] in seen:
+                continue
+            sc = sum(freq.get(g, 0) for g in genres.parse(r["genres"]))
+            if sc:
+                scored.append((-sc, i, r))
+        scored.sort(key=lambda x: (x[0], x[1]))
+        return [r for _, _, r in scored[:limit]]
 
     def prune_searches(self, before: int) -> None:
         self.x("DELETE FROM searches WHERE created_at<?", (before,))

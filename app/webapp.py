@@ -78,11 +78,35 @@ def _user_flags(app: App, uid: int):
     return is_admin, vip
 
 
+_YEAR_ONLY = re.compile(r"(19[2-9]\d|20[0-4]\d)")
+
+
+def smart_query(query: str):
+    """Qidiruv so'rovini tushunadi: faqat janr/davlat/yil so'zlaridan iborat bo'lsa («komediya 2019», «hind»)
+    filtr sifatida, aks holda oddiy matn sifatida. Qaytaradi: (matn tokenlari, filtrlar)."""
+    toks = normalize(query).split()
+    meta, others = {}, []
+    for t in toks:
+        if _YEAR_ONLY.fullmatch(t):
+            meta["year"] = int(t)
+            continue
+        g = genres.detect(t) if len(t) >= 4 else []
+        if g:
+            meta.setdefault("genre", g[0])
+            continue
+        c = genres.detect_country(t) if len(t) >= 4 else ""
+        if c:
+            meta["country"] = c
+            continue
+        others.append(t)
+    return (toks, {}) if others else ([], meta)
+
+
 def api_catalog(app: App, user: dict, qs: dict) -> dict:
     cat = qs.get("cat", "movie")
-    if cat not in CATEGORIES:
+    if cat not in CATEGORIES and cat != "video":
         cat = "movie"
-    sort = "top" if qs.get("sort") == "top" else "new"
+    sort = qs.get("sort") if qs.get("sort") in ("top", "rating") else "new"
     try:
         offset = max(0, int(qs.get("offset", "0")))
     except ValueError:
@@ -102,21 +126,34 @@ def api_catalog(app: App, user: dict, qs: dict) -> dict:
         rows = app.db.catalog(movie["category"], movie_id=movie["id"], limit=1) if movie else []
         more = False
     elif re.fullmatch(r"#?\d{1,9}", query):
+        # raqam: kino kodi (va 4 xonali bo'lsa — chiqqan yil ham)
         movie = app.db.get_movie_by_code(int(query.lstrip("#")))
+        wide = qs.get("all") == "1"  # qidiruv sahifasi har bir tur bo'yicha alohida so'raydi
         rows = []
-        if movie and offset == 0:
+        if movie and offset == 0 and (not wide or movie["category"] == cat):
             rows = app.db.catalog(movie["category"], movie_id=movie["id"], limit=1)
         more = False
+        if wide and _YEAR_ONLY.fullmatch(query):
+            extra = app.db.catalog(cat, sort, None, PAGE_SIZE + 1, offset, year=int(query))
+            have = {r["id"] for r in rows}
+            more = len(extra) > PAGE_SIZE
+            rows = rows + [r for r in extra[:PAGE_SIZE] if r["id"] not in have]
     else:
-        tokens = normalize(query).split()
-        rows = app.db.catalog(cat, sort, tokens, PAGE_SIZE + 1, offset, genre=genre, country=country, year=year,
-                              lang=lang)
+        tokens, meta = smart_query(query)
+        rows = []
+        if meta:  # «komediya», «2019», «hind» — janr/yil/davlat bo'yicha
+            rows = app.db.catalog(cat, sort, None, PAGE_SIZE + 1, offset, genre=genre or meta.get("genre"),
+                                  country=country or meta.get("country"), year=year or meta.get("year"), lang=lang)
+        if not rows:
+            tokens = tokens or normalize(query).split()
+            rows = app.db.catalog(cat, sort, tokens, PAGE_SIZE + 1, offset, genre=genre, country=country, year=year,
+                                  lang=lang)
         more = len(rows) > PAGE_SIZE
         rows = rows[:PAGE_SIZE]
 
     items = [_item(r, premium_on, vip) for r in rows]
     out = {"ok": True, "items": items, "more": more, "counts": app.db.count_by_category()}
-    if offset == 0 and not query and cat != "music":
+    if offset == 0 and not query and cat != "music" and not link:
         out["genres"] = [{"key": k, "label": genres.label(k), "n": n} for k, n in app.db.genre_counts(cat).items()]
         f = app.db.facets(cat)
         out["filters"] = {
@@ -157,6 +194,56 @@ def api_rate(app: App, user: dict, body: dict) -> dict:
     return dict(app.db.rating(movie_id, user["id"]), ok=True)
 
 
+def api_collections(app: App, user: dict) -> dict:
+    return {"ok": True, "items": [{"id": c["id"], "title": c["title"], "n": c["n"]}
+                                  for c in app.db.list_collections() if c["n"]]}
+
+
+def api_history_clear(app: App, user: dict) -> dict:
+    """Foydalanuvchining «Davom ettiring» tarixini o'chiradi (faqat o'zining)."""
+    return {"ok": True, "n": app.db.clear_history(user["id"]) if user["id"] else 0}
+
+
+def api_random(app: App, user: dict) -> dict:
+    """🎲 Tasodifiy kino (kino, serial yoki multfilm)."""
+    movie = app.db.random_movie()
+    if not movie:
+        return {"ok": False, "reason": "empty"}
+    _, vip = _user_flags(app, user["id"])
+    rows = app.db.catalog_rows([movie["id"]])
+    return {"ok": True, "item": _item(rows[0], app.setting_bool("premium_enabled"), vip)} if rows else {"ok": False}
+
+
+def api_popular(app: App, user: dict) -> dict:
+    """🔥 Ommabop qidiruvlar (kamida 2 xil odam qidirgan so'rovlar)."""
+    rows = app.db.popular_queries(int(time.time()) - 60 * 86400, 10)
+    return {"ok": True, "queries": [r["query"] for r in rows]}
+
+
+_searched_at: dict = {}
+
+
+def api_searched(app: App, user: dict, body: dict) -> dict:
+    """Sayt qidiruvini (so'rov va natijalar soni) «eng ko'p qidirilgan» statistikasiga yozadi."""
+    q = str(body.get("q") or "").strip()[:100]
+    norm = normalize(q)
+    if len(norm) < 3:
+        return {"ok": True}
+    try:
+        n = max(0, int(body.get("n") or 0))
+    except (TypeError, ValueError):
+        n = 0
+    key = (user["id"], norm)
+    now_t = time.time()
+    if now_t - _searched_at.get(key, 0) < 60:
+        return {"ok": True}
+    if len(_searched_at) > 5000:
+        _searched_at.clear()
+    _searched_at[key] = now_t
+    app.db.log_search(user["id"], q, norm, n)
+    return {"ok": True}
+
+
 def api_similar(app: App, user: dict, qs: dict) -> dict:
     try:
         movie_id = int(qs.get("id", "0"))
@@ -184,6 +271,8 @@ def _item(r, premium_on: bool, vip: bool) -> dict:
         "title": r["title"],
         "desc": truncate(desc, 400),
         "year": year,
+        "trailer": r["trailer"] if "trailer" in keys else None,
+        "added": r["created_at"] if "created_at" in keys else 0,
         "genres": [{"key": k, "label": genres.label(k)} for k in genres.parse(r["genres"] if "genres" in keys else "")],
         "country": genres.country_label(r["country"]) if "country" in keys else "",
         "lang": genres.lang_label(r["lang"]) if "lang" in keys else "",
@@ -214,19 +303,42 @@ def api_home(app: App, user: dict) -> dict:
     with_poster = [r for r in newest if r["poster_id"]]
     hero = (with_poster + [r for r in newest if not r["poster_id"]])[:6]
     history = pack(db.history(user["id"], 15)) if user["id"] else []
+    foryou = pack(db.recommend(user["id"], 15)) if user["id"] else []
+    from .handlers.user import search_ids  # aylanma importdan qochish uchun
+    searched = []
+    seen_ids = set()
+    for q in db.popular_queries(int(time.time()) - 60 * 86400, 20):
+        ids, _ = search_ids(app, q["norm"], scope="video", fuzzy_ok=False)
+        for i in ids[:1]:
+            if i not in seen_ids:
+                seen_ids.add(i)
+                searched.append(i)
+    searched = pack(db.catalog_rows(searched[:15]))
+    extra = []
+    uz = db.catalog("video", "top", None, 15, lang="uz")
+    if len(uz) >= 3:
+        extra.append({"key": "uz", "title": "O'zbek tilida", "cat": "video", "f": {"lang": "uz"}, "items": pack(uz)})
+    for key in ("action", "comedy", "fantasy"):
+        rows_g = db.catalog("video", "top", None, 15, genre=key)
+        if len(rows_g) >= 3:
+            extra.append({"key": "g_" + key, "title": genres.name(key), "cat": "video", "f": {"genre": key},
+                          "items": pack(rows_g)})
     collections = [{"id": c["id"], "title": c["title"], "items": pack(db.collection_movies(c["id"], 15))}
                    for c in db.list_collections() if c["n"]]
     return {
         "ok": True,
         "history": history,
+        "foryou": foryou,
+        "searched": searched,
+        "extra": extra,
         "choice": pack(db.audience_choice(15)),
         "collections": collections,
         "hero": pack(hero),
         "rails": [
-            {"key": "movie_new", "title": "Yangi kinolar", "cat": "movie", "sort": "new",
-             "items": pack(db.catalog("movie", "new", None, 15))},
-            {"key": "movie_top", "title": "Eng ko'p ko'rilgan", "cat": "movie", "sort": "top",
-             "items": pack(db.catalog("movie", "top", None, 15))},
+            {"key": "new", "title": "Yangi qo'shilganlar", "cat": "video", "sort": "new",
+             "items": pack(db.catalog("video", "new", None, 15))},
+            {"key": "top", "title": "Eng ko'p ko'rilgan", "cat": "video", "sort": "top",
+             "items": pack(db.catalog("video", "top", None, 15))},
             {"key": "serial", "title": "Seriallar", "cat": "serial", "sort": "new",
              "items": pack(db.catalog("serial", "new", None, 15))},
             {"key": "cartoon", "title": "Multfilmlar", "cat": "cartoon", "sort": "new",
@@ -234,7 +346,8 @@ def api_home(app: App, user: dict) -> dict:
             {"key": "music", "title": "Musiqalar", "cat": "music", "sort": "new",
              "items": pack(db.catalog("music", "new", None, 15))},
         ],
-        "counts": db.count_by_category(),
+        "counts": dict(db.count_by_category(), shorts=db.count_shorts()),
+        "genres": [{"key": k, "label": genres.label(k), "n": n} for k, n in db.genre_counts("video").items()],
         "shorts": [dict(_item(r, premium_on, vip), short={"id": r["short_id"], "kind": r["short_kind"]})
                    for r in db.shorts_feed(SHORTS_PAGE, 0)],
     }
@@ -259,7 +372,7 @@ def api_me(app: App, user: dict) -> dict:
         "name": user.get("first_name") or "",
         "premium": vip,
         "premium_on": app.setting_bool("premium_enabled"),
-        "counts": app.db.count_by_category(),
+        "counts": dict(app.db.count_by_category(), shorts=app.db.count_shorts()),
         "channel": _channel_url(app),
     }
 
@@ -630,6 +743,12 @@ def make_handler(app: App):
                         return self._json(api_shorts(app, user, qs))
                     if path == "/api/similar":
                         return self._json(api_similar(app, user, qs))
+                    if path == "/api/collections":
+                        return self._json(api_collections(app, user))
+                    if path == "/api/random":
+                        return self._json(api_random(app, user))
+                    if path == "/api/popular":
+                        return self._json(api_popular(app, user))
                     if path == "/api/collection":
                         return self._json(api_collection(app, user, qs))
                     if path == "/api/rating":
@@ -660,6 +779,8 @@ def make_handler(app: App):
                     body = {}
                 if path == "/pub/play":  # 📱 ilova / brauzer — mehmon sifatida tinglash
                     return self._json(api_play(app, GUEST, body, guest=True))
+                if path == "/pub/searched":
+                    return self._json(api_searched(app, GUEST, body))
                 user = self._user()
                 if not user:
                     return self._json({"ok": False, "reason": "auth"}, 401)
@@ -669,6 +790,10 @@ def make_handler(app: App):
                     return self._json(api_watch(app, user, body))
                 if path == "/api/request":
                     return self._json(api_request(app, user, body))
+                if path == "/api/history/clear":
+                    return self._json(api_history_clear(app, user))
+                if path == "/api/searched":
+                    return self._json(api_searched(app, user, body))
                 if path == "/api/rate":
                     return self._json(api_rate(app, user, body))
                 return self._json({"ok": False, "reason": "not_found"}, 404)
