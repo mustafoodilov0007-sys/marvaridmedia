@@ -275,6 +275,7 @@
     justify-content: space-between; padding: 14px 16px; pointer-events: none; }
   .shorts-head b { font: 900 20px "Montserrat", sans-serif; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,.6); }
   .shorts-head button { pointer-events: auto; }
+  .shead-btns { display: flex; gap: 8px; }
   .shorts .empty { color: rgba(255,255,255,.7); padding-top: 30vh; }
   .shorts .empty b { color: #fff; }
   .rail.shorts-rail .card { width: 112px; }
@@ -418,9 +419,15 @@
   /* ───── sarlavha va gorizontal menyu (katta ekran) ───── */
   .top { padding-left: var(--pad); padding-right: var(--pad); }
   .avatar { cursor: pointer; }
+  .top { padding-top: calc(12px + var(--tgtop, 0px)); }
+  .page { padding-top: calc(76px + var(--tgtop, 0px)); }
+  #bSearch .slabel { display: none; }
   .dnav { display: none; }
   @media (min-width: 900px) {
-    .top { padding-top: 14px; padding-bottom: 14px; }
+    .top { padding-top: calc(14px + var(--tgtop, 0px)); padding-bottom: 14px; }
+    #bSearch { display: flex; align-items: center; width: 240px; justify-content: flex-start; gap: 10px; padding: 0 14px;
+      border-radius: 12px; font-weight: 600; font-size: 14px; }
+    #bSearch .slabel { display: inline; opacity: .75; }
     .logo { margin-right: 0; }
     .dnav { display: flex; gap: 2px; margin: 0 auto 0 30px; }
     .dnav button { position: relative; padding: 9px 13px; border-radius: 10px; font-weight: 700; font-size: 14px; color: rgba(255,255,255,.78);
@@ -623,39 +630,9 @@
   .tclose { position: absolute; top: calc(14px + env(safe-area-inset-top)); right: 14px; z-index: 2; }
 
   /* ───── pastki menyu: 5 ta bo'lim ───── */
-  .nav { grid-template-columns: repeat(5, 1fr); }
-  .nav button { font-size: 10px; letter-spacing: -.1px; overflow: hidden; text-overflow: ellipsis; }
-  @media (max-width: 400px) { .nav button { font-size: 9.5px; letter-spacing: -.3px; } }
-
-  /* ───── pastki menyu ustidagi bo'limlar qatori (telefon) ───── */
-  :root { --cat-h: 46px; --stack-h: calc(var(--nav-h) + var(--cat-h)); }
-  .catbar { position: fixed; left: 0; right: 0; z-index: 29; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); height: var(--cat-h);
-    display: flex; gap: 8px; align-items: center; overflow-x: auto; padding: 0 12px; scrollbar-width: none;
-    background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
-    border-top: 1px solid var(--line); }
-  .catbar::-webkit-scrollbar { display: none; }
-  .cbtn { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px;
-    border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; color: var(--muted); background: var(--surface);
-    border: 1px solid var(--line); transition: background .2s, color .2s, transform .12s; }
-  .cbtn svg { width: 16px; height: 16px; }
-  .cbtn:active { transform: scale(.95); }
-  .cbtn.on { background: var(--grad); color: var(--on-grad); border-color: transparent; }
-  body { padding-bottom: calc(var(--stack-h) + env(safe-area-inset-bottom)); }
-  body.has-player { padding-bottom: calc(var(--stack-h) + 72px + env(safe-area-inset-bottom)); }
-  .player { bottom: calc(var(--stack-h) + 8px + env(safe-area-inset-bottom)); }
-  .toast { bottom: calc(var(--stack-h) + 18px + env(safe-area-inset-bottom)); }
-  .shorts { inset: 0 0 calc(var(--stack-h) + env(safe-area-inset-bottom)); }
-  body.in-shorts .catbar { background: rgba(0,0,0,.92); border-top-color: rgba(255,255,255,.08); }
-  body.in-shorts .cbtn { background: rgba(255,255,255,.08); border-color: transparent; color: rgba(255,255,255,.65); }
-  body.in-shorts .cbtn.on { background: var(--grad); color: var(--on-grad); }
-  @media (max-width: 460px) {
-    .catbar { gap: 6px; padding: 0 10px; }
-    .cbtn { flex: 1 1 auto; padding: 0 10px; font-size: 13px; }
-    .cbtn svg { display: none; }
-  }
-  @media (max-width: 400px) { .catbar { gap: 5px; padding: 0 8px; } .cbtn { padding: 0 7px; font-size: 12.5px; } }
-  @media (max-width: 340px) { .cbtn { padding: 0 5px; font-size: 11.5px; } }
-  @media (min-width: 900px) { :root { --cat-h: 0px; } .catbar { display: none; } }
+  .nav { grid-template-columns: repeat(7, 1fr); }
+  .nav button { font-size: 10px; letter-spacing: -.2px; overflow: hidden; text-overflow: ellipsis; padding: 0 1px; }
+  @media (max-width: 400px) { .nav button { font-size: 9.5px; letter-spacing: -.3px; } .nav button svg { width: 21px; height: 21px; } }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important;
@@ -725,13 +702,14 @@
 
 <main id="view"></main>
 
-<div class="catbar" id="catbar" role="tablist" aria-label="Bo'limlar"></div>
 <nav class="nav" id="nav" aria-label="Asosiy menyu">
   <button data-view="home" class="on"></button>
-  <button data-view="search"></button>
-  <button data-view="cats"></button>
+  <button data-view="movie"></button>
+  <button data-view="serial"></button>
+  <button data-view="cartoon"></button>
+  <button data-view="shorts"></button>
+  <button data-view="music"></button>
   <button data-view="saved"></button>
-  <button data-view="profile"></button>
 </nav>
 
 <div class="veil" id="veil"></div>
@@ -1294,8 +1272,7 @@
     view.appendChild(h("div", "foot", [h("span", null, (me.brand || "Marvarid Media") + " — eng sara kinolar bir joyda")]));
   }
 
-  function navKey(name) { return CAT_VIEWS[name] ? "" : name; }   // pastki menyu: faqat o'z sahifalari
-  function catKey(name) { return name === "video" ? "movie" : name; }
+  function navKey(name) { return name === "video" ? "movie" : name; }
   function show(name, opts) {
     opts = opts || {};
     current = name;
@@ -1306,11 +1283,6 @@
       var on = b.dataset.view === key;
       b.classList.toggle("on", on);
       if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
-    });
-    document.querySelectorAll(".catbar button").forEach(function (b) {
-      var on = b.dataset.view === catKey(name);
-      b.classList.toggle("on", on);
-      b.setAttribute("aria-selected", on ? "true" : "false");
     });
     document.querySelectorAll(".dnav button").forEach(function (b) {
       var on = b.dataset.view === (name === "video" ? "movie" : name);
@@ -1609,7 +1581,20 @@
     }
     if (me.bot) row("🤖 Telegram botni ochish", "@" + me.bot, function () { openLink("https://t.me/" + me.bot); });
     if (me.channel) row("📢 Kanalimiz", "Yangiliklar va e'lonlar", function () { openLink(me.channel); });
+    row("🗂 Kategoriyalar", "Janr, davlat, til", function () { show("cats"); });
     row("🎲 Tasodifiy kino", "Omadingizni sinang", function () { randomMovie(); });
+    if (canFullscreen()) {
+      var fsRow = h("button", "crow", [h("b", null, tg.isFullscreen ? "🗗 Oddiy oyna" : "🖥 To'liq ekran"),
+        h("span", null, "Telegram oynasini kengaytirish"), icon("chev")]);
+      fsRow.onclick = function () {
+        haptic();
+        try {
+          if (tg.isFullscreen) { tg.exitFullscreen(); store.set("fs", "0"); } else { tg.requestFullscreen(); store.set("fs", "1"); }
+        } catch (e) {}
+        setTimeout(function () { renderProfile(view); }, 400);
+      };
+      links.appendChild(fsRow);
+    }
     page.appendChild(h("h3", "group-title", "Tezkor"));
     page.appendChild(links);
     // ma'lumotlar
@@ -1654,7 +1639,11 @@
     document.body.classList.add("in-shorts");
     var feed = h("div", "shorts");
     var muteBtn = h("button", "ibtn", [icon(shortsMuted ? "mute" : "vol")]);
-    var head = h("div", "shorts-head", [h("b", null, "Shorts"), muteBtn]);
+    muteBtn.setAttribute("aria-label", "Ovoz");
+    var sBtn = h("button", "ibtn", [icon("search")]);
+    sBtn.setAttribute("aria-label", "Qidiruv");
+    sBtn.onclick = function () { haptic(); show("search"); };
+    var head = h("div", "shorts-head", [h("b", null, "Shorts"), h("div", "shead-btns", [sBtn, muteBtn])]);
     muteBtn.onclick = function () {
       shortsMuted = !shortsMuted; haptic();
       muteBtn.replaceChildren(icon(shortsMuted ? "mute" : "vol"));
@@ -2260,25 +2249,17 @@
   function onScroll() { $("top").classList.toggle("solid", current !== "home" || window.scrollY > 40); }
   window.addEventListener("scroll", onScroll, { passive: true });
   $("bSearch").appendChild(icon("search"));
+  $("bSearch").appendChild(h("span", "slabel", "Qidirish..."));
   $("bSearch").onclick = function () { haptic(); show("search"); };
   $("bChannel").appendChild(icon("send"));
   $("bChannel").onclick = function () { haptic(); if (me.channel) openLink(me.channel); };
-  var NAV = { home: ["home", "Bosh sahifa"], search: ["search", "Qidiruv"], cats: ["grid", "Kategoriyalar"],
-              saved: ["bookmark", "Sevimlilar"], profile: ["user", "Profil"] };
+  var NAV = { home: ["home", "Asosiy"], movie: ["film", "Kinolar"], serial: ["tv", "Serial"], cartoon: ["smile", "Multfilm"],
+              shorts: ["clap", "Shorts"], music: ["music", "Musiqa"], saved: ["bookmark", "Saqlangan"] };
   document.querySelectorAll(".nav button").forEach(function (b) {
     var n = NAV[b.dataset.view];
     b.replaceChildren(icon(n[0]), h("span", null, n[1]));
     b.setAttribute("aria-label", n[1]);
     b.onclick = function () { haptic(); show(b.dataset.view); };
-  });
-  // telefonda — pastki menyu ustidagi bo'limlar qatori (eski filtr): Kinolar, Seriallar, Shorts, Multfilm, Musiqa
-  [["movie", "film", "Kinolar"], ["serial", "tv", "Seriallar"], ["shorts", "clap", "Shorts"],
-   ["cartoon", "smile", "Multfilm"], ["music", "music", "Musiqa"]].forEach(function (n) {
-    var b = h("button", "cbtn", [icon(n[1]), h("span", null, n[2])]);
-    b.dataset.view = n[0];
-    b.setAttribute("role", "tab");
-    b.onclick = function () { haptic(); show(n[0]); };
-    $("catbar").appendChild(b);
   });
   // katta ekranda — sarlavhadagi gorizontal menyu
   [["home", "Bosh sahifa"], ["movie", "Kinolar"], ["serial", "Seriallar"], ["cartoon", "Multfilmlar"], ["music", "Musiqa"],
@@ -2311,7 +2292,23 @@
     }
   }
 
+  // 🖥 Telegram oynasini kengaytirish (Bot API 8.0+): kompyuterda avtomatik, foydalanuvchi profilda o'chirib qo'yishi mumkin
+  function canFullscreen() {
+    return !PUB && !!tg && typeof tg.requestFullscreen === "function" && !!tg.isVersionAtLeast && tg.isVersionAtLeast("8.0");
+  }
+  function applyInsets() {
+    var t = ((tg.safeAreaInset || {}).top || 0) + ((tg.contentSafeAreaInset || {}).top || 0);
+    document.documentElement.style.setProperty("--tgtop", t + "px");
+  }
   if (tg && !PUB) { tg.ready(); tg.expand(); try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {} }
+  if (canFullscreen()) {
+    try {
+      ["safeAreaChanged", "contentSafeAreaChanged", "fullscreenChanged"].forEach(function (ev) { tg.onEvent(ev, applyInsets); });
+      applyInsets();
+      var desktopApp = !/^(android|ios)$/.test(tg.platform || "");
+      if (desktopApp && store.get("fs") !== "0" && !tg.isFullscreen) tg.requestFullscreen();
+    } catch (e) {}
+  }
   if (PUB) $("avatar").replaceChildren(icon("user"));
   else setAvatar(tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null);
   // 📱 Android ilovadagi «orqaga» tugmasi: true — sayt o'zi hal qildi, false — ilovadan chiqish
