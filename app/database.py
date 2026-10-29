@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
@@ -656,7 +657,12 @@ class Database:
         order = {"top": "m.views DESC, m.id DESC",
                  "rating": "(likes + 1.0) / (likes + dislikes + 2.0) DESC, likes DESC, m.views DESC, m.id DESC"
                  }.get(sort, "m.created_at DESC, m.id DESC")
-        sql = (_CATALOG_ROW + f" WHERE {' AND '.join(where)} ORDER BY {order} LIMIT ? OFFSET ?")
+        if sort == "rating":
+            sql = (_CATALOG_ROW + f" WHERE {' AND '.join(where)} ORDER BY {order} LIMIT ? OFFSET ?")
+            return self.q(sql, params + [limit, offset])
+        # avval faqat id larni tanlaymiz (tez), keyin faqat shu sahifadagilar uchun og'ir ustunlarni hisoblaymiz
+        sql = (_CATALOG_ROW + f" WHERE m.id IN (SELECT m.id FROM movies m WHERE {' AND '.join(where)}"
+               f" ORDER BY {order} LIMIT ? OFFSET ?) ORDER BY {order}")
         return self.q(sql, params + [limit, offset])
 
     def catalog_rows(self, ids: List[int]) -> List[sqlite3.Row]:
@@ -666,7 +672,23 @@ class Database:
         by_id = {r["id"]: r for r in rows}
         return [by_id[i] for i in ids if i in by_id]
 
+    def _cached(self, key, fn, ttl: float = 30.0):
+        cache = self.__dict__.setdefault("_memo", {})
+        hit = cache.get(key)
+        now = time.time()
+        if hit and now - hit[0] < ttl:
+            return hit[1]
+        val = fn()
+        cache[key] = (now, val)
+        return val
+
     def genre_counts(self, category: str) -> Dict[str, int]:
+        return self._cached(("g", category), lambda: self._genre_counts(category))
+
+    def facets(self, category: str) -> Dict[str, Dict]:
+        return self._cached(("f", category), lambda: self._facets(category))
+
+    def _genre_counts(self, category: str) -> Dict[str, int]:
         """Har bir janrda nechta kino bor (faqat bo'sh bo'lmaganlari)."""
         out: Dict[str, int] = {}
         where, params = (("category<>'music'", ()) if category == "video" else ("category=?", (category,)))
@@ -675,7 +697,7 @@ class Database:
                 out[k] = out.get(k, 0) + 1
         return {k: out[k] for k in genres.GENRES if k in out}
 
-    def facets(self, category: str) -> Dict[str, Dict]:
+    def _facets(self, category: str) -> Dict[str, Dict]:
         """Saytdagi filtrlar uchun: qaysi davlat, yil va tilda nechta kino bor."""
         out: Dict[str, Dict] = {}
         where, params = (("category<>'music'", ()) if category == "video" else ("category=?", (category,)))

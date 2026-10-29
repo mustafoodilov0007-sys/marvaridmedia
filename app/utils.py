@@ -250,8 +250,13 @@ def fuzzy_match(query: str, candidates: Iterable[Tuple[int, str]],
         return []
     k = len(q.split())
     scored = []
+    qb = {q[i:i + 2] for i in range(len(q) - 1)}
+    need = len(qb) * 0.3
     for item_id, title in candidates:
         if not title:
+            continue
+        # tez dastlabki saralash: umumiy harf juftlari juda kam bo'lsa, o'xshash emas
+        if len(qb & {title[i:i + 2] for i in range(len(title) - 1)}) < need:
             continue
         words = title.split()
         windows = {title, title[: len(q) + 2]}
