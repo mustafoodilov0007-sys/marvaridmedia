@@ -620,13 +620,52 @@ def _trim_cache(folder: Path) -> None:
 
 # ═════════════════════════ HTTP server ═════════════════════════
 
+class RateLimiter:
+    """Oddiy "chelak" (token bucket): bitta IP daqiqada ko'pi bilan `per_min` ta so'rov yubora oladi."""
+
+    def __init__(self, per_min: int):
+        self.rate = per_min / 60.0
+        self.cap = float(per_min)
+        self.buckets: dict = {}
+        self.lock = threading.Lock()
+        self.last_gc = time.time()
+
+    def allow(self, key: str) -> bool:
+        now = time.time()
+        with self.lock:
+            if now - self.last_gc > 300:  # eski yozuvlarni tozalaymiz (xotira to'lmasin)
+                self.buckets = {k: v for k, v in self.buckets.items() if now - v[1] < 120}
+                self.last_gc = now
+            tokens, t = self.buckets.get(key, (self.cap, now))
+            tokens = min(self.cap, tokens + (now - t) * self.rate)
+            if tokens < 1:
+                self.buckets[key] = (tokens, now)
+                return False
+            self.buckets[key] = (tokens - 1, now)
+            return True
+
+
 def make_handler(app: App):
     cache_dir = Path(app.config.db_path).parent / "posters"
     shorts_dir = Path(app.config.db_path).parent / "shorts"
     audio_dir = Path(app.config.db_path).parent / "audio"
 
+    api_limit = RateLimiter(240)    # katalog o'qish: daqiqasiga 240 tagacha
+    write_limit = RateLimiter(40)   # yozish (baho, qidiruv logi, so'rov): daqiqasiga 40 tagacha
+
     class Handler(BaseHTTPRequestHandler):
         server_version = "MarvaridWeb/1.0"
+
+        def _ip(self) -> str:
+            # Railway proksisi haqiqiy IP ni X-Forwarded-For ning OXIRIGA qo'shadi (boshidagisini soxtalashtirish mumkin)
+            xff = self.headers.get("X-Forwarded-For", "")
+            return xff.split(",")[-1].strip() or self.client_address[0]
+
+        def _limited(self, limiter: "RateLimiter") -> bool:
+            if limiter.allow(self._ip()):
+                return False
+            self._json({"ok": False, "reason": "rate"}, 429)
+            return True
         protocol_version = "HTTP/1.1"
 
         def log_message(self, fmt, *args):  # oddiy so'rovlarni logga yozmaymiz
@@ -724,6 +763,8 @@ def make_handler(app: App):
                     if f is None:
                         return self._send(404, b"", "text/plain")
                     return self._send_file(f, AUDIO_TYPES.get(f.suffix, "audio/mpeg"))
+                if path.startswith(("/pub/", "/api/")) and self._limited(api_limit):
+                    return
                 if path.startswith("/pub/"):
                     # 📱 Ilova va oddiy brauzer uchun: Telegram'siz, faqat katalog (mehmon sifatida)
                     path = "/api/" + path[5:]
@@ -769,6 +810,8 @@ def make_handler(app: App):
         def do_POST(self):
             path = urllib.parse.urlsplit(self.path).path
             try:
+                if self._limited(write_limit):
+                    return
                 length = min(int(self.headers.get("Content-Length") or 0), 10_000)
                 raw = self.rfile.read(length) if length else b""
                 try:

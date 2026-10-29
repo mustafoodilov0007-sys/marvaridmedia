@@ -2188,7 +2188,9 @@
     }
     var retry = h("button", "loadmore", "Qayta urinish");
     retry.onclick = function () { show(current); };
-    view.replaceChildren(h("div", "page", [emptyBox("x", "Ulanishda xatolik", "Internetni tekshirib, qaytadan urinib ko'ring."), retry]));
+    var busy = reason === "rate";
+    view.replaceChildren(h("div", "page", [emptyBox("x", busy ? "Biroz sekinroq" : "Ulanishda xatolik",
+      busy ? "So'rovlar juda tez bo'ldi. Bir daqiqadan so'ng qayta urinib ko'ring." : "Internetni tekshirib, qaytadan urinib ko'ring."), retry]));
   }
 
   // ───── batafsil oyna ─────
