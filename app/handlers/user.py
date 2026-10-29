@@ -16,7 +16,7 @@ from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, nav_row, 
 from ..subscription import all_joined, channel_statuses, gate_view, needs_gate
 from ..telegram import BadRequest
 from ..texts import B, HELP_TEXT, cat_icon, cat_name
-from ..utils import (esc, fmt_num, fuzzy_match, normalize, now, render,
+from ..utils import (esc, fmt_datetime, fmt_num, fuzzy_match, normalize, now, render,
                      truncate, visible_len)
 
 log = logging.getLogger("user")
@@ -26,6 +26,9 @@ MAX_RESULTS = 100    # qidiruvdagi eng ko'p natija
 LIST_LIMIT = 50      # Top / Yangi ro'yxatlari uzunligi
 CODE_RE = re.compile(r"#?\s*(\d{1,9})")
 MUSIC_RE = re.compile(r"m(\d{1,9})")  # musiqa havolasi: ?start=m3
+REF_RE = re.compile(r"r(\d{1,12})")   # taklif havolasi: ?start=r123456
+REF_DAYS = 1       # har bir taklif qilingan do'st uchun Premium kun
+REF_MAX = 60       # bitta odam ko'pi bilan nechta do'st uchun mukofot oladi
 
 _reported_parts = set()
 
@@ -50,10 +53,45 @@ def cmd_start(ctx: Ctx) -> None:
     code = (CODE_RE.fullmatch(payload) or MUSIC_RE.fullmatch(payload)) if payload else None
     user = ctx.db.get_user(ctx.user_id)
     is_new = user is None or now() - user["joined_at"] < 15
+    ref = REF_RE.fullmatch(payload) if payload else None
+    if ref and is_new:
+        _reward_referrer(ctx, int(ref.group(1)))
     if not code or is_new:
         send_welcome(ctx)
     if code:
         handle_query(ctx, payload)
+
+
+def _reward_referrer(ctx: Ctx, ref_uid: int) -> None:
+    db = ctx.db
+    if not db.set_referrer(ctx.user_id, ref_uid):
+        return
+    n = db.referral_count(ref_uid)
+    if n > REF_MAX:
+        return
+    until = db.grant_premium(ref_uid, REF_DAYS)
+    name = esc(ctx.user.get("first_name") or "Do'stingiz")
+    try:
+        ctx.bot.send_message(ref_uid, f"🎉 <b>{name}</b> sizning havolangiz orqali botga qo'shildi!\n\n"
+                                      f"💎 Sizga <b>+{REF_DAYS} kun Premium</b> berildi.\n"
+                                      f"👥 Jami taklif qilganlar: <b>{n}</b>\n"
+                                      f"⏳ Premium: <b>{fmt_datetime(until)}</b> gacha")
+    except Exception:
+        log.info("Referal xabari %s ga yetmadi", ref_uid)
+
+
+@router.command("taklif", gate=False)
+def cmd_invite(ctx: Ctx) -> None:
+    app = ctx.app
+    link = f"https://t.me/{app.bot_username}?start=r{ctx.user_id}"
+    n = ctx.db.referral_count(ctx.user_id)
+    share = ("https://t.me/share/url?url=" + urllib.parse.quote(link, safe="")
+             + "&text=" + urllib.parse.quote("🎬 Eng yaxshi kino, serial va multfilmlar boti — qo'shiling!"))
+    ctx.send(f"🤝 <b>Do'stlarni taklif qiling — Premium oling!</b>\n\n"
+             f"Har bir do'stingiz shu havola orqali botga kirsa, sizga <b>+{REF_DAYS} kun 💎 Premium</b> beriladi.\n\n"
+             f"🔗 Sizning havolangiz:\n<code>{link}</code>\n\n"
+             f"👥 Taklif qilganlar: <b>{n}</b>",
+             ikb([btn("📤 Do'stlarga yuborish", url=share, style=SUCCESS)]))
 
 
 @router.command("help", gate=False)

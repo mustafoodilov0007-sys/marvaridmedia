@@ -249,6 +249,10 @@ class Database:
             self.conn.execute("ALTER TABLE movies ADD COLUMN group_link TEXT NOT NULL DEFAULT ''")
         if "quality" not in cols:
             self.conn.execute("ALTER TABLE movies ADD COLUMN quality TEXT NOT NULL DEFAULT ''")  # 🎞 «,720,1080,»
+        ucols = {r[1] for r in self.conn.execute("PRAGMA table_info(users)").fetchall()}
+        if "ref_by" not in ucols:  # 🤝 kim taklif qilgan (referal)
+            self.conn.execute("ALTER TABLE users ADD COLUMN ref_by INTEGER NOT NULL DEFAULT 0")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_users_ref ON users(ref_by)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_movies_category ON movies(category, created_at)")
         # musiqalar kodsiz: avval kod bilan qo'shilganlari ichki (manfiy) raqamga o'tkaziladi
         rows = self.conn.execute("SELECT id FROM movies WHERE category='music' AND code>0 ORDER BY id").fetchall()
@@ -328,6 +332,18 @@ class Database:
                 "INSERT INTO users(user_id, first_name, username, joined_at, last_active) VALUES (?,?,?,?,?)",
                 (uid, user.get("first_name"), user.get("username"), t, t))
             return True
+
+    def set_referrer(self, uid: int, ref: int) -> bool:
+        """Yangi foydalanuvchini taklif qilgan odamga bog'laydi (faqat bir marta, o'zini emas). Muvaffaqiyatli bo'lsa True."""
+        if uid == ref:
+            return False
+        with self.tx() as c:
+            if not c.execute("SELECT 1 FROM users WHERE user_id=?", (ref,)).fetchone():
+                return False
+            return c.execute("UPDATE users SET ref_by=? WHERE user_id=? AND ref_by=0", (ref, uid)).rowcount > 0
+
+    def referral_count(self, uid: int) -> int:
+        return self.val("SELECT COUNT(*) FROM users WHERE ref_by=?", (uid,))
 
     def get_user(self, uid: int) -> Optional[sqlite3.Row]:
         return self.q1("SELECT * FROM users WHERE user_id=?", (uid,))

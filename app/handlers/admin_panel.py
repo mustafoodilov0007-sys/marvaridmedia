@@ -20,6 +20,7 @@ ADMIN_COMMANDS = [
     {"command": "start", "description": "🏠 Bosh menyu"},
     {"command": "admin", "description": "👨‍💻 Admin panel"},
     {"command": "top", "description": "🔥 Top kinolar"},
+    {"command": "taklif", "description": "🤝 Do'st taklif qilib Premium olish"},
     {"command": "new", "description": "🆕 Yangi kinolar"},
     {"command": "premium", "description": "💎 Premium obuna"},
     {"command": "id", "description": "🆔 ID raqamni bilish"},
