@@ -625,6 +625,37 @@
   /* ───── pastki menyu: 5 ta bo'lim ───── */
   .nav { grid-template-columns: repeat(5, 1fr); }
   .nav button { font-size: 10px; letter-spacing: -.1px; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 400px) { .nav button { font-size: 9.5px; letter-spacing: -.3px; } }
+
+  /* ───── pastki menyu ustidagi bo'limlar qatori (telefon) ───── */
+  :root { --cat-h: 46px; --stack-h: calc(var(--nav-h) + var(--cat-h)); }
+  .catbar { position: fixed; left: 0; right: 0; z-index: 29; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); height: var(--cat-h);
+    display: flex; gap: 8px; align-items: center; overflow-x: auto; padding: 0 12px; scrollbar-width: none;
+    background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border-top: 1px solid var(--line); }
+  .catbar::-webkit-scrollbar { display: none; }
+  .cbtn { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px;
+    border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; color: var(--muted); background: var(--surface);
+    border: 1px solid var(--line); transition: background .2s, color .2s, transform .12s; }
+  .cbtn svg { width: 16px; height: 16px; }
+  .cbtn:active { transform: scale(.95); }
+  .cbtn.on { background: var(--grad); color: var(--on-grad); border-color: transparent; }
+  body { padding-bottom: calc(var(--stack-h) + env(safe-area-inset-bottom)); }
+  body.has-player { padding-bottom: calc(var(--stack-h) + 72px + env(safe-area-inset-bottom)); }
+  .player { bottom: calc(var(--stack-h) + 8px + env(safe-area-inset-bottom)); }
+  .toast { bottom: calc(var(--stack-h) + 18px + env(safe-area-inset-bottom)); }
+  .shorts { inset: 0 0 calc(var(--stack-h) + env(safe-area-inset-bottom)); }
+  body.in-shorts .catbar { background: rgba(0,0,0,.92); border-top-color: rgba(255,255,255,.08); }
+  body.in-shorts .cbtn { background: rgba(255,255,255,.08); border-color: transparent; color: rgba(255,255,255,.65); }
+  body.in-shorts .cbtn.on { background: var(--grad); color: var(--on-grad); }
+  @media (max-width: 460px) {
+    .catbar { gap: 6px; padding: 0 10px; }
+    .cbtn { flex: 1 1 auto; padding: 0 10px; font-size: 13px; }
+    .cbtn svg { display: none; }
+  }
+  @media (max-width: 400px) { .catbar { gap: 5px; padding: 0 8px; } .cbtn { padding: 0 7px; font-size: 12.5px; } }
+  @media (max-width: 340px) { .cbtn { padding: 0 5px; font-size: 11.5px; } }
+  @media (min-width: 900px) { :root { --cat-h: 0px; } .catbar { display: none; } }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important;
@@ -694,6 +725,7 @@
 
 <main id="view"></main>
 
+<div class="catbar" id="catbar" role="tablist" aria-label="Bo'limlar"></div>
 <nav class="nav" id="nav" aria-label="Asosiy menyu">
   <button data-view="home" class="on"></button>
   <button data-view="search"></button>
@@ -1262,7 +1294,8 @@
     view.appendChild(h("div", "foot", [h("span", null, (me.brand || "Marvarid Media") + " — eng sara kinolar bir joyda")]));
   }
 
-  function navKey(name) { return CAT_VIEWS[name] ? "cats" : name; }
+  function navKey(name) { return CAT_VIEWS[name] ? "" : name; }   // pastki menyu: faqat o'z sahifalari
+  function catKey(name) { return name === "video" ? "movie" : name; }
   function show(name, opts) {
     opts = opts || {};
     current = name;
@@ -1273,6 +1306,11 @@
       var on = b.dataset.view === key;
       b.classList.toggle("on", on);
       if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    });
+    document.querySelectorAll(".catbar button").forEach(function (b) {
+      var on = b.dataset.view === catKey(name);
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
     });
     document.querySelectorAll(".dnav button").forEach(function (b) {
       var on = b.dataset.view === (name === "video" ? "movie" : name);
@@ -2225,13 +2263,22 @@
   $("bSearch").onclick = function () { haptic(); show("search"); };
   $("bChannel").appendChild(icon("send"));
   $("bChannel").onclick = function () { haptic(); if (me.channel) openLink(me.channel); };
-  var NAV = { home: ["home", "Bosh sahifa"], search: ["search", "Qidiruv"], cats: ["grid", "Kategoriya"],
+  var NAV = { home: ["home", "Bosh sahifa"], search: ["search", "Qidiruv"], cats: ["grid", "Kategoriyalar"],
               saved: ["bookmark", "Sevimlilar"], profile: ["user", "Profil"] };
   document.querySelectorAll(".nav button").forEach(function (b) {
     var n = NAV[b.dataset.view];
     b.replaceChildren(icon(n[0]), h("span", null, n[1]));
     b.setAttribute("aria-label", n[1]);
     b.onclick = function () { haptic(); show(b.dataset.view); };
+  });
+  // telefonda — pastki menyu ustidagi bo'limlar qatori (eski filtr): Kinolar, Seriallar, Shorts, Multfilm, Musiqa
+  [["movie", "film", "Kinolar"], ["serial", "tv", "Seriallar"], ["shorts", "clap", "Shorts"],
+   ["cartoon", "smile", "Multfilm"], ["music", "music", "Musiqa"]].forEach(function (n) {
+    var b = h("button", "cbtn", [icon(n[1]), h("span", null, n[2])]);
+    b.dataset.view = n[0];
+    b.setAttribute("role", "tab");
+    b.onclick = function () { haptic(); show(n[0]); };
+    $("catbar").appendChild(b);
   });
   // katta ekranda — sarlavhadagi gorizontal menyu
   [["home", "Bosh sahifa"], ["movie", "Kinolar"], ["serial", "Seriallar"], ["cartoon", "Multfilmlar"], ["music", "Musiqa"],
