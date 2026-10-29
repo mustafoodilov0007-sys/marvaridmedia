@@ -787,3 +787,51 @@ def cb_parts_list(ctx: Ctx) -> None:
     else:
         text, kb = parts_view(movie, parts, page)
         ctx.edit(text, kb)
+
+
+# ═════════════════════════ 🔎 Inline rejim: istalgan chatda @bot kino nomi ═════════════════════════
+
+@router.on("inline_query")
+def _inline_query(ctx: Ctx) -> None:
+    """Foydalanuvchi istalgan chatda «@bot nomi» yozsa — kinolar ro'yxati chiqadi, tanlansa havola yuboriladi."""
+    iq = ctx.inline
+    app, db = ctx.app, ctx.db
+    norm = normalize(iq.get("query") or "")
+    if norm:
+        ids, _ = search_ids(app, norm, fuzzy_ok=len(norm) >= 4)
+        rows = db.catalog_rows(ids[:20])
+    else:
+        rows = db.catalog(None, "top", limit=20)
+    base = app.config.webapp_url
+    results = []
+    for r in rows:
+        title = ("💎 " if r["is_premium"] else "") + r["title"]
+        bits = [cat_name(r["category"])]
+        if r["year"]:
+            bits.append(str(r["year"]))
+        g = ", ".join(genres.name(k) for k in genres.parse(r["genres"])[:2])
+        if g:
+            bits.append(g)
+        if r["views"]:
+            bits.append(f"👁 {fmt_num(r['views'])}")
+        link = app.deep_link(r["code"])
+        text = f"{cat_icon(r['category'])} <b>{esc(r['title'])}</b>\n" + "\n".join(genres.info_lines(r))
+        item = {
+            "type": "article", "id": str(r["id"]), "title": title[:100],
+            "description": " • ".join(bits),
+            "input_message_content": {"message_text": text.strip(), "parse_mode": "HTML",
+                                      "link_preview_options": {"is_disabled": True}},
+            "reply_markup": {"inline_keyboard": [[{"text": "▶️ Botda ko'rish", "url": link}]]},
+        }
+        if base and r["poster_id"]:
+            item["thumbnail_url"] = f"{base}/api/poster/{r['id']}"
+            item["thumbnail_width"] = 200
+            item["thumbnail_height"] = 300
+        results.append(item)
+    try:
+        ctx.bot.call("answerInlineQuery", {
+            "inline_query_id": iq["id"], "results": results, "cache_time": 30, "is_personal": False,
+            **({} if results else {"button": {"text": "🔎 Botda qidirish", "start_parameter": "sorov"}}),
+        })
+    except Exception:
+        log.warning("Inline javob yuborilmadi", exc_info=True)

@@ -319,6 +319,49 @@ def send_backup(ctx: Ctx) -> None:
         ctx.send(f"❌ Zaxira nusxani yuborib bo'lmadi: {esc(exc.description)}")
 
 
+@router.task
+def _auto_backup(app) -> None:
+    """Har 24 soatda bazaning nusxasini bosh adminlarga o'zi yuboradi (server o'chib qolsa ham ma'lumot saqlansin)."""
+    import time
+    day = 24 * 3600
+    while not app.stopping.is_set():
+        try:
+            last = int(app.db.get_settings().get("last_auto_backup", "0") or 0)
+        except ValueError:
+            last = 0
+        wait = last + day - time.time()
+        if wait > 0:
+            if app.stopping.wait(min(wait, 3600)):
+                return
+            continue
+        db = app.db
+        tmp = db.path.with_name("auto_backup_tmp.db")
+        try:
+            db.backup_to(tmp)
+            data = tmp.read_bytes()
+        except Exception:
+            log.exception("Avto-zaxira yaratib bo'lmadi")
+            app.stopping.wait(3600)
+            continue
+        finally:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        db.set_setting("last_auto_backup", str(int(time.time())))
+        if len(data) > 49 * 1024 * 1024:
+            continue
+        name = f"marvarid_avto_{fmt_datetime(now()).replace(' ', '_').replace(':', '-')}.db"
+        for uid in app.config.owners:
+            try:
+                app.bot.send_document(uid, file=InputFile(name, data),
+                                      caption="💾 <b>Kunlik avtomatik zaxira nusxa</b>\n\n"
+                                              "Faylni saqlab qo'ying. Kerak bo'lsa admin panel → Zaxira → "
+                                              "«tiklash» orqali qaytarasiz.")
+            except TelegramError:
+                log.warning("Avto-zaxirani %s ga yuborib bo'lmadi", uid)
+
+
 # ═════════════════════════ 👮 Adminlar ═════════════════════════
 
 def admins_view(ctx: Ctx):

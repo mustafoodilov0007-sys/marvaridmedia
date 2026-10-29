@@ -20,7 +20,8 @@ log = logging.getLogger("bot")
 
 NEXT = object()  # holat handleri xabarni oddiy qayta ishlashga uzatishi uchun
 
-ALLOWED_UPDATES = ["message", "callback_query", "pre_checkout_query", "chat_join_request", "my_chat_member"]
+ALLOWED_UPDATES = ["message", "callback_query", "pre_checkout_query", "chat_join_request", "my_chat_member",
+                   "inline_query"]
 
 
 def start_payload(code) -> str:
@@ -128,7 +129,9 @@ class Ctx:
         self.pre_checkout: Optional[dict] = update.get("pre_checkout_query")
         self.join_request: Optional[dict] = update.get("chat_join_request")
         self.member_update: Optional[dict] = update.get("my_chat_member")
-        src = self.message or self.callback or self.pre_checkout or self.join_request or self.member_update or {}
+        self.inline: Optional[dict] = update.get("inline_query")
+        src = (self.message or self.callback or self.pre_checkout or self.join_request or self.member_update
+               or self.inline or {})
         self.user: dict = src.get("from") or {}
         self.user_id: Optional[int] = self.user.get("id")
         if self.message is not None:
@@ -551,6 +554,8 @@ def process_update(app: App, update: dict) -> None:
             _special(app, ctx, "join_request")
         elif ctx.member_update is not None:
             _special(app, ctx, "my_chat_member")
+        elif ctx.inline is not None:
+            _special(app, ctx, "inline_query")
     except Exception:
         log.exception("Update #%s ni qayta ishlashda xatolik", update.get("update_id"))
         if ctx.chat_id and ctx.chat.get("type") == "private":
