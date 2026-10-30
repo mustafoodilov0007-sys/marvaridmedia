@@ -407,6 +407,15 @@ class Database:
     def count_joined_since(self, ts: int) -> int:
         return self.val("SELECT COUNT(*) FROM users WHERE joined_at>=?", (ts,))
 
+    def joined_per_day(self, days: int) -> List[tuple]:
+        """Oxirgi `days` kun uchun [(kun_boshi_ts, yangi_foydalanuvchilar)] — Toshkent vaqti bilan, bo'sh kunlar 0."""
+        from .utils import day_start
+        today = day_start()
+        start = today - (days - 1) * 86400
+        counts = {r[0]: r[1] for r in self.conn.execute(
+            "SELECT (joined_at + 18000) / 86400 AS d, COUNT(*) FROM users WHERE joined_at>=? GROUP BY d", (start,))}
+        return [(start + i * 86400, counts.get((start + i * 86400 + 18000) // 86400, 0)) for i in range(days)]
+
     def count_active_since(self, ts: int) -> int:
         return self.val("SELECT COUNT(*) FROM users WHERE last_active>=?", (ts,))
 

@@ -479,6 +479,43 @@ def api_admin_delete(app: App, user: dict, body: dict) -> dict:
     return {"ok": True}
 
 
+def api_support(app: App, user: dict) -> dict:
+    """💝 «Bizni qo'llab-quvvatlang»: karta raqami (botdagi bilan bir xil) va Stars borligi."""
+    from .handlers.payments import card_info
+    digits, card, holder = card_info(app)
+    return {"ok": True, "digits": digits, "card": card, "holder": re.sub(r"<[^>]+>|&\w+;", "", holder or "").strip(),
+            "stars": app.setting_bool("donate_stars"), "bot": app.bot_username}
+
+
+def api_admin_stats(app: App, user: dict) -> dict:
+    """📊 Admin uchun statistika: foydalanuvchilar, kunlik yangilar, eng ko'p ko'rilganlar, topilmagan qidiruvlar."""
+    if not _admin_only(app, user):
+        return {"ok": False, "reason": "forbidden"}
+    from .utils import day_start
+    db = app.db
+    t = int(time.time())
+    today = day_start()
+    since30 = t - 30 * 86400
+    top = db.q("SELECT id, title, category, views FROM movies WHERE views>0 ORDER BY views DESC, id DESC LIMIT 10")
+    failed = db.top_failed_queries(since30, 10)
+    return {
+        "ok": True,
+        "users": {
+            "total": db.count_users(), "today": db.count_joined_since(today),
+            "week": db.count_joined_since(today - 6 * 86400), "month": db.count_joined_since(today - 29 * 86400),
+            "active24": db.count_active_since(t - 86400), "premium": db.count_premium(),
+            "blocked": db.count_blocked(),
+        },
+        "daily": [{"ts": ts, "n": n} for ts, n in db.joined_per_day(14)],
+        "counts": dict(db.count_by_category(), shorts=db.count_shorts()),
+        "views_total": db.val("SELECT COALESCE(SUM(views),0) FROM movies"),
+        "top": [{"id": r["id"], "title": r["title"], "cat": r["category"], "views": r["views"]} for r in top],
+        "failed": [{"q": r["query"], "n": r["n"]} for r in failed],
+        "searches30": db.count_searches_since(since30),
+        "requests_open": db.val("SELECT COUNT(*) FROM requests WHERE done_at=0"),
+    }
+
+
 def api_watch(app: App, user: dict, body: dict) -> dict:
     """Saytda tanlangan kinoni/musiqani bot foydalanuvchiga chatda yuboradi."""
     from .handlers.user import open_movie, premium_locked  # aylanma importdan qochish uchun
@@ -894,6 +931,10 @@ def make_handler(app: App):
                         return self._json(api_popular(app, user))
                     if path == "/api/collection":
                         return self._json(api_collection(app, user, qs))
+                    if path == "/api/support":
+                        return self._json(api_support(app, user))
+                    if path == "/api/admin/stats":
+                        return self._json(api_admin_stats(app, user))
                     if path == "/api/admin/movie":
                         return self._json(api_admin_movie(app, user, qs))
                     if path == "/api/rating":

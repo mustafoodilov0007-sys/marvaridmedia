@@ -410,6 +410,30 @@
   .ed .eactions { display: flex; gap: 8px; margin-top: 8px; position: sticky; bottom: 0; padding: 10px 0 2px; background: var(--surface); }
   .ed .eactions .btn { flex: 1; }
   .ed .btn.danger { background: #3a1517; color: #ff8d8d; flex: none; padding: 0 16px; }
+  .donate { margin: 14px 0; padding: 22px 18px; border-radius: 22px; color: #1d1405; position: relative; overflow: hidden;
+    background: linear-gradient(135deg, #f6dc97, #e2b450 45%, #b98a2c); box-shadow: 0 14px 34px var(--glow, rgba(226,180,80,.25)); }
+  .donate small { display: block; font-weight: 700; opacity: .75; letter-spacing: .08em; text-transform: uppercase; font-size: 11px; }
+  .donate .num { font: 800 clamp(19px, 6vw, 26px)/1.2 "Inter", sans-serif; letter-spacing: .06em; margin: 10px 0 8px; word-break: break-all; }
+  .donate .who { font-weight: 700; font-size: 15px; }
+  .donate-actions { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 0; }
+  .donate-actions .btn { flex: none; width: 100%; }
+  .tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 12px 0; }
+  .tile { padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
+  .tile b { display: block; font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
+  .tile span { color: var(--muted); font-size: 12.5px; font-weight: 600; }
+  .tile.gold b { color: var(--gold); }
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 130px; padding: 12px 10px 0; border-radius: 16px;
+    background: var(--surface); border: 1px solid var(--line); }
+  .bars div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+  .bars i { display: block; width: 100%; max-width: 22px; border-radius: 6px 6px 2px 2px; background: var(--grad); min-height: 2px; }
+  .bars em { font-style: normal; font-size: 9.5px; color: var(--muted); margin: 4px 0 6px; white-space: nowrap; }
+  .bars u { text-decoration: none; font-size: 10.5px; font-weight: 800; margin-bottom: 3px; }
+  .rank { list-style: none; margin: 0; padding: 0; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
+  .rank li { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-top: 1px solid var(--line); font-weight: 600; font-size: 14px; }
+  .rank li:first-child { border-top: 0; }
+  .rank li b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+  .rank li span { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  .rank li .no { color: var(--gold); font-weight: 800; width: 20px; }
   .note { text-align: center; color: var(--muted); font-size: 12.5px; margin: 12px 16px 0; }
 
   .toast { position: fixed; left: 50%; bottom: calc(var(--nav-h) + 18px + env(safe-area-inset-bottom)); z-index: 60;
@@ -797,6 +821,7 @@
 
   // ───── ikonkalar (inline SVG) ─────
   var P = {
+    heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>',
     edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
@@ -1325,7 +1350,9 @@
     }
     var mu = byKey.music; if (mu && mu.items.length) add(rail(mu));
     if (!any) view.appendChild(emptyBox("film", "Hozircha bo'sh", "Kinolar qo'shilishi bilan shu yerda paydo bo'ladi."));
-    view.appendChild(h("div", "foot", [h("span", null, (me.brand || "Marvarid Media") + " — eng sara kinolar bir joyda")]));
+    var heart = h("button", "more", "💝 Bizni qo'llab-quvvatlang");
+    heart.onclick = function () { haptic(); show("support"); };
+    view.appendChild(h("div", "foot", [h("span", null, (me.brand || "Marvarid Media") + " — eng sara kinolar bir joyda"), heart]));
   }
 
   function navKey(name) { return name === "video" ? "movie" : name; }
@@ -1366,6 +1393,8 @@
     if (name === "search") return renderSearch(view);
     if (name === "cats") return renderCats(view, my);
     if (name === "profile") return renderProfile(view);
+    if (name === "support") return renderSupport(view, my);
+    if (name === "stats") return renderStats(view, my);
     if (name === "col") return renderCollection(view, opts.id, my);
     renderCategory(view, name, opts.sort || "new", my, opts.f || {});
   }
@@ -1597,6 +1626,90 @@
     if (!PUB && tg && tg.showConfirm) { try { tg.showConfirm(text, function (ok) { if (ok) yes(); }); return; } catch (e) {} }
     if (window.confirm(text)) yes();
   }
+
+  // ───── 💝 Bizni qo'llab-quvvatlang ─────
+  function copyText(text, done) {
+    function fallback() {
+      var t = document.createElement("textarea"); t.value = text; t.style.position = "fixed"; t.style.opacity = "0";
+      document.body.appendChild(t); t.select();
+      var ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(t); done(ok);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { done(true); }, fallback);
+    else fallback();
+  }
+  function renderSupport(view, my) {
+    var page = h("div", "page narrow", [h("h1", null, "💝 Qo'llab-quvvatlash")]);
+    view.replaceChildren(page);
+    api("/api/support").then(function (d) {
+      if (my !== reqId) return;
+      if (!d.ok) return renderError(view, d.reason);
+      page.appendChild(h("p", "lead", "Loyiha sizning yordamingiz bilan rivojlanadi. Har bir hissa yangi kinolar va yaxshi xizmat uchun sarflanadi. Katta rahmat! 🙏"));
+      if (d.digits) {
+        page.appendChild(h("div", "donate", [h("small", null, "Plastik karta"), h("div", "num", d.card),
+          h("div", "who", d.holder || me.brand)]));
+        var cp = h("button", "btn primary", [icon("send"), "Karta raqamini nusxalash"]);
+        cp.onclick = function () { haptic(); copyText(d.digits, function (ok) { toast(ok ? "✅ Karta raqami nusxalandi" : d.card); }); };
+        var acts = h("div", "donate-actions", [cp]);
+        page.appendChild(acts);
+        page.appendChild(h("div", "note", "Karta orqali o'tkazma qilgach, chekni botga yuboring — rahmat aytamiz."));
+      } else {
+        page.appendChild(emptyBox("heart", "Karta hozircha ulanmagan", "Bot orqali qo'llab-quvvatlash mumkin."));
+      }
+      var bot = h("div", "donate-actions");
+      if (d.bot) {
+        var b1 = h("button", "btn soft", "🧾 Chekni botga yuborish");
+        b1.onclick = function () { openLink("https://t.me/" + d.bot + "?start=donat"); };
+        bot.appendChild(b1);
+        if (d.stars) {
+          var b2 = h("button", "btn soft", "⭐ Telegram Stars bilan");
+          b2.onclick = function () { openLink("https://t.me/" + d.bot + "?start=donat"); };
+          bot.appendChild(b2);
+        }
+      }
+      page.appendChild(bot);
+    }).catch(function () { if (my === reqId) renderError(view, "network"); });
+  }
+
+  // ───── 📊 Statistika (faqat admin) ─────
+  function renderStats(view, my) {
+    var page = h("div", "page narrow", [h("h1", null, "📊 Statistika")]);
+    view.replaceChildren(page);
+    api("/api/admin/stats").then(function (d) {
+      if (my !== reqId) return;
+      if (!d.ok) { page.appendChild(emptyBox("lock", "Ruxsat yo'q", "Bu sahifa faqat adminlar uchun.")); return; }
+      var u = d.users;
+      function tile(n, label, gold) { return h("div", "tile" + (gold ? " gold" : ""), [h("b", null, fmt(n)), h("span", null, label)]); }
+      page.appendChild(h("div", "tiles", [
+        tile(u.total, "Jami foydalanuvchi"), tile(u.today, "Bugun qo'shilgan", true),
+        tile(u.week, "7 kunda yangi"), tile(u.month, "30 kunda yangi"),
+        tile(u.active24, "24 soatda faol"), tile(u.premium, "💎 Premium", true),
+        tile((d.counts.movie || 0) + (d.counts.serial || 0) + (d.counts.cartoon || 0), "Kino/serial/multfilm"), tile(d.views_total, "Jami ko'rishlar")
+      ]));
+      page.appendChild(h("h3", "group-title", "Kunlik yangi foydalanuvchilar (14 kun)"));
+      var max = Math.max.apply(null, d.daily.map(function (x) { return x.n; }).concat([1]));
+      var bars = h("div", "bars");
+      d.daily.forEach(function (x) {
+        var dt = new Date((x.ts + 18000) * 1000);
+        var col = h("div", null, [h("u", null, x.n ? String(x.n) : ""), h("i"), h("em", null, dt.getUTCDate() + "." + String(dt.getUTCMonth() + 1).padStart(2, "0"))]);
+        col.querySelector("i").style.height = Math.max(2, Math.round(x.n / max * 78)) + "px";
+        bars.appendChild(col);
+      });
+      page.appendChild(bars);
+      page.appendChild(h("h3", "group-title", "🔥 Eng ko'p ko'rilgan kinolar"));
+      var top = h("ol", "rank");
+      if (!d.top.length) top.appendChild(h("li", null, [h("b", null, "Hozircha ma'lumot yo'q")]));
+      d.top.forEach(function (x, i) { top.appendChild(h("li", null, [h("span", "no", String(i + 1)), h("b", null, x.title), h("span", null, "👁 " + fmt(x.views))])); });
+      page.appendChild(top);
+      page.appendChild(h("h3", "group-title", "🔎 Qidiruvda topilmaganlar (30 kun)"));
+      var fl = h("ol", "rank");
+      if (!d.failed.length) fl.appendChild(h("li", null, [h("b", null, "Hammasi topilgan 🎉")]));
+      d.failed.forEach(function (x, i) { fl.appendChild(h("li", null, [h("span", "no", String(i + 1)), h("b", null, x.q), h("span", null, x.n + " marta")])); });
+      page.appendChild(fl);
+      page.appendChild(h("div", "note", "Jami qidiruvlar (30 kun): " + fmt(d.searches30) + " • Ochiq so'rovlar: " + d.requests_open));
+    }).catch(function () { if (my === reqId) renderError(view, "network"); });
+  }
+
   function renderProfile(view) {
     var user = !PUB && tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
     var name = (user && user.first_name) || (PUB ? "Mehmon" : "Foydalanuvchi");
@@ -1637,6 +1750,8 @@
     }
     if (me.bot) row("🤖 Telegram botni ochish", "@" + me.bot, function () { openLink("https://t.me/" + me.bot); });
     if (me.channel) row("📢 Kanalimiz", "Yangiliklar va e'lonlar", function () { openLink(me.channel); });
+    row("💝 Bizni qo'llab-quvvatlang", "Loyihaga yordam bering", function () { show("support"); });
+    if (me.admin) row("📊 Statistika", "Foydalanuvchilar, top kinolar, qidiruvlar", function () { show("stats"); });
     row("🗂 Kategoriyalar", "Janr, davlat, til", function () { show("cats"); });
     row("🎲 Tasodifiy kino", "Omadingizni sinang", function () { randomMovie(); });
     if (canFullscreen()) {

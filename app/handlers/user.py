@@ -50,6 +50,10 @@ def cmd_start(ctx: Ctx) -> None:
         ctx.set_state("req", ttl=CONTACT_TTL)
         ctx.send(REQUEST_PROMPT, cancel_kb())
         return
+    if payload == "donat":  # saytdagi «Qo'llab-quvvatlash» (Stars) tugmasidan
+        from .payments import btn_donate
+        btn_donate(ctx)
+        return
     code = (CODE_RE.fullmatch(payload) or MUSIC_RE.fullmatch(payload)) if payload else None
     user = ctx.db.get_user(ctx.user_id)
     is_new = user is None or now() - user["joined_at"] < 15
