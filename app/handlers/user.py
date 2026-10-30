@@ -69,7 +69,12 @@ def _reward_referrer(ctx: Ctx, ref_uid: int) -> None:
     n = db.referral_count(ref_uid)
     if n > REF_MAX:
         return
+    db.grant_premium(ctx.user_id, REF_DAYS)  # taklif qilingan do'stga ham sovg'a
     until = db.grant_premium(ref_uid, REF_DAYS)
+    try:
+        ctx.bot.send_message(ctx.user_id, f"🎁 Do'stingiz taklifi bilan kirdingiz — sizga ham <b>+{REF_DAYS} kun 💎 Premium</b> sovg'a!")
+    except Exception:
+        pass
     name = esc(ctx.user.get("first_name") or "Do'stingiz")
     try:
         ctx.bot.send_message(ref_uid, f"🎉 <b>{name}</b> sizning havolangiz orqali botga qo'shildi!\n\n"
@@ -82,13 +87,17 @@ def _reward_referrer(ctx: Ctx, ref_uid: int) -> None:
 
 @router.command("taklif", gate=False)
 def cmd_invite(ctx: Ctx) -> None:
+    send_invite(ctx)
+
+
+def send_invite(ctx: Ctx) -> None:
     app = ctx.app
     link = f"https://t.me/{app.bot_username}?start=r{ctx.user_id}"
     n = ctx.db.referral_count(ctx.user_id)
     share = ("https://t.me/share/url?url=" + urllib.parse.quote(link, safe="")
              + "&text=" + urllib.parse.quote("🎬 Eng yaxshi kino, serial va multfilmlar boti — qo'shiling!"))
     ctx.send(f"🤝 <b>Do'stlarni taklif qiling — Premium oling!</b>\n\n"
-             f"Har bir do'stingiz shu havola orqali botga kirsa, sizga <b>+{REF_DAYS} kun 💎 Premium</b> beriladi.\n\n"
+             f"Har bir do'stingiz shu havola orqali botga kirsa, <b>ikkalangizga ham +{REF_DAYS} kun 💎 Premium</b> beriladi.\n\n"
              f"🔗 Sizning havolangiz:\n<code>{link}</code>\n\n"
              f"👥 Taklif qilganlar: <b>{n}</b>",
              ikb([btn("📤 Do'stlarga yuborish", url=share, style=SUCCESS)]))

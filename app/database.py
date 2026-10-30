@@ -83,6 +83,16 @@ CREATE TABLE IF NOT EXISTS requests (
 );
 CREATE INDEX IF NOT EXISTS idx_requests_open ON requests(done_at, created_at);
 
+CREATE TABLE IF NOT EXISTS promos (
+    code       TEXT PRIMARY KEY,
+    days       INTEGER NOT NULL,
+    created_by INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    used_by    INTEGER NOT NULL DEFAULT 0,
+    used_at    INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_promos_days ON promos(used_by, days);
+
 CREATE TABLE IF NOT EXISTS history (
     user_id     INTEGER NOT NULL,
     movie_id    INTEGER NOT NULL,
@@ -341,6 +351,43 @@ class Database:
             if not c.execute("SELECT 1 FROM users WHERE user_id=?", (ref,)).fetchone():
                 return False
             return c.execute("UPDATE users SET ref_by=? WHERE user_id=? AND ref_by=0", (ref, uid)).rowcount > 0
+
+    # ───────── 🎟 promokodlar ─────────
+
+    PROMO_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # chalkash oson harflarsiz (0/O, 1/I)
+
+    def create_promos(self, days: int, count: int, admin_id: int) -> List[str]:
+        import secrets
+        out: List[str] = []
+        with self.tx() as c:
+            while len(out) < count:
+                code = "MM-" + "".join(secrets.choice(self.PROMO_ALPHABET) for _ in range(6))
+                if c.execute("SELECT 1 FROM promos WHERE code=?", (code,)).fetchone():
+                    continue
+                c.execute("INSERT INTO promos(code, days, created_by, created_at) VALUES (?,?,?,?)",
+                          (code, days, admin_id, now()))
+                out.append(code)
+        return out
+
+    def redeem_promo(self, code: str, uid: int) -> int:
+        """Promokodni ishlatadi. Muvaffaqiyatli bo'lsa kunlar sonini, aks holda 0 qaytaradi (yo'q yoki ishlatilgan)."""
+        code = (code or "").strip().upper().replace(" ", "")
+        with self.tx() as c:
+            row = c.execute("SELECT days FROM promos WHERE code=? AND used_by=0", (code,)).fetchone()
+            if not row:
+                return 0
+            c.execute("UPDATE promos SET used_by=?, used_at=? WHERE code=? AND used_by=0", (uid, now(), code))
+            return row["days"]
+
+    def promo_stats(self) -> Dict[int, Dict[str, int]]:
+        out: Dict[int, Dict[str, int]] = {}
+        for r in self.q("SELECT days, SUM(used_by=0) AS free, SUM(used_by<>0) AS used FROM promos GROUP BY days"):
+            out[r["days"]] = {"free": r["free"] or 0, "used": r["used"] or 0}
+        return out
+
+    def free_promos(self, days: int, limit: int = 30) -> List[sqlite3.Row]:
+        return self.q("SELECT code FROM promos WHERE used_by=0 AND days=? ORDER BY created_at DESC LIMIT ?",
+                      (days, limit))
 
     def referral_count(self, uid: int) -> int:
         return self.val("SELECT COUNT(*) FROM users WHERE ref_by=?", (uid,))

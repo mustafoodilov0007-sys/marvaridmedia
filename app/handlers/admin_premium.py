@@ -47,6 +47,7 @@ def premium_admin_view(ctx: Ctx):
     rows = [
         [btn("📋 Tariflar", "pa:plans", style=PRIMARY), btn("👥 Premiumlar", "pa:list:0", style=PRIMARY)],
         [btn("🎁 Premium berish", "pa:give", style=SUCCESS), btn("🚫 Premiumni olish", "pa:take", style=DANGER)],
+        [btn("🎟 Promokodlar", "pc:menu", style=SUCCESS)],
         [_toggle(ctx, "⚙️ Tizim", "premium_enabled"), _toggle(ctx, "🚪 Obunasiz kirish", "premium_skip_sub")],
         [_toggle(ctx, "💳 Karta", "premium_card"), _toggle(ctx, "⭐ Stars", "premium_stars")],
         [_toggle(ctx, "💝 Stars donat", "donate_stars")],

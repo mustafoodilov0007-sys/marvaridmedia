@@ -124,6 +124,7 @@ def premium_view(ctx: Ctx):
     if not plans:
         text += "\n\n⚠️ Hozircha sotuvda tariflar yo'q. Keyinroq qaytib keling."
     rows = [[btn(plan_label(app, p), f"pr:plan:{p['id']}", style=SUCCESS)] for p in plans]
+    rows.append([btn("🎟 Promokod", "promo:ask", style=PRIMARY), btn("🤝 Do'st taklif qilish", "promo:inv", style=PRIMARY)])
     return text, ikb(*rows)
 
 

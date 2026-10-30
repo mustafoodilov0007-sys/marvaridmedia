@@ -372,9 +372,111 @@ def api_me(app: App, user: dict) -> dict:
         "name": user.get("first_name") or "",
         "premium": vip,
         "premium_on": app.setting_bool("premium_enabled"),
+        "admin": bool(is_admin and user["id"]),
         "counts": dict(app.db.count_by_category(), shorts=app.db.count_shorts()),
         "channel": _channel_url(app),
     }
+
+
+# ───── ✏️ saytdagi admin: kinoni tahrirlash / o'chirish ─────
+
+def _admin_only(app: App, user: dict) -> bool:
+    return bool(user.get("id")) and app.is_admin(user["id"])
+
+
+def api_admin_movie(app: App, user: dict, qs: dict) -> dict:
+    """Tahrirlash oynasi uchun kinoning to'liq ma'lumoti va tanlov ro'yxatlari."""
+    if not _admin_only(app, user):
+        return {"ok": False, "reason": "forbidden"}
+    try:
+        m = app.db.get_movie(int(qs.get("id")))
+    except (TypeError, ValueError):
+        m = None
+    if not m:
+        return {"ok": False, "reason": "not_found"}
+    return {
+        "ok": True,
+        "movie": {
+            "id": m["id"], "code": m["code"], "title": m["title"], "description": m["description"] or "",
+            "category": m["category"], "genres": genres.parse(m["genres"]), "year": m["year"] or 0,
+            "country": m["country"], "lang": m["lang"], "quality": genres.quality_parse(m["quality"]),
+            "premium": bool(m["is_premium"]), "group_link": m["group_link"] or "",
+        },
+        "meta": {
+            "genres": [{"key": k, "label": genres.label(k)} for k in genres.GENRES],
+            "countries": [{"key": k, "label": genres.country_label(k)} for k in genres.COUNTRIES],
+            "langs": [{"key": k, "label": genres.lang_label(k)} for k in genres.LANGS],
+            "qualities": [{"key": k, "label": v} for k, v in genres.QUALITIES.items()],
+        },
+    }
+
+
+def api_admin_save(app: App, user: dict, body: dict) -> dict:
+    if not _admin_only(app, user):
+        return {"ok": False, "reason": "forbidden"}
+    db = app.db
+    try:
+        m = db.get_movie(int(body.get("id")))
+    except (TypeError, ValueError):
+        m = None
+    if not m:
+        return {"ok": False, "reason": "not_found"}
+    f: dict = {}
+    if "title" in body:
+        title = str(body["title"]).strip()[:200]
+        if not title:
+            return {"ok": False, "reason": "title"}
+        f["title"] = title
+    if "description" in body:
+        desc = str(body["description"]).strip()[:3000]
+        f["description"] = desc
+        if desc != (m["description"] or ""):
+            f["desc_html"] = ""  # eski formatlangan nusxa endi to'g'ri kelmaydi
+    if "category" in body and m["category"] != "music" and body["category"] in ("movie", "serial", "cartoon"):
+        f["category"] = body["category"]
+    if m["category"] != "music":
+        if "genres" in body and isinstance(body["genres"], list):
+            f["genres"] = genres.dump([str(x) for x in body["genres"]])
+        if "quality" in body and isinstance(body["quality"], list):
+            f["quality"] = genres.quality_dump([str(x) for x in body["quality"]])
+        if "country" in body and (body["country"] in genres.COUNTRIES or body["country"] == ""):
+            f["country"] = body["country"]
+        if "lang" in body and (body["lang"] in genres.LANGS or body["lang"] == ""):
+            f["lang"] = body["lang"]
+        if "year" in body:
+            try:
+                y = int(body["year"] or 0)
+            except (TypeError, ValueError):
+                return {"ok": False, "reason": "year"}
+            if y and not 1900 <= y <= 2100:
+                return {"ok": False, "reason": "year"}
+            f["year"] = y
+        if "group_link" in body:
+            link = str(body["group_link"]).strip()[:300]
+            if link and not re.match(r"https?://", link):
+                return {"ok": False, "reason": "link"}
+            f["group_link"] = link
+    if "premium" in body:
+        f["is_premium"] = bool(body["premium"])
+    db.update_movie(m["id"], **f)
+    db.__dict__.pop("_memo", None)  # filtr sanoqlari keshini yangilaymiz
+    log.info("Admin %s sayt orqali #%s kinoni tahrirladi: %s", user["id"], m["id"], ", ".join(f))
+    return {"ok": True}
+
+
+def api_admin_delete(app: App, user: dict, body: dict) -> dict:
+    if not _admin_only(app, user):
+        return {"ok": False, "reason": "forbidden"}
+    try:
+        mid = int(body.get("id"))
+    except (TypeError, ValueError):
+        return {"ok": False, "reason": "not_found"}
+    if not app.db.get_movie(mid):
+        return {"ok": False, "reason": "not_found"}
+    app.db.delete_movie(mid)
+    app.db.__dict__.pop("_memo", None)
+    log.info("Admin %s sayt orqali #%s kinoni o'chirdi", user["id"], mid)
+    return {"ok": True}
 
 
 def api_watch(app: App, user: dict, body: dict) -> dict:
@@ -792,6 +894,8 @@ def make_handler(app: App):
                         return self._json(api_popular(app, user))
                     if path == "/api/collection":
                         return self._json(api_collection(app, user, qs))
+                    if path == "/api/admin/movie":
+                        return self._json(api_admin_movie(app, user, qs))
                     if path == "/api/rating":
                         return self._json(api_rating(app, user, qs))
                 return self._send(404, b"Not found", "text/plain")
@@ -812,7 +916,7 @@ def make_handler(app: App):
             try:
                 if self._limited(write_limit):
                     return
-                length = min(int(self.headers.get("Content-Length") or 0), 10_000)
+                length = min(int(self.headers.get("Content-Length") or 0), 20_000)
                 raw = self.rfile.read(length) if length else b""
                 try:
                     body = json.loads(raw.decode("utf-8") or "{}")
@@ -839,6 +943,10 @@ def make_handler(app: App):
                     return self._json(api_searched(app, user, body))
                 if path == "/api/rate":
                     return self._json(api_rate(app, user, body))
+                if path == "/api/admin/save":
+                    return self._json(api_admin_save(app, user, body))
+                if path == "/api/admin/delete":
+                    return self._json(api_admin_delete(app, user, body))
                 return self._json({"ok": False, "reason": "not_found"}, 404)
             except (BrokenPipeError, ConnectionResetError):
                 pass
