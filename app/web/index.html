@@ -444,7 +444,8 @@
 /*WELCOME*/
   #welcome { position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center;
     justify-content: center; gap: 6px; overflow: hidden; cursor: pointer; opacity: 1; transition: opacity .6s ease;
-    background: radial-gradient(120% 90% at 50% 36%, #1f1709 0%, #0c0a07 56%, #050403 100%); }
+    background: radial-gradient(120% 90% at 50% 36%, #1f1709 0%, #0c0a07 56%, #050403 100%);
+    contain: layout paint; will-change: opacity; transform: translateZ(0); }
   #welcome.out { opacity: 0; pointer-events: none; }
   #welcome .w-svg { width: min(88vw, 520px); height: auto; overflow: visible; margin-top: -4vh; }
   .w-glow { transform-box: fill-box; transform-origin: center; opacity: 0; animation: w-glow 3.2s ease-out .1s forwards; }
@@ -457,9 +458,8 @@
   @keyframes w-film { to { clip-path: inset(-20% -4% -20% -2%); } }
   .w-shell, .w-pearl { transform-box: fill-box; transform-origin: 50% 100%; opacity: 0; transform: scale(0); }
   .w-shell { animation: w-pop .7s cubic-bezier(.2,1.4,.4,1) 1.55s forwards; }
-  .w-pearl { transform-origin: 50% 50%; animation: w-pop .65s cubic-bezier(.2,1.6,.4,1) 1.85s forwards, w-shine 1.6s ease-in-out 2.5s infinite; }
+  .w-pearl { transform-origin: 50% 50%; animation: w-pop .65s cubic-bezier(.2,1.6,.4,1) 1.85s forwards; }
   @keyframes w-pop { 0% { opacity: 0; transform: scale(0); } 100% { opacity: 1; transform: scale(1); } }
-  @keyframes w-shine { 0%, 100% { filter: drop-shadow(0 0 0 rgba(255,241,192,0)); } 50% { filter: drop-shadow(0 0 16px rgba(255,241,192,.95)); } }
   .w-star { transform-box: fill-box; transform-origin: center; opacity: 0; animation: w-twinkle 1.5s ease-in-out infinite; }
   .w-star.s1 { animation-delay: 1.95s; } .w-star.s2 { animation-delay: 2.1s; } .w-star.s3 { animation-delay: 2.25s; }
   .w-star.s4 { animation-delay: 2.0s; } .w-star.s5 { animation-delay: 2.35s; } .w-star.s6 { animation-delay: 2.15s; } .w-star.s7 { animation-delay: 2.3s; }
@@ -470,15 +470,15 @@
     animation: w-up .7s ease 2.15s forwards; }
   .w-name { font: 800 clamp(30px, 9.5vw, 46px)/1.1 "Inter", sans-serif; margin: 8px 0 8px; color: #fff; display: flex;
     justify-content: center; flex-wrap: wrap; text-shadow: 0 4px 24px rgba(217,169,67,.35); }
-  .w-name span { display: inline-block; opacity: 0; transform: translateY(16px); filter: blur(6px);
+  .w-name span { display: inline-block; opacity: 0; transform: translateY(16px); will-change: transform, opacity;
     animation: w-letter .6s cubic-bezier(.2,.8,.2,1) forwards; white-space: pre; }
-  @keyframes w-letter { to { opacity: 1; transform: none; filter: none; } }
+  @keyframes w-letter { to { opacity: 1; transform: none; } }
   .w-sub { font: 600 clamp(13px, 3.7vw, 16px) "Inter", sans-serif; color: #b9ae9a; opacity: 0; animation: w-up .7s ease 2.95s forwards; }
   @keyframes w-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
   .w-skip { position: absolute; bottom: calc(24px + env(safe-area-inset-bottom)); font: 600 12px "Inter", sans-serif; color: #6f6759;
     opacity: 0; animation: w-up .6s ease 1.6s forwards; }
   .w-dust { position: absolute; inset: 0; pointer-events: none; }
-  .w-dust i { position: absolute; bottom: -12px; border-radius: 50%; background: radial-gradient(circle, #fff1c0, #d9a943 60%, transparent 70%);
+  .w-dust i { position: absolute; bottom: -12px; will-change: transform, opacity; border-radius: 50%; background: radial-gradient(circle, #fff1c0, #d9a943 60%, transparent 70%);
     opacity: 0; animation: w-float linear infinite; }
   @keyframes w-float { 0% { opacity: 0; transform: translate(0, 0); } 15% { opacity: .9; } 85% { opacity: .5; }
     100% { opacity: 0; transform: translate(var(--dx, 20px), -105vh); } }
@@ -1355,6 +1355,8 @@
     view.appendChild(h("div", "foot", [h("span", null, (me.brand || "Marvarid Media") + " — eng sara kinolar bir joyda"), heart]));
   }
 
+  // splash animatsiyasi paytida bosh sahifa chizilmaydi (qotib qolmasin): ma'lumot oldindan olinadi, chizish animatsiya tugagach
+  var splashGate = null, homePre = null;
   function navKey(name) { return name === "video" ? "movie" : name; }
   function show(name, opts) {
     opts = opts || {};
@@ -1381,7 +1383,9 @@
     if (name === "home") {
       var sk = h("div", "page", [h("div", "rail", skeletonCards(4))]);
       view.replaceChildren(h("section", "hero sk"), sk);
-      api("/api/home").then(function (d) {
+      var dataP = homePre || api("/api/home");
+      homePre = null;
+      (splashGate ? Promise.all([dataP, splashGate]).then(function (r) { return r[0]; }) : dataP).then(function (d) {
         if (my !== reqId) return;
         if (!d.ok) return renderError(view, d.reason);
         renderHome(view, d);
@@ -2677,6 +2681,9 @@
     if (link || reduce) { el.remove(); return; }   // kanal postidagi havola — kino darhol ochilsin
     var user = !PUB && tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
     var first = user && user.first_name ? String(user.first_name).trim().slice(0, 18) : "";
+    var openGate;
+    splashGate = new Promise(function (res) { openGate = res; });
+    homePre = api("/api/home");
     var name = $("wName");
     var text = first ? first + "!" : "Kino olamiga!";
     Array.prototype.forEach.call(text, function (ch, i) {
@@ -2687,7 +2694,7 @@
     });
     if (!first) $("wSub").textContent = "Marvarid Media — eng sara kinolar bir joyda 🍿";
     var dust = $("wDust");
-    for (var i = 0; i < 22; i++) {
+    for (var i = 0; i < 12; i++) {
       var d = document.createElement("i"), sz = 2 + Math.random() * 4;
       d.style.cssText = "left:" + (Math.random() * 100) + "%;width:" + sz + "px;height:" + sz + "px;animation-duration:" +
         (4 + Math.random() * 4) + "s;animation-delay:" + (Math.random() * 3.2) + "s;--dx:" + (Math.random() * 60 - 30) + "px";
@@ -2698,6 +2705,7 @@
     function finish() {
       if (done) return; done = true;
       el.classList.add("out");
+      openGate();
       if (!PUB) { try { tg.setHeaderColor(theme === "dark" ? "#0b0a0d" : "#f8f5ef"); tg.setBackgroundColor(theme === "dark" ? "#0b0a0d" : "#f8f5ef"); } catch (e) {} }
       setTimeout(function () { el.remove(); }, 700);
     }
