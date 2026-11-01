@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
 from . import genres
-from .utils import escape_like, normalize, now
+from .utils import duration_of, escape_like, normalize, now
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -202,7 +202,7 @@ CATEGORIES = ("movie", "serial", "cartoon", "music")
 
 _CATALOG_ROW = """
 SELECT m.id, m.code, m.title, m.description, m.is_premium, m.views, m.created_at, m.category, m.poster_id,
-       m.genres, m.year, m.country, m.lang, m.quality,
+       m.genres, m.year, m.country, m.lang, m.quality, m.duration, m.age, m.imdb,
        (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = 1) AS likes,
        (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = -1) AS dislikes,
        (SELECT s.id FROM shorts s WHERE s.movie_id = m.id AND s.kind = 'video' ORDER BY s.id LIMIT 1) AS trailer,
@@ -259,6 +259,13 @@ class Database:
             self.conn.execute("ALTER TABLE movies ADD COLUMN group_link TEXT NOT NULL DEFAULT ''")
         if "quality" not in cols:
             self.conn.execute("ALTER TABLE movies ADD COLUMN quality TEXT NOT NULL DEFAULT ''")  # 🎞 «,720,1080,»
+        if "duration" not in cols:   # ⏱ davomiyligi (soniya), 🔞 yosh cheklovi, ⭐ IMDb reyting
+            self.conn.execute("ALTER TABLE movies ADD COLUMN duration INTEGER NOT NULL DEFAULT 0")
+            self.conn.execute("ALTER TABLE movies ADD COLUMN age INTEGER NOT NULL DEFAULT 0")
+            self.conn.execute("ALTER TABLE movies ADD COLUMN imdb TEXT NOT NULL DEFAULT ''")
+        pcols = {r[1] for r in self.conn.execute("PRAGMA table_info(parts)").fetchall()}
+        if "duration" not in pcols:
+            self.conn.execute("ALTER TABLE parts ADD COLUMN duration INTEGER NOT NULL DEFAULT 0")
         ucols = {r[1] for r in self.conn.execute("PRAGMA table_info(users)").fetchall()}
         if "ref_by" not in ucols:  # 🤝 kim taklif qilgan (referal)
             self.conn.execute("ALTER TABLE users ADD COLUMN ref_by INTEGER NOT NULL DEFAULT 0")
@@ -534,8 +541,11 @@ class Database:
                  normalize(description or ""), added_by, t, category, desc_html or "",
                  genres.dump(genre_keys), year or 0, country or "", lang or "", quality or "", group_link or ""))
             movie_id = cur.lastrowid
-            c.execute("INSERT INTO parts(movie_id, part_no, file_id, file_type, created_at) VALUES (?,?,?,?,?)",
-                      (movie_id, 1, file_id, file_type, t))
+            dur = duration_of(file_id)
+            c.execute("INSERT INTO parts(movie_id, part_no, file_id, file_type, created_at, duration) VALUES (?,?,?,?,?,?)",
+                      (movie_id, 1, file_id, file_type, t, dur))
+            if dur and category != "music":
+                c.execute("UPDATE movies SET duration=? WHERE id=?", (dur, movie_id))
             return movie_id
 
     def update_movie(self, movie_id: int, **fields) -> None:
@@ -563,8 +573,8 @@ class Database:
     def add_part(self, movie_id: int, file_id: str, file_type: str) -> int:
         with self.tx() as c:
             no = (c.execute("SELECT MAX(part_no) FROM parts WHERE movie_id=?", (movie_id,)).fetchone()[0] or 0) + 1
-            c.execute("INSERT INTO parts(movie_id, part_no, file_id, file_type, created_at) VALUES (?,?,?,?,?)",
-                      (movie_id, no, file_id, file_type, now()))
+            c.execute("INSERT INTO parts(movie_id, part_no, file_id, file_type, created_at, duration) VALUES (?,?,?,?,?,?)",
+                      (movie_id, no, file_id, file_type, now(), duration_of(file_id)))
             return no
 
     def get_parts(self, movie_id: int) -> List[sqlite3.Row]:

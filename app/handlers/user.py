@@ -50,6 +50,17 @@ def cmd_start(ctx: Ctx) -> None:
         ctx.set_state("req", ttl=CONTACT_TTL)
         ctx.send(REQUEST_PROMPT, cancel_kb())
         return
+    if payload in ("premium", "promo", "taklif"):  # saytdagi «Obuna va xaridlar» tugmalaridan
+        if payload == "premium":
+            from .payments import send_premium_menu
+            send_premium_menu(ctx)
+        elif payload == "promo":
+            from .promo import cmd_promo
+            ctx.args = ""
+            cmd_promo(ctx)
+        else:
+            send_invite(ctx)
+        return
     if payload == "donat":  # saytdagi «Qo'llab-quvvatlash» (Stars) tugmasidan
         from .payments import btn_donate
         btn_donate(ctx)

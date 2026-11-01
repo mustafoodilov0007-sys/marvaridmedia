@@ -274,15 +274,31 @@ def fuzzy_match(query: str, candidates: Iterable[Tuple[int, str]],
     return [i for _, i in scored[:limit]]
 
 
+_DURATIONS: "dict" = {}   # file_id -> soniya (Telegram videoning davomiyligi; baza yozuvi yaratilganda olinadi)
+
+
+def remember_duration(file_id: str, seconds) -> None:
+    if file_id and isinstance(seconds, int) and seconds > 0:
+        if len(_DURATIONS) > 2000:
+            _DURATIONS.clear()
+        _DURATIONS[file_id] = seconds
+
+
+def duration_of(file_id: str) -> int:
+    return _DURATIONS.get(file_id, 0)
+
+
 def extract_media(msg: Optional[dict], audio: bool = False) -> Optional[Tuple[str, str, str]]:
     """Xabardan faylni oladi: (file_id, 'video'|'document'|'audio', izoh).
     audio=True bo'lsa musiqa (audio) fayllari ham qabul qilinadi."""
     if not msg:
         return None
     if msg.get("video"):
+        remember_duration(msg["video"]["file_id"], msg["video"].get("duration"))
         return msg["video"]["file_id"], "video", msg.get("caption") or ""
     if audio and msg.get("audio"):
         a = msg["audio"]
+        remember_duration(a["file_id"], a.get("duration"))
         caption = msg.get("caption") or " - ".join(x for x in (a.get("performer"), a.get("title")) if x)
         return a["file_id"], "audio", caption
     if msg.get("document"):

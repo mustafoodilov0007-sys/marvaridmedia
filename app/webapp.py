@@ -175,6 +175,22 @@ def api_collection(app: App, user: dict, qs: dict) -> dict:
             "items": [_item(r, premium_on, vip) for r in app.db.collection_movies(col["id"])]}
 
 
+def api_myratings(app: App, user: dict) -> dict:
+    """⭐ Baholarim: foydalanuvchi 👍/👎 bergan kinolar (oxirgisi birinchi)."""
+    if not user.get("id"):
+        return {"ok": True, "items": []}
+    rows = app.db.q("SELECT movie_id, value FROM ratings WHERE user_id=? ORDER BY at DESC LIMIT 60", (user["id"],))
+    mine = {r["movie_id"]: r["value"] for r in rows}
+    _, vip = _user_flags(app, user["id"])
+    premium_on = app.setting_bool("premium_enabled")
+    items = []
+    for r in app.db.catalog_rows(list(mine)):
+        it = _item(r, premium_on, vip)
+        it["mine"] = mine[r["id"]]
+        items.append(it)
+    return {"ok": True, "items": items}
+
+
 def api_rating(app: App, user: dict, qs: dict) -> dict:
     if not (qs.get("id") or "").isdigit():
         return {"ok": False, "reason": "not_found"}
@@ -277,6 +293,9 @@ def _item(r, premium_on: bool, vip: bool) -> dict:
         "country": genres.country_label(r["country"]) if "country" in keys else "",
         "lang": genres.lang_label(r["lang"]) if "lang" in keys else "",
         "quality": genres.quality_text(r["quality"]) if "quality" in keys else "",
+        "duration": r["duration"] if "duration" in keys else 0,
+        "age": r["age"] if "age" in keys and r["age"] else None,
+        "imdb": r["imdb"] if "imdb" in keys and r["imdb"] else None,
         "likes": r["likes"] if "likes" in keys else 0,
         "dislikes": r["dislikes"] if "dislikes" in keys else 0,
         "parts": r["parts"],
@@ -372,6 +391,7 @@ def api_me(app: App, user: dict) -> dict:
         "name": user.get("first_name") or "",
         "premium": vip,
         "premium_on": app.setting_bool("premium_enabled"),
+        "premium_until": app.db.premium_until(user["id"]) if user["id"] else 0,
         "admin": bool(is_admin and user["id"]),
         "counts": dict(app.db.count_by_category(), shorts=app.db.count_shorts()),
         "channel": _channel_url(app),
@@ -401,8 +421,10 @@ def api_admin_movie(app: App, user: dict, qs: dict) -> dict:
             "category": m["category"], "genres": genres.parse(m["genres"]), "year": m["year"] or 0,
             "country": m["country"], "lang": m["lang"], "quality": genres.quality_parse(m["quality"]),
             "premium": bool(m["is_premium"]), "group_link": m["group_link"] or "",
+            "duration_min": round((m["duration"] or 0) / 60), "age": m["age"] or 0, "imdb": m["imdb"] or "",
         },
         "meta": {
+            "ages": [6, 12, 16, 18],
             "genres": [{"key": k, "label": genres.label(k)} for k in genres.GENRES],
             "countries": [{"key": k, "label": genres.country_label(k)} for k in genres.COUNTRIES],
             "langs": [{"key": k, "label": genres.lang_label(k)} for k in genres.LANGS],
@@ -451,6 +473,31 @@ def api_admin_save(app: App, user: dict, body: dict) -> dict:
             if y and not 1900 <= y <= 2100:
                 return {"ok": False, "reason": "year"}
             f["year"] = y
+        if "duration_min" in body:
+            try:
+                dm = int(float(body["duration_min"] or 0))
+            except (TypeError, ValueError):
+                return {"ok": False, "reason": "duration"}
+            if not 0 <= dm <= 1500:
+                return {"ok": False, "reason": "duration"}
+            f["duration"] = dm * 60
+        if "age" in body:
+            try:
+                age = int(body["age"] or 0)
+            except (TypeError, ValueError):
+                return {"ok": False, "reason": "age"}
+            f["age"] = age if age in (0, 6, 12, 16, 18) else 0
+        if "imdb" in body:
+            raw = str(body["imdb"]).strip().replace(",", ".")
+            if raw:
+                try:
+                    val = float(raw)
+                except ValueError:
+                    return {"ok": False, "reason": "imdb"}
+                if not 0 < val <= 10:
+                    return {"ok": False, "reason": "imdb"}
+                raw = f"{val:.1f}"
+            f["imdb"] = raw
         if "group_link" in body:
             link = str(body["group_link"]).strip()[:300]
             if link and not re.match(r"https?://", link):
@@ -776,6 +823,23 @@ def _gzip_cached(body: bytes) -> bytes:
     return gzip.compress(body, 4)
 
 
+def _kids_item_ok(x: dict) -> bool:
+    """👶 Bolalar rejimi: multfilmlar va yoshi 12+ gacha belgilangan kontent."""
+    age = x.get("age") or 0
+    if x.get("cat") == "cartoon":
+        return age <= 12
+    return 0 < age <= 12 and x.get("cat") != "music"
+
+
+def _kids_filter(o):
+    if isinstance(o, list):
+        return [_kids_filter(x) for x in o
+                if not (isinstance(x, dict) and "cat" in x and "title" in x and "id" in x and not _kids_item_ok(x))]
+    if isinstance(o, dict):
+        return {k: _kids_filter(v) for k, v in o.items()}
+    return o
+
+
 class RateLimiter:
     """Oddiy "chelak" (token bucket): bitta IP daqiqada ko'pi bilan `per_min` ta so'rov yubora oladi."""
 
@@ -851,7 +915,11 @@ def make_handler(app: App):
             if self.command != "HEAD":
                 self.wfile.write(body)
 
+        _kids = False
+
         def _json(self, obj: dict, status: int = 200) -> None:
+            if self._kids and isinstance(obj, dict):
+                obj = _kids_filter(obj)
             self._send(status, json.dumps(obj, ensure_ascii=False).encode("utf-8"),
                        "application/json; charset=utf-8")
 
@@ -945,6 +1013,9 @@ def make_handler(app: App):
                 if path.startswith("/api/"):
                     if self._limited(api_user, api_ip, user):
                         return
+                    self._kids = self.headers.get("X-Kids") == "1"
+                    if self._kids and path == "/api/shorts":
+                        return self._json({"ok": True, "items": [], "more": False})
                     if path == "/api/me":
                         return self._json(api_me(app, user))
                     if path == "/api/home":
@@ -963,6 +1034,8 @@ def make_handler(app: App):
                         return self._json(api_popular(app, user))
                     if path == "/api/collection":
                         return self._json(api_collection(app, user, qs))
+                    if path == "/api/myratings":
+                        return self._json(api_myratings(app, user))
                     if path == "/api/support":
                         return self._json(api_support(app, user))
                     if path == "/api/admin/stats":
