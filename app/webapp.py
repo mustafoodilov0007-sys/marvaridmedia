@@ -759,6 +759,23 @@ def _trim_cache(folder: Path) -> None:
 
 # ═════════════════════════ HTTP server ═════════════════════════
 
+_gz_cache: dict = {}
+
+
+def _gzip_cached(body: bytes) -> bytes:
+    """Sayt sahifasi (katta va o'zgarmas) — bir marta siqiladi; JSON javoblar har safar tez siqiladi."""
+    import gzip
+    if len(body) > 50_000:
+        key = hash(body)
+        hit = _gz_cache.get(key)
+        if hit is None:
+            if len(_gz_cache) > 8:
+                _gz_cache.clear()
+            hit = _gz_cache[key] = gzip.compress(body, 6)
+        return hit
+    return gzip.compress(body, 4)
+
+
 class RateLimiter:
     """Oddiy "chelak" (token bucket): bitta IP daqiqada ko'pi bilan `per_min` ta so'rov yubora oladi."""
 
@@ -789,19 +806,27 @@ def make_handler(app: App):
     shorts_dir = Path(app.config.db_path).parent / "shorts"
     audio_dir = Path(app.config.db_path).parent / "audio"
 
-    api_limit = RateLimiter(240)    # katalog o'qish: daqiqasiga 240 tagacha
-    write_limit = RateLimiter(40)   # yozish (baho, qidiruv logi, so'rov): daqiqasiga 40 tagacha
+    # Telegram foydalanuvchisi (initData bilan tasdiqlangan) — o'z ID si bo'yicha; mehmon/noma'lum — IP bo'yicha.
+    # IP chegarasi kattaroq: mobil operatorlarda yuzlab odam bitta IP dan kiradi.
+    api_user, api_ip = RateLimiter(300), RateLimiter(900)
+    write_user, write_ip = RateLimiter(60), RateLimiter(240)
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "MarvaridWeb/1.0"
+        timeout = 60  # sekin/osilib qolgan ulanishlar oqimni band qilib turmasin
 
         def _ip(self) -> str:
             # Railway proksisi haqiqiy IP ni X-Forwarded-For ning OXIRIGA qo'shadi (boshidagisini soxtalashtirish mumkin)
             xff = self.headers.get("X-Forwarded-For", "")
             return xff.split(",")[-1].strip() or self.client_address[0]
 
-        def _limited(self, limiter: "RateLimiter") -> bool:
-            if limiter.allow(self._ip()):
+        def _limited(self, by_user: "RateLimiter", by_ip: "RateLimiter", user: Optional[dict] = None) -> bool:
+            uid = (user or {}).get("id")
+            if uid:
+                ok = by_user.allow(f"u{uid}")
+            else:
+                ok = by_ip.allow(self._ip())
+            if ok:
                 return False
             self._json({"ok": False, "reason": "rate"}, 429)
             return True
@@ -814,6 +839,11 @@ def make_handler(app: App):
         def _send(self, status: int, body: bytes, ctype: str, cache: str = "no-store") -> None:
             self.send_response(status)
             self.send_header("Content-Type", ctype)
+            if len(body) > 800 and ctype.startswith(("text/html", "application/json")):
+                self.send_header("Vary", "Accept-Encoding")
+                if "gzip" in self.headers.get("Accept-Encoding", ""):
+                    body = _gzip_cached(body)  # 4 baravar kichik: tezroq ochiladi, trafik tejaladi
+                    self.send_header("Content-Encoding", "gzip")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", cache)
             self.send_header("X-Content-Type-Options", "nosniff")
@@ -902,8 +932,6 @@ def make_handler(app: App):
                     if f is None:
                         return self._send(404, b"", "text/plain")
                     return self._send_file(f, AUDIO_TYPES.get(f.suffix, "audio/mpeg"))
-                if path.startswith(("/pub/", "/api/")) and self._limited(api_limit):
-                    return
                 if path.startswith("/pub/"):
                     # 📱 Ilova va oddiy brauzer uchun: Telegram'siz, faqat katalog (mehmon sifatida)
                     path = "/api/" + path[5:]
@@ -911,8 +939,12 @@ def make_handler(app: App):
                 elif path.startswith("/api/"):
                     user = self._user()
                     if not user:
+                        if self._limited(api_user, api_ip):
+                            return
                         return self._json({"ok": False, "reason": "auth"}, 401)
                 if path.startswith("/api/"):
+                    if self._limited(api_user, api_ip, user):
+                        return
                     if path == "/api/me":
                         return self._json(api_me(app, user))
                     if path == "/api/home":
@@ -942,6 +974,8 @@ def make_handler(app: App):
                 return self._send(404, b"Not found", "text/plain")
             except (BrokenPipeError, ConnectionResetError):
                 pass
+            except OverflowError:  # juda katta raqam yuborilgan
+                self._json({"ok": False, "reason": "not_found"}, 404)
             except Exception:
                 log.exception("Sayt so'rovida xatolik: %s", path)
                 try:
@@ -955,8 +989,6 @@ def make_handler(app: App):
         def do_POST(self):
             path = urllib.parse.urlsplit(self.path).path
             try:
-                if self._limited(write_limit):
-                    return
                 length = min(int(self.headers.get("Content-Length") or 0), 20_000)
                 raw = self.rfile.read(length) if length else b""
                 try:
@@ -965,13 +997,19 @@ def make_handler(app: App):
                     body = {}
                 if not isinstance(body, dict):
                     body = {}
-                if path == "/pub/play":  # 📱 ilova / brauzer — mehmon sifatida tinglash
-                    return self._json(api_play(app, GUEST, body, guest=True))
-                if path == "/pub/searched":
+                if path in ("/pub/play", "/pub/searched"):  # 📱 ilova / brauzer — mehmon sifatida
+                    if self._limited(write_user, write_ip):
+                        return
+                    if path == "/pub/play":
+                        return self._json(api_play(app, GUEST, body, guest=True))
                     return self._json(api_searched(app, GUEST, body))
                 user = self._user()
                 if not user:
+                    if self._limited(write_user, write_ip):
+                        return
                     return self._json({"ok": False, "reason": "auth"}, 401)
+                if self._limited(write_user, write_ip, user):
+                    return
                 if path == "/api/play":
                     return self._json(api_play(app, user, body, guest=False))
                 if path == "/api/watch":
@@ -991,6 +1029,8 @@ def make_handler(app: App):
                 return self._json({"ok": False, "reason": "not_found"}, 404)
             except (BrokenPipeError, ConnectionResetError):
                 pass
+            except OverflowError:  # juda katta raqam yuborilgan
+                self._json({"ok": False, "reason": "not_found"}, 404)
             except Exception:
                 log.exception("Sayt so'rovida xatolik: %s", path)
                 try:

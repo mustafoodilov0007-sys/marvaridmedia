@@ -511,9 +511,9 @@
     #bSearch { display: flex; align-items: center; width: 240px; justify-content: flex-start; gap: 10px; padding: 0 14px;
       border-radius: 12px; font-weight: 600; font-size: 14px; }
     #bSearch .slabel { display: inline; opacity: .75; }
-    .logo { margin-right: 0; }
+    .logo { margin-right: 0; flex: none; }
     .dnav { display: flex; gap: 2px; margin: 0 auto 0 30px; }
-    .dnav button { position: relative; padding: 9px 13px; border-radius: 10px; font-weight: 700; font-size: 14px; color: rgba(255,255,255,.78);
+    .dnav button { position: relative; padding: 9px 13px; border-radius: 10px; font-weight: 700; font-size: 14px; white-space: nowrap; color: rgba(255,255,255,.78);
       transition: color .2s, background .2s; }
     .top.solid .dnav button { color: var(--muted); }
     .dnav button:hover { color: #fff; background: rgba(255,255,255,.08); }
@@ -550,6 +550,8 @@
   .harrow { position: absolute; top: 50%; z-index: 3; width: 46px; height: 46px; margin-top: -23px; border-radius: 50%; place-items: center;
     background: rgba(18,16,20,.55); color: #fff; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255,255,255,.12); transition: background .2s, transform .15s; }
+  .harrow { opacity: 0; transition: opacity .2s, transform .15s; }
+  .hero:hover .harrow, .harrow:focus-visible { opacity: 1; }
   .harrow:hover { background: rgba(18,16,20,.85); } .harrow:active { transform: scale(.92); }
   .harrow.l { left: 14px; } .harrow.l svg { transform: rotate(180deg); } .harrow.r { right: 14px; }
   @media (min-width: 900px) {
@@ -571,7 +573,8 @@
     .hero .btn.primary { flex: 0 0 auto; padding: 0 30px; }
     .hnav { justify-content: flex-start; left: var(--pad); right: auto; bottom: 34px; }
     .harrow { display: grid; }
-    .harrow.l { left: 18px; } .harrow.r { right: 18px; }
+    .harrow.l { left: 4px; } .harrow.r { right: 4px; }
+    .harrow { width: 42px; height: 42px; margin-top: -21px; }
   }
 
   /* ───── kartochkalar ───── */
@@ -723,6 +726,20 @@
   }
   /*/REDESIGN*/
 
+  /* kichikroq noutbuk / keng bo'lmagan oynalar: sarlavha sig'sin */
+  @media (min-width: 900px) and (max-width: 1499px) {
+    #bSearch { width: 40px; padding: 0; justify-content: center; }
+    #bSearch .slabel { display: none; }
+    .dnav { margin-left: 16px; }
+    .dnav button { padding: 9px 10px; }
+  }
+  @media (min-width: 900px) and (max-width: 1099px) {
+    .word { display: none; }          /* joy yetmaydi: faqat belgi */
+    .dnav { margin-left: 8px; gap: 0; }
+    .dnav button { padding: 8px 8px; font-size: 13px; }
+    .dnav button.on::after { left: 8px; right: 8px; }
+    .top { gap: 5px; }
+  }
 </style>
 </head>
 <body>

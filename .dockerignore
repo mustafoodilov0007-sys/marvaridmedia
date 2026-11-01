@@ -1,7 +1,10 @@
+.git
+android
+data
 .env
-data/
-__pycache__/
+*.jks
+__pycache__
 *.pyc
-.git/
-android/
-.github/
+*.md
+start.bat
+start.sh
