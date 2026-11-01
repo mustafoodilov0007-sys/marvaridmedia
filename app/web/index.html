@@ -75,6 +75,10 @@
     background: rgba(18, 16, 20, .55); color: #fff; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     border: 1px solid rgba(255,255,255,.08); transition: transform .15s; }
   .top.solid .ibtn { background: var(--surface); color: var(--text); border-color: var(--line); }
+  .ibtn.gold { color: var(--gold); }
+  .top.solid .ibtn.gold { color: var(--gold); }
+  :root[data-theme="light"] .top.solid .ibtn.gold { color: #8a6220; }
+  @media (max-width: 520px) { .top.adm #bTheme { display: none; } }  /* admin: joy yetishi uchun (mavzu profilda ham bor) */
   .ibtn:active { transform: scale(.92); }
   .ibtn svg { width: 20px; height: 20px; }
   .avatar { width: 40px; height: 40px; border-radius: 12px; flex: none; overflow: hidden; display: grid;
@@ -774,6 +778,8 @@
   </svg></div><div class="word" id="word"><span class="w1">MARVARID</span><span class="w2">MEDIA</span></div></div>
   <nav class="dnav" id="dnav" aria-label="Bo'limlar"></nav>
   <button class="ibtn" id="bSearch" aria-label="Qidiruv"></button>
+  <button class="ibtn gold" id="bSupport" aria-label="Qo'llab-quvvatlash"></button>
+  <button class="ibtn gold hidden" id="bStats" aria-label="Statistika"></button>
   <button class="ibtn" id="bTheme" aria-label="Rejim"></button>
   <button class="ibtn hidden" id="bChannel" aria-label="Kanal"></button>
   <div class="avatar" id="avatar"></div>
@@ -821,6 +827,7 @@
 
   // ───── ikonkalar (inline SVG) ─────
   var P = {
+    chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
     heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>',
     edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
@@ -2601,6 +2608,10 @@
   function onScroll() { $("top").classList.toggle("solid", current !== "home" || window.scrollY > 40); }
   window.addEventListener("scroll", onScroll, { passive: true });
   $("bSearch").appendChild(icon("search"));
+  $("bSupport").appendChild(icon("heart"));
+  $("bSupport").onclick = function () { haptic(); show("support"); };
+  $("bStats").appendChild(icon("chart"));
+  $("bStats").onclick = function () { haptic(); show("stats"); };
   $("bSearch").appendChild(h("span", "slabel", "Qidirish..."));
   $("bSearch").onclick = function () { haptic(); show("search"); };
   $("bChannel").appendChild(icon("send"));
@@ -2670,13 +2681,14 @@
     me = d;
     setBrand(d.brand);
     if (d.channel) $("bChannel").classList.remove("hidden");
+    if (d.admin) { $("bStats").classList.remove("hidden"); document.querySelector(".top").classList.add("adm"); }
   });
 //WELCOME
   (function () {
     var el = $("welcome");
     if (!el) return;
     var link = "";
-    try { link = new URLSearchParams(location.search).get("k") || ""; } catch (e) {}
+    try { var qp = new URLSearchParams(location.search); link = qp.get("k") || qp.get("v") || ""; } catch (e) {}
     var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (link || reduce) { el.remove(); return; }   // kanal postidagi havola — kino darhol ochilsin
     var user = !PUB && tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
@@ -2715,7 +2727,9 @@
     el.addEventListener("click", finish);
   })();
   ///WELCOME
-  show("home");
+  var startView = "";
+  try { startView = new URLSearchParams(location.search).get("v") || ""; } catch (e) {}
+  show(startView === "stats" || startView === "support" ? startView : "home");
   // 🔗 kanal postidagi havola: ?k=15 (kino) yoki ?k=m3 (musiqa) — shu kino oynasi darhol ochiladi
   (function () {
     var k = "";

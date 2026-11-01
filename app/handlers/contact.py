@@ -116,12 +116,36 @@ REQUEST_PROMPT = (
 )
 
 
+def _already_in_bot(ctx: Ctx, query: str) -> bool:
+    """So'ralgan kino bazada bo'lsa — adminni bezovta qilmay, foydalanuvchiga o'zini ko'rsatamiz."""
+    from ..utils import normalize
+    from .user import search_view
+    app, db = ctx.app, ctx.db
+    norm = normalize(query)
+    need = _need_tokens(norm)
+    if not need:
+        return False
+    ids = [r["id"] for r in db.search_candidates(need, scope=None)
+           if all(t in r["norm_title"] for t in need)]
+    if not ids:
+        return False
+    ids = ids[:50]
+    sid = db.log_search(ctx.user_id, query, norm, len(ids))
+    app.cache_search(sid, (query, ids, False))
+    ctx.clear_state()
+    text, kb = search_view(app, sid, query, ids, False, 0, 0)
+    ctx.send("✅ <b>Bu kino bazamizda bor!</b> So'rov yuborish shart emas — tanlang 👇\n\n" + text, kb)
+    return True
+
+
 def send_request(ctx: Ctx, query: str) -> bool:
     """So'ralgan kinoni barcha adminlarga yuboradi."""
     app = ctx.app
     query = (query or "").strip()[:300]
     if not query:
         return False
+    if _already_in_bot(ctx, query):
+        return True
     prev_q, prev_t = _last_request.get(ctx.user_id, ("", 0.0))
     if prev_q.casefold() == query.casefold() and time.time() - prev_t < 3600:
         ctx.send(f"✅ «{esc(query)}» so'rovingiz allaqachon adminlarga yuborilgan. Tez orada qo'shamiz! 🙌")

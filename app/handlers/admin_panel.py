@@ -129,8 +129,11 @@ def stats_text(ctx: Ctx) -> str:
     return "\n".join(lines)
 
 
-def stats_kb(is_owner: bool) -> dict:
-    rows = [[btn("🔄 Yangilash", "stat:refresh", style=PRIMARY)]]
+def stats_kb(is_owner: bool, site_url: str = "") -> dict:
+    rows = []
+    if site_url:  # 📊 saytdagi to'liq statistika (grafik, top kinolar, topilmagan qidiruvlar)
+        rows.append([{"text": "📊 Sayt statistikasi (grafik)", "web_app": {"url": site_url.rstrip("/") + "/?v=stats"}}])
+    rows.append([btn("🔄 Yangilash", "stat:refresh", style=PRIMARY)])
     if is_owner:
         rows.append([btn("💾 Zaxira nusxa (backup)", "stat:backup", style=SUCCESS),
                      btn("📥 Bazani tiklash", "stat:restore", style=DANGER)])
@@ -139,7 +142,7 @@ def stats_kb(is_owner: bool) -> dict:
 
 @router.button(B.STATS, admin=True)
 def btn_stats(ctx: Ctx) -> None:
-    ctx.send(stats_text(ctx), stats_kb(ctx.is_owner))
+    ctx.send(stats_text(ctx), stats_kb(ctx.is_owner, ctx.app.config.webapp_url))
 
 
 @router.callback("stat", admin=True)
@@ -147,7 +150,7 @@ def cb_stats(ctx: Ctx) -> None:
     action = ctx.data.split(":")[1] if ":" in ctx.data else "refresh"
     if action == "refresh":
         ctx.answer("🔄 Yangilandi")
-        ctx.edit(stats_text(ctx), stats_kb(ctx.is_owner))
+        ctx.edit(stats_text(ctx), stats_kb(ctx.is_owner, ctx.app.config.webapp_url))
     elif action == "backup":
         if not ctx.is_owner:
             ctx.answer("⛔️ Faqat bosh adminlar uchun!", alert=True)
