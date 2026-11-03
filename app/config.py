@@ -38,7 +38,11 @@ class Config:
         self.card_number = re.sub(r"\D", "", os.getenv("CARD_NUMBER", ""))
         self.card_holder = os.getenv("CARD_HOLDER", "").strip()
         # 💳 Click / Payme (Telegram to'lov tizimi): @BotFather → Payments → Click yoki Payme → «provider token» (faqat shu yerda, chatga yozmang)
-        self.provider_token = os.getenv("PROVIDER_TOKEN", "").strip()
+        # Click va Payme alohida tugma bo'lib chiqishi uchun: PROVIDER_TOKEN_CLICK, PROVIDER_TOKEN_PAYME (yoki bitta PROVIDER_TOKEN)
+        self.provider_tokens = {k: v for k, v in (
+            ("click", os.getenv("PROVIDER_TOKEN_CLICK", "").strip()), ("payme", os.getenv("PROVIDER_TOKEN_PAYME", "").strip()),
+            ("provider", os.getenv("PROVIDER_TOKEN", "").strip())) if v}
+        self.provider_token = next(iter(self.provider_tokens.values()), "")   # (eski nom: birinchi token)
         self.brand = os.getenv("BRAND_NAME", "").strip() or "Marvarid Media"
         # 🌐 kino ma'lumotini avtomatik topish (TMDB — bepul kalit: themoviedb.org → Settings → API; OMDb — IMDb reyting uchun, ixtiyoriy)
         self.tmdb_key = os.getenv("TMDB_API_KEY", "").strip()

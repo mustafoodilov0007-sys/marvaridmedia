@@ -40,7 +40,8 @@ class Pay(unittest.TestCase):
     def test_invoice_has_provider_token_and_tiyin(self):
         self.run(self.app, message(5, "/start"))
         self.run(self.app, press(5, f"pr:inv:{self.plan}"))
-        (a, k), = self.invoices()
+        self.run(self.app, press(5, f"pr:inv:{self.plan}"))      # (eski ko'rinish: kalitsiz) — birinchi token ishlatiladi
+        (a, k), = self.invoices()[-1:]
         self.assertEqual(k["currency"], "UZS")
         self.assertEqual(k["provider_token"], self.app.config.provider_token)
         self.assertEqual(a[4], [{"label": "Premium 1 oy", "amount": 1000000}])    # 10 000 so'm = 1 000 000 tiyin
@@ -76,15 +77,28 @@ class Pay(unittest.TestCase):
         self.assertEqual(self.invoices(), [])
         self.assertFalse(self.pre_checkout(5, f"premp:{self.plan}:5", 1000000)[1])
         self.app.set_setting("premium_provider", "1")
-        self.app.config.provider_token = ""
+        self.app.config.provider_token, self.app.config.provider_tokens = "", {}
         self.assertFalse(self.pre_checkout(5, f"premp:{self.plan}:5", 1000000)[1])
+
+    def test_click_and_payme_buttons_use_their_own_tokens(self):
+        self.app.config.provider_tokens = {"click": "TOK_CLICK", "payme": "TOK_PAYME"}
+        self.app.config.provider_token = "TOK_CLICK"
+        self.run(self.app, message(5, "/start"))
+        self.run(self.app, press(5, f"pr:plan:{self.plan}"))
+        labels = [b["text"] for n, a, k in self.app.bot.sent if n == "edit_message_text"
+                  for x in list(a) + list(k.values()) if isinstance(x, dict) and "inline_keyboard" in x for row in x["inline_keyboard"] for b in row]
+        self.assertTrue(any("Click" in t for t in labels) and any("Payme" in t for t in labels), labels)
+        self.run(self.app, press(5, f"pr:inv:{self.plan}:payme"))
+        self.run(self.app, press(5, f"pr:inv:{self.plan}:click"))
+        self.assertEqual([k["provider_token"] for a, k in self.invoices()], ["TOK_PAYME", "TOK_CLICK"])
+        self.assertTrue(self.pre_checkout(5, f"premp:{self.plan}:5", 1000000)[1])      # ikkalasidan keladigan to'lov qabul qilinadi
 
     def test_plan_menu_offers_provider_first(self):
         self.run(self.app, message(5, "/start"))
         self.run(self.app, press(5, f"pr:plan:{self.plan}"))
         data = [b.get("callback_data") for n, a, k in self.app.bot.sent if n == "edit_message_text"
                 for x in list(a) + list(k.values()) if isinstance(x, dict) and "inline_keyboard" in x for row in x["inline_keyboard"] for b in row]
-        self.assertEqual(data[0], f"pr:inv:{self.plan}")
+        self.assertTrue(data[0].startswith(f"pr:inv:{self.plan}"))
 
 
 if __name__ == "__main__":

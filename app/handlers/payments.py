@@ -29,9 +29,12 @@ def methods(app: App):
     return app.setting_bool("premium_card"), app.setting_bool("premium_stars")
 
 
+PROVIDER_LABELS = {"click": "Click", "payme": "Payme", "provider": "Click / Payme"}
+
+
 def provider_on(app: App) -> bool:
     """💳 Click/Payme (avtomatik to'lov) yoqilganmi: BotFather tokeni berilgan va admin o'chirmagan."""
-    return bool(app.config.provider_token) and app.setting_bool("premium_provider")
+    return bool(app.config.provider_tokens) and app.setting_bool("premium_provider")
 
 
 def plan_label(app: App, plan) -> str:
@@ -186,8 +189,10 @@ def cb_premium(ctx: Ctx) -> None:
         lines = [f"💎 <b>Premium — {name}</b> ({plan['days']} kun)", ""]
         rows = []
         if provider_on(app) and plan["price"] > 0:
-            lines.append(f"⚡️ Click / Payme: <b>{fmt_num(plan['price'])} so'm</b> (darhol faollashadi)")
-            rows.append([btn(f"⚡️ Click / Payme — {fmt_num(plan['price'])} so'm", f"pr:inv:{plan['id']}", style=SUCCESS)])
+            names = " / ".join(PROVIDER_LABELS[k] for k in app.config.provider_tokens)
+            lines.append(f"⚡️ {names}: <b>{fmt_num(plan['price'])} so'm</b> (darhol faollashadi)")
+            for key in app.config.provider_tokens:
+                rows.append([btn(f"⚡️ {PROVIDER_LABELS[key]} — {fmt_num(plan['price'])} so'm", f"pr:inv:{plan['id']}:{key}", style=SUCCESS)])
         if card_on and plan["price"] > 0:
             lines.append(f"💳 Karta orqali: <b>{fmt_num(plan['price'])} so'm</b>")
             rows.append([btn(f"💳 Karta orqali — {fmt_num(plan['price'])} so'm", f"pr:card:{plan['id']}",
@@ -221,6 +226,8 @@ def cb_premium(ctx: Ctx) -> None:
         if not (provider_on(app) and plan["price"] > 0):
             ctx.answer("⚡️ Click/Payme orqali to'lov vaqtincha o'chirilgan.", alert=True)
             return
+        key = parts[3] if len(parts) > 3 else ""
+        token = app.config.provider_tokens.get(key) or app.config.provider_token
         ctx.answer()
         try:
             ctx.bot.send_invoice(
@@ -228,7 +235,7 @@ def cb_premium(ctx: Ctx) -> None:
                 f"{app.brand} Premium: {plan['days']} kun. Majburiy obunasiz, reklamasiz va maxsus kinolar bilan. "
                 f"To'lov qilish orqali /terms shartlariga rozilik bildirasiz."[:255],
                 f"premp:{plan['id']}:{ctx.user_id}", [{"label": f"Premium {name}", "amount": int(plan["price"]) * 100}],
-                currency="UZS", provider_token=app.config.provider_token)
+                currency="UZS", provider_token=token)
         except TelegramError as exc:
             log.error("Click/Payme invoice yuborilmadi: %s", exc)
             ctx.send("⚠️ To'lov oynasini ochib bo'lmadi. Keyinroq urinib ko'ring yoki karta orqali to'lang.")

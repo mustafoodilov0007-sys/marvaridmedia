@@ -35,8 +35,10 @@ def premium_admin_view(ctx: Ctx):
     stars = totals.get("premium:stars", {"n": 0, "total": 0})
     skip = ctx.app.setting_bool("premium_skip_sub")
     prov = totals.get("premium:provider", {"n": 0, "total": 0})
-    has_token = bool(ctx.app.config.provider_token)
-    prov_state = ("⚠️ token ulanmagan (PROVIDER_TOKEN)" if not has_token else _on(ctx, "premium_provider"))
+    has_token = bool(ctx.app.config.provider_tokens)
+    names = " + ".join(("Click" if k == "click" else "Payme" if k == "payme" else "Click/Payme") for k in ctx.app.config.provider_tokens)
+    prov_state = ("⚠️ token ulanmagan (PROVIDER_TOKEN_CLICK / PROVIDER_TOKEN_PAYME)" if not has_token
+                  else f"{_on(ctx, 'premium_provider')} ({names})")
     text = ("💎 <b>Premium boshqaruvi</b>\n\n"
             f"👥 Faol premiumlar: <b>{fmt_num(db.count_premium())}</b>\n"
             f"⏳ Tekshirilmagan cheklar: <b>{fmt_num(db.count_pending())}</b>\n"
