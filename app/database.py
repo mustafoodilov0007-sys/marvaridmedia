@@ -101,6 +101,21 @@ CREATE TABLE IF NOT EXISTS view_days (   -- kunlik ko'rishlar (haftalik TOP uchu
 );
 CREATE INDEX IF NOT EXISTS idx_view_days_day ON view_days(day);
 
+CREATE TABLE IF NOT EXISTS hits (        -- sayt tashriflari (mehmonlar): kun × manba
+    day INTEGER NOT NULL,
+    src TEXT    NOT NULL,
+    n   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, src)
+);
+
+CREATE TABLE IF NOT EXISTS site_visits ( -- sayt tashriflari (Telegram foydalanuvchilari): kuniga bir marta
+    day     INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    src     TEXT    NOT NULL DEFAULT '',
+    PRIMARY KEY (day, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_site_visits_day ON site_visits(day);
+
 CREATE TABLE IF NOT EXISTS history (
     user_id     INTEGER NOT NULL,
     movie_id    INTEGER NOT NULL,
@@ -275,6 +290,8 @@ class Database:
         if "duration" not in pcols:
             self.conn.execute("ALTER TABLE parts ADD COLUMN duration INTEGER NOT NULL DEFAULT 0")
         ucols = {r[1] for r in self.conn.execute("PRAGMA table_info(users)").fetchall()}
+        if "src" not in ucols:  # 📈 foydalanuvchi qayerdan kelgani (tahlil uchun)
+            self.conn.execute("ALTER TABLE users ADD COLUMN src TEXT NOT NULL DEFAULT ''")
         if "ref_by" not in ucols:  # 🤝 kim taklif qilgan (referal)
             self.conn.execute("ALTER TABLE users ADD COLUMN ref_by INTEGER NOT NULL DEFAULT 0")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_users_ref ON users(ref_by)")
@@ -343,7 +360,7 @@ class Database:
 
     # ───────── foydalanuvchilar ─────────
 
-    def upsert_user(self, user: dict) -> bool:
+    def upsert_user(self, user: dict, src: str = "") -> bool:
         uid = user["id"]
         t = now()
         with self.lock:
@@ -354,9 +371,16 @@ class Database:
                     (user.get("first_name"), user.get("username"), t, uid))
                 return False
             self.conn.execute(
-                "INSERT INTO users(user_id, first_name, username, joined_at, last_active) VALUES (?,?,?,?,?)",
-                (uid, user.get("first_name"), user.get("username"), t, t))
+                "INSERT INTO users(user_id, first_name, username, joined_at, last_active, src) VALUES (?,?,?,?,?,?)",
+                (uid, user.get("first_name"), user.get("username"), t, t, src))
             return True
+
+    def hit(self, src: str) -> None:
+        self.x("INSERT INTO hits(day, src, n) VALUES (?,?,1) ON CONFLICT(day, src) DO UPDATE SET n=n+1",
+               ((now() + 18000) // 86400, src))
+
+    def site_visit(self, uid: int, src: str) -> None:
+        self.x("INSERT OR IGNORE INTO site_visits(day, user_id, src) VALUES (?,?,?)", ((now() + 18000) // 86400, uid, src))
 
     def set_referrer(self, uid: int, ref: int) -> bool:
         """Yangi foydalanuvchini taklif qilgan odamga bog'laydi (faqat bir marta, o'zini emas). Muvaffaqiyatli bo'lsa True."""

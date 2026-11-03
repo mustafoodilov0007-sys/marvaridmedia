@@ -866,6 +866,21 @@
   @media (hover: hover) { .rail, .cf { cursor: grab; } .rail .card, .cf .cfc { cursor: pointer; } }
   .dragging { cursor: grabbing !important; scroll-snap-type: none !important; user-select: none; -webkit-user-select: none; }
   .dragging * { pointer-events: none; }
+  .bars.thin { gap: 2px; padding: 12px 8px 0; } .bars.thin em { font-size: 8.5px; }
+  .bars.thin div:not(:nth-child(4n+1)) em { visibility: hidden; }
+  .hbl { display: flex; flex-direction: column; gap: 10px; }
+  .hb .hbt { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; font-weight: 600; margin-bottom: 5px; }
+  .hb .hbt b { color: var(--gold); white-space: nowrap; font-weight: 800; }
+  .hbbar { height: 8px; border-radius: 6px; background: var(--surface-2); overflow: hidden; } .hbbar i { display: block; height: 100%; border-radius: 6px; background: var(--grad); }
+  .funnel { display: flex; flex-direction: column; gap: 12px; }
+  .frow .fl { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; font-weight: 600; margin-bottom: 5px; } .frow .fl b { color: var(--gold); white-space: nowrap; }
+  .ftrack { height: 26px; border-radius: 9px; background: var(--surface-2); overflow: hidden; } .fbar { height: 100%; border-radius: 9px; background: var(--grad); }
+  .rtable { border-radius: 16px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
+  .rrow { display: grid; grid-template-columns: 1.3fr .7fr 1fr 1fr 1fr; gap: 6px; align-items: center; padding: 9px 12px; border-top: 1px solid var(--line); font-size: 13px; font-weight: 600; }
+  .rrow:first-child { border-top: 0; } .rrow.head { color: var(--muted); font-size: 11.5px; font-weight: 700; }
+  .rrow .rc { text-align: center; padding: 6px 0; border-radius: 8px; font-weight: 800; } .rrow .rc.na { color: var(--muted); font-weight: 600; }
+  .rrow.rev { grid-template-columns: 1fr 1.3fr 1.1fr .7fr .8fr; }
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
@@ -969,6 +984,17 @@
   var IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   var STANDALONE = !!((window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone);
   window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); installEv = e; });
+  // 📈 tahlil: mehmon (brauzer / o'rnatilgan ilova) sayt ochdi — manba bo'yicha, shaxsiy ma'lumotsiz, sessiyada bir marta
+  if (PUB) {
+    try {
+      if (!sessionStorage.getItem("hit")) {
+        sessionStorage.setItem("hit", "1");
+        var hq = new URLSearchParams(location.search), hr = document.referrer || "";
+        var hsrc = APP ? "apk" : hq.get("utm") || (hq.get("k") ? "havola" : !hr ? "direct" : /t\.me|telegram/.test(hr) ? "telegram" : /google|bing|yandex|duckduckgo/.test(hr) ? "qidiruv" : "boshqa");
+        fetch("/pub/hit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ src: hsrc }) }).catch(function () {});
+      }
+    } catch (e) {}
+  }
   if (PUB && !APP && "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
     window.addEventListener("load", function () { navigator.serviceWorker.register("/sw.js").catch(function () {}); });
   }
@@ -2145,10 +2171,107 @@
     }).catch(function () { if (my === reqId) renderError(view, "network"); });
   }
 
+
+  // ───── 📈 Tahlil (faqat admin) ─────
+  function pctText(v) { return v === null || v === undefined ? "—" : (Math.round(v * 10) / 10) + "%"; }
+  function money(n) { return (n || 0).toLocaleString("ru-RU").replace(/,/g, " "); }
+  function hbars(rows, unit) {
+    var max = Math.max.apply(null, rows.map(function (r) { return r.n; }).concat([1]));
+    var box = h("div", "hbl");
+    rows.forEach(function (r) {
+      var fill = h("i"); fill.style.width = Math.max(2, r.n / max * 100) + "%";
+      box.appendChild(h("div", "hb", [h("div", "hbt", [h("span", null, r.label), h("b", null, fmt(r.n) + (r.pct !== undefined && r.pct !== null ? " · " + pctText(r.pct) : "") + (unit || ""))]), h("div", "hbbar", [fill])]));
+    });
+    return box;
+  }
+  function dayChart(list, key, tip) {
+    var max = Math.max.apply(null, list.map(function (x) { return x[key]; }).concat([1]));
+    var bars = h("div", "bars thin");
+    list.forEach(function (x) {
+      var dt = new Date((x.day + 18000) * 1000);
+      var col = h("div", null, [h("u", null, x[key] ? String(x[key]) : ""), h("i"), h("em", null, dt.getUTCDate() + "." + String(dt.getUTCMonth() + 1).padStart(2, "0"))]);
+      col.querySelector("i").style.height = Math.max(2, Math.round(x[key] / max * 78)) + "px";
+      col.title = tip + ": " + x[key];
+      bars.appendChild(col);
+    });
+    return bars;
+  }
+  function loadAnalytics(box, my) {
+    box.appendChild(h("div", "note", "Yuklanmoqda..."));
+    api("/api/admin/analytics").then(function (d) {
+      box.replaceChildren();
+      if (!d.ok) { box.appendChild(emptyBox("lock", "Ruxsat yo'q", "Bu sahifa faqat adminlar uchun.")); return; }
+      var a = d.active, r = d.retention;
+      function tile(n, label, gold) { return h("div", "tile" + (gold ? " gold" : ""), [h("b", null, n), h("span", null, label)]); }
+      box.appendChild(h("div", "tiles", [
+        tile(fmt(a.dau), "Bugun faol (DAU)", true), tile(fmt(a.wau), "Haftalik faol (WAU)"),
+        tile(fmt(a.mau), "Oylik faol (MAU)"), tile(pctText(a.stickiness), "Yopishtirish (DAU/MAU)", true),
+        tile(pctText(r.d1), "Ertasi kuni qaytdi"), tile(pctText(r.d7), "7 kundan keyin qaytdi")
+      ]));
+      box.appendChild(h("h3", "group-title", "🧭 Qayerdan kelishdi (30 kun, " + fmt(d.new_total) + " ta)"));
+      box.appendChild(d.sources.length ? hbars(d.sources) : h("div", "note", "Hali ma'lumot yo'q — yangi foydalanuvchilar kelgach to'ladi"));
+      box.appendChild(h("h3", "group-title", "Kunlik yangi foydalanuvchilar (30 kun)"));
+      box.appendChild(dayChart(d.new_daily, "n", "Yangi"));
+      box.appendChild(h("h3", "group-title", "🪜 Voronka (30 kunda qo'shilganlar)"));
+      var fn = h("div", "funnel");
+      d.funnel.forEach(function (f, i) {
+        var bar = h("div", "fbar"); bar.style.width = Math.max(8, f.pct || 0) + "%"; bar.style.opacity = String(1 - i * 0.18);
+        fn.appendChild(h("div", "frow", [h("div", "fl", [h("span", null, f.label), h("b", null, fmt(f.n) + " · " + pctText(f.pct))]), h("div", "ftrack", [bar])]));
+      });
+      box.appendChild(fn);
+      box.appendChild(h("h3", "group-title", "🔁 Saqlanib qolish (haftalik kohortalar)"));
+      if (!r.cohorts.length) box.appendChild(h("div", "note", "Hali yetarli ma'lumot yo'q"));
+      else {
+        var tb = h("div", "rtable");
+        tb.appendChild(h("div", "rrow head", [h("span", null, "Hafta"), h("span", null, "Soni"), h("span", null, "1 kun"), h("span", null, "7 kun"), h("span", null, "30 kun")]));
+        r.cohorts.forEach(function (c) {
+          function cell(v) { var e = h("span", "rc", pctText(v)); if (v !== null) e.style.background = "rgba(226,180,80," + (0.08 + Math.min(v, 100) / 100 * 0.5).toFixed(2) + ")"; else e.classList.add("na"); return e; }
+          var f = new Date((c.from + 18000) * 1000), t = new Date((c.to + 18000) * 1000);
+          tb.appendChild(h("div", "rrow", [h("span", null, f.getUTCDate() + "." + String(f.getUTCMonth() + 1).padStart(2, "0") + "–" + t.getUTCDate() + "." + String(t.getUTCMonth() + 1).padStart(2, "0")),
+            h("span", null, String(c.n)), cell(c.d1), cell(c.d7), cell(c.d30)]));
+        });
+        box.appendChild(tb);
+        box.appendChild(h("div", "note", "«1 kun» — qo'shilganidan kamida 1 kun o'tib ham botdan foydalanganlar ulushi. Yangi kohortalarda «—» chiqadi."));
+      }
+      box.appendChild(h("h3", "group-title", "💰 Daromad (oxirgi 6 oy)"));
+      var rv = h("div", "rtable");
+      rv.appendChild(h("div", "rrow head rev", [h("span", null, "Oy"), h("span", null, "Premium"), h("span", null, "Donat"), h("span", null, "⭐"), h("span", null, "To'lov")]));
+      d.revenue.slice().reverse().forEach(function (m) {
+        rv.appendChild(h("div", "rrow rev", [h("span", null, m.month), h("span", null, money(m.premium_uzs)), h("span", null, money(m.donate_uzs)), h("span", null, String(m.stars)), h("span", null, String(m.n))]));
+      });
+      box.appendChild(rv);
+      box.appendChild(h("div", "note", "So'mda. Promokod va do'st bonuslari daromad hisoblanmaydi."));
+      box.appendChild(h("h3", "group-title", "▶️ Ko'rishlar (14 kun)"));
+      box.appendChild(dayChart(d.daily14, "plays", "Ko'rish"));
+      box.appendChild(h("h3", "group-title", "🌐 Sayt tashriflari (14 kun)"));
+      var vis = d.daily14.map(function (x) { return { day: x.day, v: x.tg + x.web }; });
+      box.appendChild(dayChart(vis, "v", "Tashrif"));
+      if (d.site_sources.length) box.appendChild(hbars(d.site_sources));
+      box.appendChild(h("div", "note", "Telegram ichida: kuniga bir marta har bir foydalanuvchi. Brauzer: har bir sessiya."));
+    }).catch(function () { box.replaceChildren(h("div", "note", "⚠️ Yuklab bo'lmadi")); });
+  }
+
   // ───── 📊 Statistika (faqat admin) ─────
   function renderStats(view, my) {
     var page = h("div", "page narrow", [h("h1", null, "📊 Statistika")]);
+    var box1 = h("div"), box2 = h("div", "hidden");
+    var tabs = h("div", "seg");
+    var tab = "general";
+    try { if (new URLSearchParams(location.search).get("tab") === "analytics") tab = "analytics"; } catch (e) {}
+    var analyticsLoaded = false;
+    function setTab(t) {
+      tab = t;
+      box1.classList.toggle("hidden", t !== "general"); box2.classList.toggle("hidden", t !== "analytics");
+      tabs.querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", b.dataset.t === t); });
+      if (t === "analytics" && !analyticsLoaded) { analyticsLoaded = true; loadAnalytics(box2, my); }
+    }
+    [["general", "Umumiy"], ["analytics", "📈 Tahlil"]].forEach(function (x) {
+      var b = h("button", "", x[1]); b.dataset.t = x[0]; b.onclick = function () { haptic(); setTab(x[0]); }; tabs.appendChild(b);
+    });
+    page.appendChild(tabs); page.appendChild(box1); page.appendChild(box2);
     view.replaceChildren(page);
+    setTab(tab);
+    page = box1;
     api("/api/admin/stats").then(function (d) {
       if (my !== reqId) return;
       if (!d.ok) { page.appendChild(emptyBox("lock", "Ruxsat yo'q", "Bu sahifa faqat adminlar uchun.")); return; }

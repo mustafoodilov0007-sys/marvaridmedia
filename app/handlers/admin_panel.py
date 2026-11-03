@@ -21,6 +21,7 @@ ADMIN_COMMANDS = [
     {"command": "admin", "description": "👨‍💻 Admin panel"},
     {"command": "top", "description": "🔥 Top kinolar"},
     {"command": "taklif", "description": "🤝 Do'st taklif qilib Premium olish"},
+    {"command": "tahlil", "description": "📈 Tahlil: manbalar, qaytish, voronka, daromad"},
     {"command": "kunkino", "description": "📅 Kun kinosi: kanalga avtomatik post"},
     {"command": "status", "description": "🩺 Bot holati (xotira, xatolar, zaxira)"},
     {"command": "saytpost", "description": "🌐 Kanalga «saytimiz ochiq» posti"},

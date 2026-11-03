@@ -61,6 +61,7 @@ def check_init_data(init_data: str, token: str, max_age: int = INIT_DATA_MAX_AGE
         return None
     if not isinstance(user, dict) or not isinstance(user.get("id"), int):
         return None
+    user["_sp"] = str(data.get("start_param") or "")[:64]   # (imzolangan) ishga tushirish parametri: qayerdan ochilgani
     return user
 
 
@@ -385,6 +386,12 @@ def _channel_url(app: App) -> Optional[str]:
 
 def api_me(app: App, user: dict) -> dict:
     is_admin, vip = _user_flags(app, user["id"])
+    if user["id"]:   # tahlil: Telegram foydalanuvchisi saytni ochdi (kuniga bir marta), manba — start_param
+        sp = user.get("_sp", "")
+        try:
+            app.db.site_visit(user["id"], "kanal" if sp.startswith("k") else ("menyu" if not sp else "boshqa"))
+        except Exception:  # noqa: BLE001 — tahlil hech qachon asosiy ishni to'smasligi kerak
+            pass
     return {
         "ok": True,
         "brand": app.brand,
@@ -534,6 +541,14 @@ def api_support(app: App, user: dict) -> dict:
     digits, card, holder = card_info(app)
     return {"ok": True, "digits": digits, "card": card, "holder": re.sub(r"<[^>]+>|&\w+;", "", holder or "").strip(),
             "stars": app.setting_bool("donate_stars"), "bot": app.bot_username}
+
+
+def api_admin_analytics(app: App, user: dict) -> dict:
+    """📈 Tahlil: manbalar, faollik, saqlanib qolish, voronka, daromad (faqat admin)."""
+    if not _admin_only(app, user):
+        return {"ok": False, "reason": "forbidden"}
+    from . import analytics
+    return analytics.build(app.db)
 
 
 def api_admin_stats(app: App, user: dict) -> dict:
@@ -1143,6 +1158,8 @@ def make_handler(app: App):
                         return self._json(api_support(app, user))
                     if path == "/api/admin/stats":
                         return self._json(api_admin_stats(app, user))
+                    if path == "/api/admin/analytics":
+                        return self._json(api_admin_analytics(app, user))
                     if path == "/api/admin/movie":
                         return self._json(api_admin_movie(app, user, qs))
                     if path == "/api/rating":
@@ -1174,11 +1191,15 @@ def make_handler(app: App):
                     body = {}
                 if not isinstance(body, dict):
                     body = {}
-                if path in ("/pub/play", "/pub/searched"):  # 📱 ilova / brauzer — mehmon sifatida
+                if path in ("/pub/play", "/pub/searched", "/pub/hit"):  # 📱 ilova / brauzer — mehmon sifatida
                     if self._limited(write_user, write_ip):
                         return
                     if path == "/pub/play":
                         return self._json(api_play(app, GUEST, body, guest=True))
+                    if path == "/pub/hit":        # tahlil: mehmon sayt ochdi (manba bo'yicha sanaladi, shaxsiy ma'lumotsiz)
+                        src = re.sub(r"[^a-z0-9_-]", "", str(body.get("src") or "direct").lower())[:20] or "direct"
+                        app.db.hit(src)
+                        return self._json({"ok": True})
                     return self._json(api_searched(app, GUEST, body))
                 user = self._user()
                 if not user:

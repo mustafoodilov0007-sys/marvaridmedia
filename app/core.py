@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import queue
+import re
 import threading
 import time
 from collections import OrderedDict, deque
@@ -22,6 +23,25 @@ NEXT = object()  # holat handleri xabarni oddiy qayta ishlashga uzatishi uchun
 
 ALLOWED_UPDATES = ["message", "callback_query", "pre_checkout_query", "chat_join_request", "my_chat_member",
                    "inline_query"]
+
+
+def source_of(text: str) -> str:
+    """Yangi foydalanuvchi botga qayerdan kelganini /start dagi havoladan aniqlaydi (tahlil uchun)."""
+    t = (text or "").strip()
+    if not t.startswith("/start"):
+        return "direct"
+    p = t[6:].strip()
+    if not p:
+        return "direct"
+    if re.fullmatch(r"m?\d{1,9}c", p):
+        return "channel"
+    if re.fullmatch(r"#?\d{1,9}|m\d{1,9}", p):
+        return "link"
+    if re.fullmatch(r"r\d{1,12}", p):
+        return "referral"
+    if p in ("sorov", "premium", "promo", "taklif", "donat"):
+        return "site"
+    return "other"
 
 
 def start_payload(code) -> str:
@@ -277,8 +297,9 @@ class App:
     def brand(self) -> str:
         return self.config.brand
 
-    def deep_link(self, code) -> str:
-        return f"https://t.me/{self.bot_username}?start={start_payload(code)}"
+    def deep_link(self, code, channel: bool = False) -> str:
+        """Kino havolasi. channel=True — kanal postlari uchun (oxiriga «c» belgisi: tahlilda «Kanal posti» deb hisoblanadi)."""
+        return f"https://t.me/{self.bot_username}?start={start_payload(code)}{'c' if channel else ''}"
 
     def miniapp_link(self, param: str = "") -> Optional[str]:
         """Telegram'ning «to'g'ridan-to'g'ri Mini App» havolasi (t.me/bot/nom). Kanaldan bosilsa sayt Telegram ichida,
@@ -606,7 +627,7 @@ def _handle_message(app: App, ctx: Ctx) -> None:
     msg = ctx.message
     if ctx.chat.get("type") != "private" or not ctx.user_id or ctx.user.get("is_bot"):
         return
-    app.db.upsert_user(ctx.user)
+    app.db.upsert_user(ctx.user, src=source_of(ctx.text))
     if msg.get("successful_payment"):
         _special(app, ctx, "payment")
         return

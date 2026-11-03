@@ -934,7 +934,7 @@ def announce_text(app, movie, parts: int) -> str:
 def announce_kb(app, movie) -> dict:
     music = movie["category"] == "music"
     verb = "tinglash" if music else "tomosha qilish"
-    rows = [[btn(f"🤖 Botda {verb}", url=app.deep_link(movie["code"]), style=PRIMARY)]]
+    rows = [[btn(f"🤖 Botda {verb}", url=app.deep_link(movie["code"], channel=True), style=PRIMARY)]]
     site_url = app.site_link(movie["code"])
     if site_url:
         rows.append([btn(f"🌐 Saytda {verb}", url=site_url, style=PRIMARY)])

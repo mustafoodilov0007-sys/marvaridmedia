@@ -84,6 +84,8 @@ def apply_referral(ctx: Ctx, payload: str) -> None:
 @router.command("start")
 def cmd_start(ctx: Ctx) -> None:
     payload = ctx.args.strip()
+    if re.fullmatch(r"m?\d{1,9}c", payload):   # kanal postidagi havola (oxiridagi «c» — tahlil belgisi)
+        payload = payload[:-1]
     if run_special_payload(ctx, payload):
         return
     code = (CODE_RE.fullmatch(payload) or MUSIC_RE.fullmatch(payload)) if payload else None
@@ -259,6 +261,8 @@ def on_any_message(ctx: Ctx) -> None:
 def handle_query(ctx: Ctx, raw: str) -> None:
     app, db = ctx.app, ctx.db
     text = (raw or "").strip()
+    if re.fullmatch(r"m?\d{1,9}c", text):      # obuna tekshiruvidan keyin kelgan kanal havolasi
+        text = text[:-1]
     mm = MUSIC_RE.fullmatch(text)
     if mm:
         movie = db.get_movie_by_code(-int(mm.group(1)))
