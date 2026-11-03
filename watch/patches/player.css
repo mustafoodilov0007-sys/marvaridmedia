@@ -1,0 +1,34 @@
+  /* ───── ▶ pleyer ───── */
+  body.wp-on { overflow: hidden; }
+  .wp { position: fixed; inset: 0; z-index: 400; background: #000; display: flex; flex-direction: column; color: #fff;
+    animation: wp-in .3s ease both; }
+  @keyframes wp-in { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
+  .wp-top { position: absolute; left: 0; right: 0; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
+    padding: calc(10px + env(safe-area-inset-top)) 14px 22px; background: linear-gradient(180deg, rgba(0,0,0,.78), transparent); transition: opacity .3s; }
+  .wp .ibtn { background: rgba(30,28,34,.7); color: #fff; border-color: rgba(255,255,255,.14); width: 42px; height: 42px; }
+  .wp-spd { width: auto !important; padding: 0 12px; font-weight: 800; font-size: 13px; }
+  .wp-title { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+  .wp-title b { font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wp-title span { font-size: 12.5px; color: #c9c2b4; font-weight: 600; }
+  .wp-stage { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; background: #000; }
+  .wp-stage video { width: 100%; height: 100%; object-fit: contain; background: #000; outline: none; }
+  .wp.idle .wp-top { opacity: 0; pointer-events: none; }
+  .wp.idle .wp-stage video { cursor: none; }
+  .wp.buf .wp-stage::after { content: ""; position: absolute; width: 46px; height: 46px; border-radius: 50%; border: 3px solid rgba(255,255,255,.2);
+    border-top-color: var(--gold, #e2b450); animation: wp-spin .8s linear infinite; pointer-events: none; }
+  @keyframes wp-spin { to { transform: rotate(360deg); } }
+  .wp-msg { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    background: rgba(0,0,0,.82); text-align: center; padding: 24px; font-weight: 700; font-size: 16px; }
+  .wp-msg.on { display: flex; }
+  .wp-msg .btn { flex: none; padding: 0 26px; }
+  .wp-eps { display: flex; gap: 8px; overflow-x: auto; padding: 10px 14px calc(12px + env(safe-area-inset-bottom)); background: #0b0a0d; scrollbar-width: none; }
+  .wp-eps:empty { display: none; }
+  .wp-eps::-webkit-scrollbar { display: none; }
+  .wp-ep { flex: none; padding: 9px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 700; background: #1c1a20; color: #d8d2c6; }
+  .wp-ep.seen { color: var(--gold, #e2b450); }
+  .wp-ep.on { background: var(--grad, linear-gradient(135deg, #f1cf7a, #b98a2c)); color: #1d1405; }
+  @media (orientation: landscape) and (max-height: 520px) { .wp-eps { display: none; } .wp-top { padding-bottom: 12px; } }
+  @media (prefers-reduced-motion: reduce) { .wp { animation: none; } }
+  /* alohida ko'rish saytida: bot/mini-ilovaga oid bo'limlar yashiriladi */
+  .nav button[data-view=shorts], .nav button[data-view=music], .dnav button[data-view=shorts], .dnav button[data-view=music],
+  #bSupport, #bStats, #bChannel, .foot .more { display: none !important; }

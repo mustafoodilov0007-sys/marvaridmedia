@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Admin — Ko'rish sayti</title>
+<style>
+  :root { --bg:#0b0a0d; --surface:#18161c; --surface2:#221f27; --line:rgba(255,236,196,.09); --text:#f4efe6; --muted:#9a9384; --gold:#e2b450;
+    --grad:linear-gradient(135deg,#f6dc97,#e2b450 50%,#b98a2c); --on:#1d1405; --red:#ff7b7b; --green:#5ee0a0; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; background:var(--bg); color:var(--text); font:15px/1.4 Inter,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  button { font:inherit; color:inherit; border:0; background:none; cursor:pointer; }
+  input, select { font:inherit; color:inherit; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 18px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing:-.02em; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:40px; padding:0 16px; border-radius:12px; font-weight:700; font-size:14px; background:var(--surface2); }
+  .btn.primary { background:var(--grad); color:var(--on); }
+  .btn.danger { color:var(--red); }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .login { max-width: 360px; margin: 18vh auto 0; padding: 26px; border-radius: 22px; background:var(--surface); border:1px solid var(--line); text-align:center; }
+  .login input { width:100%; height:46px; border-radius:12px; border:1px solid var(--line); background:var(--surface2); padding:0 14px; margin:14px 0 10px; }
+  .err { color: var(--red); font-size: 13px; min-height: 18px; }
+  .top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .top .sp { flex:1; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:14px; }
+  .stat { padding:12px 14px; border-radius:14px; background:var(--surface); border:1px solid var(--line); }
+  .stat b { display:block; font-size:22px; letter-spacing:-.02em; } .stat span { color:var(--muted); font-size:12px; font-weight:600; }
+  .warn { padding:10px 14px; border-radius:12px; background:rgba(255,123,123,.1); border:1px solid rgba(255,123,123,.3); color:#ffb3b3; font-size:13px; margin-bottom:10px; }
+  .info { padding:10px 14px; border-radius:12px; background:rgba(226,180,80,.1); border:1px solid rgba(226,180,80,.3); color:#f1d58f; font-size:13px; margin-bottom:10px; }
+  .bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .bar input[type=search] { flex:1; min-width:180px; height:40px; border-radius:12px; border:1px solid var(--line); background:var(--surface); padding:0 14px; }
+  .bar select { height:40px; border-radius:12px; border:1px solid var(--line); background:var(--surface); padding:0 10px; }
+  .row { display:flex; gap:12px; padding:12px; border-radius:16px; background:var(--surface); border:1px solid var(--line); margin-bottom:10px; }
+  .poster { flex:none; width:56px; height:84px; border-radius:10px; background:var(--surface2) center/cover; }
+  .main { flex:1; min-width:0; }
+  .main h3 { margin:0; font-size:15.5px; display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+  .tag { font-size:11px; font-weight:800; padding:2px 7px; border-radius:7px; background:var(--surface2); color:var(--muted); }
+  .vids { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+  .vid { display:inline-flex; align-items:center; gap:6px; padding:5px 6px 5px 10px; border-radius:10px; background:rgba(94,224,160,.1); color:var(--green); font-size:12.5px; font-weight:700; }
+  .vid.up { background:rgba(226,180,80,.12); color:var(--gold); }
+  .vid button { width:22px; height:22px; border-radius:6px; background:rgba(255,255,255,.08); color:var(--text); font-size:13px; line-height:1; }
+  .acts { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .acts .btn { height:36px; font-size:13px; padding:0 13px; }
+  .prog { margin-top:8px; display:none; } .prog.on { display:block; }
+  .prog .track { height:8px; border-radius:6px; background:var(--surface2); overflow:hidden; }
+  .prog .fill { height:100%; width:0; background:var(--grad); transition:width .25s; }
+  .prog small { color:var(--muted); font-size:12px; display:block; margin-top:4px; }
+  .more { display:block; margin:14px auto; }
+  .hidden { display:none !important; }
+  @media (max-width:520px) { .wrap { padding:14px 12px 50px; } .poster { width:48px; height:72px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="login" class="login hidden">
+    <h1>🎬 Admin</h1>
+    <div class="muted">Ko'rish sayti boshqaruvi</div>
+    <input id="pw" type="password" placeholder="Parol" autocomplete="current-password">
+    <div class="err" id="loginErr"></div>
+    <button class="btn primary" id="loginBtn" style="width:100%">Kirish</button>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="top">
+      <div><h1>🎬 Kinolar boshqaruvi</h1><div class="muted" id="sub"></div></div>
+      <div class="sp"></div>
+      <a class="btn" href="/" target="_blank" rel="noopener">Saytni ko'rish</a>
+      <button class="btn" id="syncBtn">🔄 Katalogni yangilash</button>
+      <button class="btn danger" id="outBtn">Chiqish</button>
+    </div>
+    <div id="problems"></div>
+    <div class="stats" id="stats"></div>
+    <div class="bar">
+      <input type="search" id="q" placeholder="Nomi yoki kodi bo'yicha qidirish...">
+      <select id="has"><option value="all">Hammasi</option><option value="no">Videosi yo'q</option><option value="yes">Videosi bor</option></select>
+      <select id="cat"><option value="">Barcha turlar</option><option value="movie">Kino</option><option value="serial">Serial</option><option value="cartoon">Multfilm</option></select>
+    </div>
+    <div id="list"></div>
+    <button class="btn more hidden" id="moreBtn">Yana ko'rsatish</button>
+  </div>
+</div>
+<input type="file" id="file" accept="video/*,.mkv,.mp4,.m4v,.mov,.webm" class="hidden">
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { offset: 0, loading: false, storage: "", items: [] };
+  var upload = null;   // faol yuklash (bir vaqtda bitta)
+
+  function h(tag, cls, kids) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    [].concat(kids === undefined ? [] : kids).forEach(function (k) { if (k !== null && k !== false) n.appendChild(typeof k === "string" ? document.createTextNode(k) : k); });
+    return n;
+  }
+  function api(path, body, raw) {
+    var opts = raw ? { method: "POST", body: raw.data, headers: raw.headers || {} } : (body === undefined ? {} :
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    return fetch(path, opts).then(function (r) {
+      if (r.status === 401) { showLogin(); throw new Error("auth"); }
+      return r.json();
+    });
+  }
+  function fmtSize(b) { b = +b || 0; if (b >= 1e9) return (b / 1e9).toFixed(2) + " GB"; if (b >= 1e6) return (b / 1e6).toFixed(0) + " MB"; return Math.round(b / 1e3) + " KB"; }
+  function fmtDur(s) { s = Math.round(s || 0); if (!s) return ""; var hh = Math.floor(s / 3600), mm = Math.floor(s % 3600 / 60); return hh ? hh + " soat " + mm + " daq" : mm + " daq"; }
+  var CATN = { movie: "Kino", serial: "Serial", cartoon: "Multfilm" };
+
+  // ───── kirish ─────
+  function showLogin() { $("app").classList.add("hidden"); $("login").classList.remove("hidden"); $("pw").focus(); }
+  $("loginBtn").onclick = function () {
+    $("loginErr").textContent = "";
+    fetch("/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: $("pw").value }) })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (d.ok) { $("login").classList.add("hidden"); start(); }
+        else $("loginErr").textContent = d.reason === "rate" ? "Juda ko'p urinish. Biroz kuting." : "Parol noto'g'ri";
+      });
+  };
+  $("pw").addEventListener("keydown", function (e) { if (e.key === "Enter") $("loginBtn").click(); });
+  $("outBtn").onclick = function () { fetch("/admin/logout", { method: "POST" }).then(showLogin); };
+
+  // ───── ro'yxat ─────
+  function start() { $("app").classList.remove("hidden"); loadStats(); load(true); }
+  function loadStats() {
+    api("/admin/api/stats").then(function (d) {
+      if (!d.ok) return;
+      $("stats").replaceChildren.apply($("stats"), [
+        ["Ko'rsatiladigan kino", d.watchable], ["Yuklangan video", d.videos], ["Hajmi", fmtSize(d.bytes)],
+        ["Ko'rishlar (7 kun)", d.views7 || 0], ["Jami ko'rishlar", d.views || 0], ["Katalogda", d.titles]
+      ].map(function (x) { return h("div", "stat", [h("b", null, String(x[1])), h("span", null, x[0])]); }));
+      var pr = $("problems"); pr.replaceChildren();
+      (d.problems || []).forEach(function (t) { pr.appendChild(h("div", "warn", "⚠️ " + t)); });
+      if (d.storage === "local") pr.appendChild(h("div", "info", "ℹ️ Hozir videolar server diskida saqlanmoqda (sinov rejimi). Haqiqiy ishlatish uchun Cloudflare R2 ni ulang (README.md)."));
+    });
+  }
+  function load(reset) {
+    if (state.loading) return;
+    state.loading = true;
+    if (reset) { state.offset = 0; $("list").replaceChildren(); }
+    var qs = "q=" + encodeURIComponent($("q").value.trim()) + "&has=" + $("has").value + "&cat=" + $("cat").value + "&offset=" + state.offset;
+    api("/admin/api/titles?" + qs).then(function (d) {
+      state.loading = false;
+      if (!d.ok) return;
+      state.storage = d.storage;
+      var sub = d.titles_total + " ta kino katalogda";
+      if (d.sync && d.sync.running) sub += " · yangilanmoqda: " + d.sync.done;
+      else if (d.sync && d.sync.error) sub += " · ⚠️ " + d.sync.error;
+      else if (d.sync && d.sync.finished) sub += " · katalog yangilangan: " + new Date(d.sync.finished * 1000).toLocaleString("uz");
+      $("sub").textContent = sub;
+      if (!d.titles_total && d.source) { $("list").appendChild(h("div", "info", "Katalog hali bo'sh. «🔄 Katalogni yangilash» ni bosing — kinolar hozirgi saytdan olinadi.")); }
+      d.items.forEach(function (t) { $("list").appendChild(renderRow(t)); });
+      state.offset += d.items.length;
+      $("moreBtn").classList.toggle("hidden", !d.more);
+    }).catch(function () { state.loading = false; });
+  }
+  $("moreBtn").onclick = function () { load(false); };
+  var qt = 0;
+  $("q").addEventListener("input", function () { clearTimeout(qt); qt = setTimeout(function () { load(true); }, 350); });
+  $("has").onchange = $("cat").onchange = function () { load(true); };
+
+  function renderRow(t) {
+    var row = h("div", "row"); row.dataset.id = t.id;
+    var poster = h("div", "poster");
+    if (t.poster) poster.style.backgroundImage = "url('/api/poster/" + t.id + "?v=" + encodeURIComponent(t.poster) + "')";
+    var vids = h("div", "vids");
+    t.videos.forEach(function (v) {
+      var chip = h("span", "vid" + (v.status === "ready" ? "" : " up"), [(t.videos.length > 1 || t.cat === "serial" ? v.part_no + "-qism · " : "") +
+        (v.status === "ready" ? "✓ " + fmtSize(v.size) + (v.duration ? " · " + fmtDur(v.duration) : "") : "yuklanmoqda...")]);
+      var del = h("button", null, "✕"); del.title = "O'chirish"; del.setAttribute("aria-label", "Videoni o'chirish");
+      del.onclick = function () {
+        if (!confirm("«" + t.title + "» " + v.part_no + "-qism videosi o'chirilsinmi?")) return;
+        api("/admin/api/video/delete", { video_id: v.id }).then(function () { refreshRow(t.id); loadStats(); });
+      };
+      chip.appendChild(del); vids.appendChild(chip);
+    });
+    var prog = h("div", "prog", [h("div", "track", [h("div", "fill")]), h("small", null, "")]);
+    var up = h("button", "btn primary", t.videos.some(function (v) { return v.status === "ready"; }) ? (t.cat === "serial" ? "➕ Keyingi qism" : "➕ Yana video") : "⬆️ Video yuklash");
+    up.onclick = function () { pick(t, prog, up); };
+    var pub = h("button", "btn", t.published ? "👁 Ko'rinadi" : "🚫 Yashirin");
+    pub.onclick = function () { api("/admin/api/title/publish", { title_id: t.id, published: !t.published }).then(function () { refreshRow(t.id); }); };
+    var tags = [h("span", "tag", "#" + t.code), h("span", "tag", CATN[t.cat] || t.cat)];
+    if (t.year) tags.push(h("span", "tag", String(t.year)));
+    if (t.views) tags.push(h("span", "tag", "👁 " + t.views));
+    row.appendChild(poster);
+    row.appendChild(h("div", "main", [h("h3", null, [t.title].concat(tags)), vids, h("div", "acts", [up, pub]), prog]));
+    row._prog = prog; row._up = up;
+    return row;
+  }
+  function refreshRow() {   // ro'yxatni (hozirgi uzunligicha, joyida turib) qayta yuklaydi
+    var y = window.scrollY, keep = state.offset;
+    var qs = "q=" + encodeURIComponent($("q").value.trim()) + "&has=" + $("has").value + "&cat=" + $("cat").value;
+    var frag = document.createDocumentFragment();
+    (function loop(off) {
+      return api("/admin/api/titles?" + qs + "&offset=" + off).then(function (d) {
+        d.items.forEach(function (t) { frag.appendChild(renderRow(t)); });
+        var n = off + d.items.length;
+        if (d.more && n < keep) return loop(n);
+        $("list").replaceChildren(frag); state.offset = n;
+        $("moreBtn").classList.toggle("hidden", !d.more);
+        window.scrollTo(0, y);
+      });
+    })(0);
+  }
+
+  // ───── katalog sinxronizatsiyasi ─────
+  $("syncBtn").onclick = function () {
+    $("syncBtn").disabled = true;
+    api("/admin/api/sync", {}).then(function () {
+      var iv = setInterval(function () {
+        api("/admin/api/sync").then(function (d) {
+          $("sub").textContent = d.running ? "Katalog yangilanmoqda: " + d.done + " ta..." : (d.error ? "⚠️ " + d.error : "✅ Katalog yangilandi");
+          if (!d.running) { clearInterval(iv); $("syncBtn").disabled = false; loadStats(); load(true); }
+        });
+      }, 1200);
+    });
+  };
+
+  // ───── video yuklash ─────
+  function pick(t, prog, btn) {
+    if (upload) { alert("Avval joriy yuklash tugashini kuting."); return; }
+    var f = $("file");
+    f.value = "";
+    f.onchange = function () { if (f.files[0]) doUpload(t, f.files[0], prog, btn); };
+    f.click();
+  }
+  function probe(file) {   // davomiylik + «faststart» tekshiruvi
+    return new Promise(function (res) {
+      var out = { duration: 0, faststart: null }, done = false;
+      function fin() { if (!done) { done = true; res(out); } }
+      var v = document.createElement("video"), url = URL.createObjectURL(file);
+      v.preload = "metadata"; v.muted = true;
+      v.onloadedmetadata = function () { out.duration = isFinite(v.duration) ? v.duration : 0; URL.revokeObjectURL(url); fin(); };
+      v.onerror = function () { URL.revokeObjectURL(url); fin(); };
+      v.src = url;
+      setTimeout(fin, 8000);
+      if (/\.(mp4|m4v|mov)$/i.test(file.name)) {
+        file.slice(0, 1 << 20).arrayBuffer().then(function (buf) {
+          var dv = new DataView(buf), pos = 0, moov = -1, mdat = -1;
+          while (pos + 8 <= buf.byteLength) {
+            var size = dv.getUint32(pos), type = String.fromCharCode(dv.getUint8(pos + 4), dv.getUint8(pos + 5), dv.getUint8(pos + 6), dv.getUint8(pos + 7));
+            if (type === "moov") moov = pos; if (type === "mdat") mdat = pos;
+            if (size === 1) { if (pos + 16 > buf.byteLength) break; size = Number(dv.getBigUint64(pos + 8)); }
+            if (size < 8) break;
+            if (moov >= 0 || mdat >= 0) break;
+            pos += size;
+          }
+          out.faststart = moov >= 0 && (mdat < 0 || moov < mdat) ? true : (mdat >= 0 ? false : null);
+        }).catch(function () {});
+      }
+    });
+  }
+  function putPart(url, blob, onProgress, retries, local) {
+    return new Promise(function (resolve, reject) {
+      var attempt = 0;
+      (function go() {
+        var x = new XMLHttpRequest();
+        x.open(local ? "POST" : "PUT", url);
+        x.upload.onprogress = function (e) { if (e.lengthComputable) onProgress(e.loaded); };
+        x.onload = function () {
+          if (x.status >= 200 && x.status < 300) {
+            if (local) return resolve("");
+            var etag = x.getResponseHeader("ETag");
+            if (!etag) return reject(new Error("ETag olinmadi — bucket CORS sozlamasida ExposeHeaders: ETag bo'lishi kerak (README.md)"));
+            resolve(etag);
+          } else retry("HTTP " + x.status);
+        };
+        x.onerror = function () { retry("tarmoq xatosi (bucket CORS sozlamasini tekshiring)"); };
+        function retry(why) { onProgress(0); if (++attempt > retries) reject(new Error(why)); else setTimeout(go, 800 * attempt); }
+        x.send(blob);
+      })();
+    });
+  }
+  function doUpload(t, file, prog, btn) {
+    var fill = prog.querySelector(".fill"), small = prog.querySelector("small");
+    prog.classList.add("on"); fill.style.width = "0%"; small.textContent = "Fayl tekshirilmoqda...";
+    btn.disabled = true;
+    upload = { cancelled: false, videoId: 0 };
+    var cancel = h("button", "btn danger", "Bekor qilish");
+    cancel.onclick = function () { upload.cancelled = true; small.textContent = "Bekor qilinmoqda..."; };
+    btn.parentNode.appendChild(cancel);
+    function finish(msg, err) {
+      upload = null; btn.disabled = false; cancel.remove();
+      small.textContent = msg; small.style.color = err ? "var(--red)" : "var(--green)";
+      loadStats();
+      if (!err) setTimeout(function () { refreshRow(t.id); }, 900);
+    }
+    probe(file).then(function (info) {
+      if (info.faststart === false) {
+        if (!confirm("⚠️ Bu MP4 «faststart» formatda emas — ko'rish boshlanishi sekin bo'lishi mumkin.\n\nTuzatish (kompyuterda):\nffmpeg -i kirish.mp4 -c copy -movflags +faststart chiqish.mp4\n\nBaribir yuklaymizmi?")) { finish("Bekor qilindi", true); return null; }
+      }
+      small.textContent = "Boshlanmoqda...";
+      return api("/admin/api/upload/start", { title_id: t.id, filename: file.name, size: file.size, ctype: file.type || "video/mp4" })
+        .then(function (s) { return { s: s, info: info }; });
+    }).then(function (r) {
+      if (!r) return;
+      var s = r.s;
+      if (!s.ok) { finish("⚠️ " + (s.message || s.reason), true); return; }
+      upload.videoId = s.video_id;
+      var total = file.size, parts = s.parts, size = s.part_size, loaded = {}, etags = [], next = 1, t0 = Date.now(), failed = null;
+      function paint() {
+        var sum = 0; Object.keys(loaded).forEach(function (k) { sum += loaded[k]; });
+        var pct = Math.min(100, sum / total * 100), sp = sum / Math.max(1, (Date.now() - t0) / 1000);
+        fill.style.width = pct.toFixed(1) + "%";
+        small.style.color = "";
+        small.textContent = pct.toFixed(0) + "% · " + fmtSize(sum) + " / " + fmtSize(total) + " · " + (sp / 1e6).toFixed(1) + " MB/s" +
+          (sp > 0 ? " · ~" + Math.max(1, Math.round((total - sum) / sp / 60)) + " daq qoldi" : "");
+      }
+      var signed = {};
+      function urlsFor(n) {
+        if (signed[n]) return Promise.resolve(signed[n]);
+        var ns = []; for (var k = n; k < n + 8 && k <= parts; k++) ns.push(k);
+        return api("/admin/api/upload/sign", { video_id: s.video_id, ns: ns }).then(function (d) {
+          if (!d.ok) throw new Error("imzo olinmadi"); Object.keys(d.urls).forEach(function (k) { signed[k] = d.urls[k]; }); return signed[n];
+        });
+      }
+      function worker() {
+        if (upload.cancelled || failed) return Promise.resolve();
+        var n = next++;
+        if (n > parts) return Promise.resolve();
+        var blob = file.slice((n - 1) * size, Math.min(n * size, total));
+        var p = s.mode === "s3" ? urlsFor(n).then(function (u) { return putPart(u, blob, function (b) { loaded[n] = b; paint(); }, 4); })
+          : putPart("/admin/api/upload/chunk?video_id=" + s.video_id + "&n=" + n + "&part_size=" + size, blob, function (b) { loaded[n] = b; paint(); }, 3, true);
+        return p.then(function (etag) { loaded[n] = blob.size; etags.push({ n: n, etag: etag }); paint(); return worker(); })
+          .catch(function (e) { failed = e; });
+      }
+      var pool = []; for (var i = 0; i < 3; i++) pool.push(worker());
+      return Promise.all(pool).then(function () {
+        if (upload.cancelled || failed) {
+          api("/admin/api/upload/abort", { video_id: s.video_id });
+          finish(upload.cancelled ? "Bekor qilindi" : "⚠️ " + (failed && failed.message || "xatolik"), true); return;
+        }
+        small.textContent = "Yakunlanmoqda...";
+        return api("/admin/api/upload/complete", { video_id: s.video_id, parts: etags, duration: r.info.duration })
+          .then(function (d) { if (d.ok) finish("✅ Tayyor! Sayt endi shu kinoni ko'rsatadi."); else finish("⚠️ " + (d.message || d.reason), true); });
+      });
+    }).catch(function (e) { if (upload) finish("⚠️ " + (e && e.message || "xatolik"), true); });
+  }
+  window.addEventListener("beforeunload", function (e) { if (upload) { e.preventDefault(); e.returnValue = ""; } });
+
+  // boshlanish
+  api("/admin/api/stats").then(function (d) { if (d.ok) { $("login").classList.add("hidden"); start(); } }).catch(function () {});
+})();
+</script>
+</body>
+</html>
