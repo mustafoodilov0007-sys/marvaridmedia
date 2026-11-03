@@ -271,6 +271,7 @@ class App:
             "protect_content": "1",
             "premium_enabled": "1",
             "premium_card": "1",
+            "premium_provider": "1",
             "premium_stars": "1",
             "premium_skip_sub": "1",
             "donate_stars": "1",

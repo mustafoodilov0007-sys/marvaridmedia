@@ -29,8 +29,14 @@ def methods(app: App):
     return app.setting_bool("premium_card"), app.setting_bool("premium_stars")
 
 
+def provider_on(app: App) -> bool:
+    """💳 Click/Payme (avtomatik to'lov) yoqilganmi: BotFather tokeni berilgan va admin o'chirmagan."""
+    return bool(app.config.provider_token) and app.setting_bool("premium_provider")
+
+
 def plan_label(app: App, plan) -> str:
     card_on, stars_on = methods(app)
+    card_on = card_on or provider_on(app)
     prices = []
     if card_on and plan["price"] > 0:
         prices.append(f"{fmt_num(plan['price'])} so'm")
@@ -120,6 +126,7 @@ def premium_view(ctx: Ctx):
                   name=esc(ctx.user.get("first_name") or ""))
     text = head + "\n\n" + premium_status_line(app, ctx.user_id)
     card_on, stars_on = methods(app)
+    card_on = card_on or provider_on(app)
     plans = [p for p in app.db.list_plans() if (card_on and p["price"] > 0) or (stars_on and p["stars"] > 0)]
     if not plans:
         text += "\n\n⚠️ Hozircha sotuvda tariflar yo'q. Keyinroq qaytib keling."
@@ -178,6 +185,9 @@ def cb_premium(ctx: Ctx) -> None:
         ctx.answer()
         lines = [f"💎 <b>Premium — {name}</b> ({plan['days']} kun)", ""]
         rows = []
+        if provider_on(app) and plan["price"] > 0:
+            lines.append(f"⚡️ Click / Payme: <b>{fmt_num(plan['price'])} so'm</b> (darhol faollashadi)")
+            rows.append([btn(f"⚡️ Click / Payme — {fmt_num(plan['price'])} so'm", f"pr:inv:{plan['id']}", style=SUCCESS)])
         if card_on and plan["price"] > 0:
             lines.append(f"💳 Karta orqali: <b>{fmt_num(plan['price'])} so'm</b>")
             rows.append([btn(f"💳 Karta orqali — {fmt_num(plan['price'])} so'm", f"pr:card:{plan['id']}",
@@ -206,6 +216,22 @@ def cb_premium(ctx: Ctx) -> None:
             "ℹ️ To'lov qilish orqali /terms shartlariga rozilik bildirasiz.",
             ikb([btn("📋 Karta raqamini nusxalash", copy=digits, style=SUCCESS)] if digits else None,
                 [btn("⬅️ Orqaga", f"pr:plan:{plan['id']}", style=DANGER)]))
+
+    elif action == "inv":
+        if not (provider_on(app) and plan["price"] > 0):
+            ctx.answer("⚡️ Click/Payme orqali to'lov vaqtincha o'chirilgan.", alert=True)
+            return
+        ctx.answer()
+        try:
+            ctx.bot.send_invoice(
+                ctx.chat_id, f"💎 Premium — {name}"[:32],
+                f"{app.brand} Premium: {plan['days']} kun. Majburiy obunasiz, reklamasiz va maxsus kinolar bilan. "
+                f"To'lov qilish orqali /terms shartlariga rozilik bildirasiz."[:255],
+                f"premp:{plan['id']}:{ctx.user_id}", [{"label": f"Premium {name}", "amount": int(plan["price"]) * 100}],
+                currency="UZS", provider_token=app.config.provider_token)
+        except TelegramError as exc:
+            log.error("Click/Payme invoice yuborilmadi: %s", exc)
+            ctx.send("⚠️ To'lov oynasini ochib bo'lmadi. Keyinroq urinib ko'ring yoki karta orqali to'lang.")
 
     elif action == "stars":
         if not (stars_on and plan["stars"] > 0):
@@ -347,9 +373,20 @@ def cb_review(ctx: Ctx) -> None:
 # ═════════════════════════ ⭐ Telegram Stars ═════════════════════════
 
 def _check_payload(app: App, payload: str, currency: str, amount: int, uid: int):
+    parts = payload.split(":")
+    if parts[0] == "premp":      # 💳 Click/Payme (so'm, tiyinda)
+        if currency != "UZS":
+            return False, "Noto'g'ri valyuta"
+        if not (app.setting_bool("premium_enabled") and provider_on(app)):
+            return False, "Premium sotuvi vaqtincha to'xtatilgan"
+        plan = app.db.get_plan(int(parts[1])) if len(parts) == 3 and parts[1].isdigit() else None
+        if not plan or not plan["is_active"] or int(plan["price"]) * 100 != amount:
+            return False, "Tarif o'zgargan. Iltimos, qaytadan tanlang"
+        if parts[2] != str(uid):
+            return False, "Bu to'lov boshqa foydalanuvchi uchun"
+        return True, None
     if currency != "XTR":
         return False, "Noto'g'ri valyuta"
-    parts = payload.split(":")
     if parts[0] == "prem" and len(parts) == 3:
         if not (app.setting_bool("premium_enabled") and app.setting_bool("premium_stars")):
             return False, "Premium sotuvi vaqtincha to'xtatilgan"
@@ -386,6 +423,21 @@ def on_successful_payment(ctx: Ctx) -> None:
     payload = sp.get("invoice_payload", "")
     parts = payload.split(":")
     who = f"{user_link(ctx.user_id, ctx.user.get('first_name'))} (<code>{ctx.user_id}</code>)"
+    if parts[0] == "premp":      # 💳 Click/Payme: to'lov Telegram tomonidan tasdiqlangan — Premium darhol beriladi
+        plan = db.get_plan(int(parts[1])) if len(parts) > 1 and parts[1].isdigit() else None
+        days = plan["days"] if plan else 30
+        som = amount // 100
+        until = db.grant_premium(ctx.user_id, days)
+        db.create_payment(ctx.user_id, "premium", "provider", "approved", plan_id=plan["id"] if plan else None,
+                          days=days, amount=som, currency="UZS", charge_id=charge,
+                          note=f"provayder: {sp.get('provider_payment_charge_id', '')}"[:300])
+        ctx.send("🎉 <b>To'lov qabul qilindi!</b>\n\n"
+                 f"💎 Premium faollashtirildi — <b>{fmt_datetime(until)}</b> gacha.\n\n"
+                 "Endi botdan cheklovsiz foydalanishingiz mumkin 🍿",
+                 user_menu(ctx.is_admin, True))
+        app.notify_admins(f"⚡️ <b>Yangi Click/Payme to'lov!</b>\n\n👤 {who}\n💎 Premium {plan_name(days)} — "
+                          f"<b>{fmt_num(som)} so'm</b>\n🧾 <code>{esc(charge)}</code>")
+        return
     if parts[0] == "prem":
         plan = db.get_plan(int(parts[1])) if len(parts) > 1 and parts[1].isdigit() else None
         days = plan["days"] if plan else 30

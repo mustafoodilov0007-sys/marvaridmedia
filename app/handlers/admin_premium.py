@@ -14,7 +14,7 @@ from ..utils import esc, fmt_date, fmt_datetime, fmt_num, plan_name
 
 log = logging.getLogger("admin.premium")
 
-TOGGLES = ("premium_enabled", "premium_skip_sub", "premium_card", "premium_stars", "donate_stars")
+TOGGLES = ("premium_enabled", "premium_skip_sub", "premium_card", "premium_stars", "donate_stars", "premium_provider")
 PER_PAGE = 20
 
 
@@ -34,12 +34,17 @@ def premium_admin_view(ctx: Ctx):
     card = totals.get("premium:card", {"n": 0, "total": 0})
     stars = totals.get("premium:stars", {"n": 0, "total": 0})
     skip = ctx.app.setting_bool("premium_skip_sub")
+    prov = totals.get("premium:provider", {"n": 0, "total": 0})
+    has_token = bool(ctx.app.config.provider_token)
+    prov_state = ("⚠️ token ulanmagan (PROVIDER_TOKEN)" if not has_token else _on(ctx, "premium_provider"))
     text = ("💎 <b>Premium boshqaruvi</b>\n\n"
             f"👥 Faol premiumlar: <b>{fmt_num(db.count_premium())}</b>\n"
             f"⏳ Tekshirilmagan cheklar: <b>{fmt_num(db.count_pending())}</b>\n"
-            f"💳 Karta orqali tushum: <b>{fmt_num(card['total'])} so'm</b> ({card['n']} ta)\n"
+            f"⚡️ Click/Payme orqali tushum: <b>{fmt_num(prov['total'])} so'm</b> ({prov['n']} ta)\n"
+            f"💳 Karta (chek) orqali tushum: <b>{fmt_num(card['total'])} so'm</b> ({card['n']} ta)\n"
             f"⭐ Stars orqali tushum: <b>{fmt_num(stars['total'])} ⭐</b> ({stars['n']} ta)\n\n"
             f"⚙️ Premium tizimi: {_on(ctx, 'premium_enabled')}\n"
+            f"⚡️ Click/Payme (avtomatik): {prov_state}\n"
             f"💳 Karta orqali sotuv: {_on(ctx, 'premium_card')}\n"
             f"⭐ Stars orqali sotuv: {_on(ctx, 'premium_stars')}\n"
             f"🚪 Premiumlarga majburiy obuna: {'❌ talab qilinmaydi' if skip else '✅ talab qilinadi'}\n"
@@ -49,6 +54,7 @@ def premium_admin_view(ctx: Ctx):
         [btn("🎁 Premium berish", "pa:give", style=SUCCESS), btn("🚫 Premiumni olish", "pa:take", style=DANGER)],
         [btn("🎟 Promokodlar", "pc:menu", style=SUCCESS)],
         [_toggle(ctx, "⚙️ Tizim", "premium_enabled"), _toggle(ctx, "🚪 Obunasiz kirish", "premium_skip_sub")],
+        ([_toggle(ctx, "⚡️ Click/Payme", "premium_provider")] if has_token else []),
         [_toggle(ctx, "💳 Karta", "premium_card"), _toggle(ctx, "⭐ Stars", "premium_stars")],
         [_toggle(ctx, "💝 Stars donat", "donate_stars")],
     ]

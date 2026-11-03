@@ -410,10 +410,12 @@ class Bot:
         return self.call("createChatInviteLink", {"chat_id": chat_id, "name": name,
                                                   "creates_join_request": creates_join_request})
 
-    def send_invoice(self, chat_id, title, description, payload, prices, currency="XTR", reply_markup=None):
+    def send_invoice(self, chat_id, title, description, payload, prices, currency="XTR", reply_markup=None,
+                     provider_token=""):
+        """provider_token bo'sh — Telegram Stars (XTR); to'ldirilsa — Click/Payme (UZS, summa tiyinda)."""
         return self.call("sendInvoice", {"chat_id": chat_id, "title": title, "description": description,
                                          "payload": payload, "currency": currency, "prices": prices,
-                                         "provider_token": "", "reply_markup": reply_markup})
+                                         "provider_token": provider_token, "reply_markup": reply_markup})
 
     def answer_pre_checkout_query(self, query_id, ok, error_message=None):
         return self.call("answerPreCheckoutQuery", {"pre_checkout_query_id": query_id, "ok": ok,

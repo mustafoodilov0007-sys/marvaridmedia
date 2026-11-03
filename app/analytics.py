@@ -115,7 +115,7 @@ def build(db, t: Optional[int] = None) -> Dict:
     months.reverse()
     rev = {k: {"month": k, "premium_uzs": 0, "donate_uzs": 0, "stars": 0, "n": 0} for k in months}
     for r in db.q("SELECT strftime('%Y-%m', created_at + ?, 'unixepoch') AS mo, kind, method, COUNT(*) AS n, COALESCE(SUM(amount),0) AS s"
-                  " FROM payments WHERE status='approved' AND amount>0 AND method IN ('card','stars') GROUP BY mo, kind, method", (OFF,)):
+                  " FROM payments WHERE status='approved' AND amount>0 AND method IN ('card','stars','provider') GROUP BY mo, kind, method", (OFF,)):
         e = rev.get(r["mo"])
         if not e:
             continue

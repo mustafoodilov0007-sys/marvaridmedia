@@ -291,3 +291,17 @@ app/              — bot kodi (handlers/ — bo'limlar, webapp.py — sayt serv
 app/web/          — sayt sahifasi (index.html)
 data/             — baza va loglar (avtomatik yaratiladi)
 ```
+
+
+## 🔌 Ixtiyoriy ulanishlar (Railway → Variables)
+
+| O'zgaruvchi | Nima uchun |
+|---|---|
+| `TMDB_API_KEY` | Kino ma'lumotini (yil, janr, davlat, davomiylik, yosh, izoh) avtomatik to'ldirish. Bepul kalit: themoviedb.org → Settings → API. Ishlatish: admin → kino → «🏷 Janr...» → «🌐 TMDB dan avtomatik to'ldirish» yoki saytdagi «✏️ Tahrirlash» → «🌐 TMDB dan to'ldirish». |
+| `OMDB_API_KEY` | *(ixtiyoriy)* IMDb reytingini ham olish. Bepul kalit: omdbapi.com |
+| `TMDB_LANG` | *(ixtiyoriy)* izoh tili, standart `ru-RU` (topilmasa inglizcha) |
+| `PROVIDER_TOKEN` | Click/Payme orqali **avtomatik** Premium to'lovi. @BotFather → `/mybots` → bot → **Payments** → Click yoki Payme → «provider token». Chatga yozmang, faqat shu yerga. |
+
+**SEO:** sayt `/sitemap.xml` va `/robots.txt` beradi, har bir kino `/kino/<kod>-<nom>` manzilida. Google Search Console'ga saytni qo'shib, `/sitemap.xml` ni yuboring.
+
+**Testlar:** `python -m unittest discover -s tests -t .` (GitHub har yuborilganda o'zi ishga tushiradi).
