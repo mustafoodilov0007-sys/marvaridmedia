@@ -1539,12 +1539,19 @@
     var byKey = {};
     (data.rails || []).forEach(function (r) { byKey[r.key] = r; });
     function add(node) { any = true; view.appendChild(node); }
+    // 1-qator: haftaning TOP'i (shu haftadagi ko'rishlar), 2-qator: umumiy davr uchun eng ko'p ko'rilganlar
+    var tp = byKey.top, weekly = data.weekly || [];
+    if (weekly.length >= 3) {
+      add(coverflow({ title: "🔥 Haftaning TOP'i", items: weekly, cat: "video", sort: "top" }));
+      if (tp && tp.items.length) add(rail(tp));
+    }
     var hist = PUB ? localHist : (data.history || []);
     if (hist.length) add(rail({ title: "🕘 Davom ettiring", items: hist, cls: "hist" }));
     if (data.foryou && data.foryou.length) add(rail({ title: "🎯 Siz uchun", items: data.foryou }));
     var nw = byKey["new"]; if (nw && nw.items.length) add(rail(nw));
-    var tp = byKey.top;   // «Eng ko'p ko'rilgan» — 3D karusel ko'rinishida
-    if (tp && tp.items.length >= 3) add(coverflow(tp)); else if (tp && tp.items.length) add(rail(tp));
+    if (weekly.length < 3 && tp && tp.items.length) {   // haftalik ma'lumot hali yo'q — umumiy TOP karusel bo'ladi
+      if (tp.items.length >= 3) add(coverflow(tp)); else add(rail(tp));
+    }
     if (data.searched && data.searched.length >= 3) add(rail({ title: "🔎 Eng ko'p qidirilgan", items: data.searched }));
     if (data.choice && data.choice.length) add(rail({ title: "👑 Tomoshabinlar tanlovi", items: data.choice }));
     (data.collections || []).forEach(function (c) {

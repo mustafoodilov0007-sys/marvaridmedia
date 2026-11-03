@@ -44,6 +44,8 @@ def st_contact(ctx: Ctx) -> None:
     if time.time() - last < 20:
         ctx.send("⏳ Iltimos, keyingi murojaatni biroz kutib yuboring.")
         return
+    if len(_last_contact) > 5000:
+        _last_contact.clear()
     _last_contact[ctx.user_id] = time.time()
     ctx.clear_state()
 
@@ -154,6 +156,8 @@ def send_request(ctx: Ctx, query: str) -> bool:
         ctx.set_state("req", ttl=CONTACT_TTL)
         ctx.send("⏳ Biroz shoshildingiz 🙂 Bir necha soniyadan so'ng kino nomini qayta yuboring.", cancel_kb())
         return True
+    if len(_last_request) > 5000:   # xotira cheksiz o'smasin
+        _last_request.clear()
     _last_request[ctx.user_id] = (query, time.time())
     ctx.db.add_request(ctx.user_id, query)  # kino qo'shilganda avtomatik xabar berish uchun
     uname = f" (@{esc(ctx.user['username'])})" if ctx.user.get("username") else ""

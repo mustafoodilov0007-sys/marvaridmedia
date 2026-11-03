@@ -42,35 +42,54 @@ def send_welcome(ctx: Ctx) -> None:
     ctx.send(text, user_menu(ctx.is_admin, app.setting_bool("premium_enabled")))
 
 
-@router.command("start")
-def cmd_start(ctx: Ctx) -> None:
-    payload = ctx.args.strip()
+SPECIAL_RE = re.compile(r"sorov|premium|promo|taklif|donat|r\d{1,12}")  # /start dagi maxsus havolalar
+
+
+def run_special_payload(ctx: Ctx, payload: str) -> bool:
+    """/start ga berilgan maxsus havolani bajaradi (so'rov, premium, promokod, taklif, donat). Bajarilsa True."""
     if payload == "sorov":  # saytdagi «So'rash» tugmasidan
         from .contact import REQUEST_PROMPT, CONTACT_TTL
         ctx.set_state("req", ttl=CONTACT_TTL)
         ctx.send(REQUEST_PROMPT, cancel_kb())
-        return
-    if payload in ("premium", "promo", "taklif"):  # saytdagi «Obuna va xaridlar» tugmalaridan
-        if payload == "premium":
-            from .payments import send_premium_menu
-            send_premium_menu(ctx)
-        elif payload == "promo":
-            from .promo import cmd_promo
-            ctx.args = ""
-            cmd_promo(ctx)
-        else:
-            send_invite(ctx)
-        return
+        return True
+    if payload == "premium":
+        from .payments import send_premium_menu
+        send_premium_menu(ctx)
+        return True
+    if payload == "promo":
+        from .promo import cmd_promo
+        ctx.args = ""
+        cmd_promo(ctx)
+        return True
+    if payload == "taklif":
+        send_invite(ctx)
+        return True
     if payload == "donat":  # saytdagi «Qo'llab-quvvatlash» (Stars) tugmasidan
         from .payments import btn_donate
         btn_donate(ctx)
+        return True
+    return False
+
+
+def apply_referral(ctx: Ctx, payload: str) -> None:
+    """r<ID> havolasi: yangi (1 soat ichida qo'shilgan) foydalanuvchi bo'lsa — ikkalasiga bonus."""
+    ref = REF_RE.fullmatch(payload or "")
+    if not ref:
+        return
+    user = ctx.db.get_user(ctx.user_id)
+    if user is None or now() - user["joined_at"] < 3600:
+        _reward_referrer(ctx, int(ref.group(1)))
+
+
+@router.command("start")
+def cmd_start(ctx: Ctx) -> None:
+    payload = ctx.args.strip()
+    if run_special_payload(ctx, payload):
         return
     code = (CODE_RE.fullmatch(payload) or MUSIC_RE.fullmatch(payload)) if payload else None
     user = ctx.db.get_user(ctx.user_id)
     is_new = user is None or now() - user["joined_at"] < 15
-    ref = REF_RE.fullmatch(payload) if payload else None
-    if ref and is_new:
-        _reward_referrer(ctx, int(ref.group(1)))
+    apply_referral(ctx, payload)
     if not code or is_new:
         send_welcome(ctx)
     if code:
@@ -138,7 +157,11 @@ def cb_check(ctx: Ctx) -> None:
         send_welcome(ctx)
         pending = app.pop_pending(ctx.user_id)
         if pending:
-            handle_query(ctx, pending)
+            if SPECIAL_RE.fullmatch(pending):   # kanalga obuna bo'lishdan oldin bosilgan maxsus havola
+                apply_referral(ctx, pending)
+                run_special_payload(ctx, pending)
+            else:
+                handle_query(ctx, pending)
         return
     ctx.answer("❌ Siz hali barcha kanallarga obuna bo'lmadingiz!\n\n"
                "Qizil tugmalar orqali obuna bo'lib, qayta tekshiring.", alert=True)
@@ -759,6 +782,7 @@ def send_part(ctx: Ctx, movie, part, total: int, extra_rows=None) -> None:
         ctx.db.touch_history(ctx.user_id, movie["id"])
         if random.random() < 0.01:
             ctx.db.prune_history()
+            ctx.db.prune_views()
 
 
 def parts_view(movie, parts, page: int, extra_rows=None):

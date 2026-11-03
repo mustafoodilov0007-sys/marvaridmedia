@@ -31,6 +31,8 @@ def redeem(ctx: Ctx, code: str) -> None:
         return
     days = ctx.db.redeem_promo(code, ctx.user_id)
     if not days:
+        if len(_fails) > 5000:
+            _fails.clear()
         _fails.setdefault(ctx.user_id, []).append(time.time())
         ctx.send("❌ <b>Promokod topilmadi yoki ishlatilgan.</b>\n\nKodni tekshirib, qayta yuboring.",
                  ikb([btn("🎟 Qayta kiritish", "promo:ask", style=PRIMARY)]))

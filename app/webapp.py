@@ -352,6 +352,7 @@ def api_home(app: App, user: dict) -> dict:
         "extra": extra,
         "choice": pack(db.audience_choice(15)),
         "collections": collections,
+        "weekly": pack(db.weekly_top(10)),
         "hero": pack(hero),
         "rails": [
             {"key": "new", "title": "Yangi qo'shilganlar", "cat": "video", "sort": "new",
@@ -970,6 +971,7 @@ def make_handler(app: App):
 
         # ───── GET ─────
         def do_GET(self):
+            self._kids = False   # ulanish qayta ishlatiladi — avvalgi so'rov holati qolmasin
             url = urllib.parse.urlsplit(self.path)
             path = url.path
             qs = dict(urllib.parse.parse_qsl(url.query))
@@ -1061,6 +1063,7 @@ def make_handler(app: App):
 
         # ───── POST ─────
         def do_POST(self):
+            self._kids = False
             path = urllib.parse.urlsplit(self.path).path
             try:
                 length = min(int(self.headers.get("Content-Length") or 0), 20_000)

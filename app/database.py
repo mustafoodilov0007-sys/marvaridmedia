@@ -93,6 +93,14 @@ CREATE TABLE IF NOT EXISTS promos (
 );
 CREATE INDEX IF NOT EXISTS idx_promos_days ON promos(used_by, days);
 
+CREATE TABLE IF NOT EXISTS view_days (   -- kunlik ko'rishlar (haftalik TOP uchun)
+    movie_id INTEGER NOT NULL,
+    day      INTEGER NOT NULL,
+    n        INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (movie_id, day)
+);
+CREATE INDEX IF NOT EXISTS idx_view_days_day ON view_days(day);
+
 CREATE TABLE IF NOT EXISTS history (
     user_id     INTEGER NOT NULL,
     movie_id    INTEGER NOT NULL,
@@ -419,7 +427,7 @@ class Database:
         from .utils import day_start
         today = day_start()
         start = today - (days - 1) * 86400
-        counts = {r[0]: r[1] for r in self.conn.execute(
+        counts = {r[0]: r[1] for r in self.q(
             "SELECT (joined_at + 18000) / 86400 AS d, COUNT(*) FROM users WHERE joined_at>=? GROUP BY d", (start,))}
         return [(start + i * 86400, counts.get((start + i * 86400 + 18000) // 86400, 0)) for i in range(days)]
 
@@ -608,6 +616,20 @@ class Database:
         with self.tx() as c:
             c.execute("UPDATE movies SET views=views+1 WHERE id=?", (movie_id,))
             c.execute("UPDATE parts SET views=views+1 WHERE id=?", (part_id,))
+            c.execute("INSERT INTO view_days(movie_id, day, n) VALUES (?,?,1)"
+                      " ON CONFLICT(movie_id, day) DO UPDATE SET n=n+1", (movie_id, (now() + 18000) // 86400))
+
+    def prune_views(self, keep_days: int = 60) -> None:
+        self.x("DELETE FROM view_days WHERE day < ?", ((now() + 18000) // 86400 - keep_days,))
+
+    def weekly_top(self, limit: int = 10, days: int = 7) -> List[sqlite3.Row]:
+        """🔥 Shu haftada eng ko'p ko'rilgan kino/serial/multfilmlar (musiqasiz)."""
+        since = (now() + 18000) // 86400 - (days - 1)
+        ids = [r[0] for r in self.q(
+            "SELECT v.movie_id FROM view_days v JOIN movies m ON m.id = v.movie_id"
+            " WHERE v.day >= ? AND m.category<>'music' GROUP BY v.movie_id ORDER BY SUM(v.n) DESC, v.movie_id DESC LIMIT ?",
+            (since, limit))]
+        return self.catalog_rows(ids)
 
     def movie_rows(self, ids: List[int]) -> List[sqlite3.Row]:
         if not ids:
