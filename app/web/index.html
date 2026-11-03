@@ -769,10 +769,10 @@
     0% { opacity: 0; transform: translate3d(0, 0, 0) scale(.6); }
     12% { opacity: .85; } 55% { opacity: .45; transform: translate3d(var(--dx), -56vh, 0) scale(1); }
     90% { opacity: .7; } 100% { opacity: 0; transform: translate3d(calc(var(--dx) * -1), -112vh, 0) scale(.7); } }
-  .amb::before { content: ""; position: absolute; left: -30vw; top: 8vh; width: 160vw; height: 34vh; opacity: 0;
-    background: linear-gradient(100deg, transparent 25%, rgba(233,150,43,.16) 50%, transparent 75%);
-    transform: rotate(-16deg); animation: amb-streak 16s ease-in-out infinite; }
-  @keyframes amb-streak { 0%, 100% { opacity: 0; transform: translate3d(-18%, 0, 0) rotate(-16deg); } 50% { opacity: 1; transform: translate3d(14%, 6vh, 0) rotate(-16deg); } }
+  .amb::before { content: ""; position: absolute; left: -40vw; top: 4vh; width: 180vw; height: 60vh; opacity: 0;
+    background: radial-gradient(ellipse at center, rgba(233,150,43,.14), rgba(233,150,43,0) 62%);
+    animation: amb-streak 18s ease-in-out infinite; }
+  @keyframes amb-streak { 0%, 100% { opacity: 0; transform: translate3d(-12%, 0, 0); } 50% { opacity: 1; transform: translate3d(12%, 8vh, 0); } }
   .amb.paused i, .amb.paused::before { animation-play-state: paused; }
   :root[data-theme="light"] .amb { opacity: .45; }
   main#view { position: relative; z-index: 1; }
@@ -780,14 +780,56 @@
   .rv { opacity: 0; transform: translateY(24px); transition: opacity .65s ease, transform .65s cubic-bezier(.2,.8,.2,1); }
   .rv.in { opacity: 1; transform: none; }
 
-  .cf { display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
-    padding: 14px calc(50% - var(--cfw) / 2) 18px; --cfw: min(46vw, 200px); }
+  .cf { display: flex; gap: 4px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+    padding: 12px calc(50% - var(--cfw) / 2) 14px; --cfw: min(42vw, 188px); }
   .cf::-webkit-scrollbar { display: none; }
-  .cf .cfc { flex: 0 0 var(--cfw); scroll-snap-align: center; will-change: transform; }
-  .cf .cfc .poster { opacity: var(--po, 1); }
-  .cf .cfc:not(.on) .poster { filter: saturate(.8) brightness(.85); }
-  .cf .cfc.on .poster { box-shadow: 0 0 0 2px var(--gold), 0 14px 38px rgba(226,180,80,.38); }
-  .cf .cfc .poster { transition: box-shadow .35s, filter .3s; }
+  .cfc { flex: 0 0 var(--cfw); position: relative; display: block; padding: 0; text-align: left; scroll-snap-align: center; will-change: transform; }
+  .cfc .poster { opacity: var(--po, 1); border-radius: 16px; box-shadow: 0 10px 26px rgba(0,0,0,.5); transition: box-shadow .35s, filter .3s; }
+  .cfc:not(.on) .poster { filter: saturate(.75) brightness(.8); }
+  .cfc.on .poster { box-shadow: 0 0 0 2px var(--gold), 0 16px 40px rgba(226,180,80,.38); }
+  .rkb { position: absolute; left: 10px; top: 10px; min-width: 30px; height: 30px; padding: 0 8px; border-radius: 10px; display: grid; place-items: center;
+    font: 800 15px/1 "Inter", sans-serif; background: var(--grad); color: var(--on-grad); box-shadow: 0 4px 12px rgba(0,0,0,.45); z-index: 2; }
+  .cfinfo { display: grid; grid-template-rows: 0fr; margin: 0 16px; transition: grid-template-rows .42s cubic-bezier(.2,.8,.2,1), margin .42s; }
+  .cfinfo.open { grid-template-rows: 1fr; margin-top: 4px; }
+  .cfin { min-height: 0; overflow: hidden; border-radius: 20px; text-align: center; padding: 0 14px;
+    background: linear-gradient(165deg, color-mix(in srgb, var(--gold) 11%, var(--surface)), var(--surface) 70%); border: 1px solid transparent;
+    opacity: 0; transition: opacity .3s ease, padding .42s, border-color .3s; }
+  .cfinfo.open .cfin { padding: 16px 14px 14px; opacity: 1; border-color: var(--line); }
+  .cfin .cft { display: inline-flex; align-items: center; gap: 4px; font-size: 19px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; margin-bottom: 6px; text-align: center; }
+  .cfin .cft svg { width: 17px; height: 17px; opacity: .6; }
+  .cfin .meta { font-size: 13px; color: var(--muted); }
+  .cfin .rbadges { margin: 9px 0 0; } .cfin .rb { font-size: 18px; }
+  .cfin .gpills { margin-top: 9px; } .cfin .gpill { background: var(--surface-2); color: var(--text); font-size: 12px; padding: 5px 11px; }
+  .cfin .actions { margin-top: 13px; gap: 8px; }
+  .cfin .actions .btn { height: 46px; font-size: 14px; border-radius: 14px; }
+  .cfin .actions .btn.primary { flex: 1.5 1 0; padding: 0 12px; }
+  .cfin .actions .btn.soft { flex: 1 1 0; padding: 0 10px; }
+  .cfin .actions .btn.sq { width: 46px; flex: none; }
+  .cfwrap { position: relative; }
+  .cfa { position: absolute; top: 50%; z-index: 20; width: 44px; height: 44px; margin-top: -22px; border-radius: 50%; display: none; place-items: center;
+    background: rgba(18,16,20,.72); border: 1px solid rgba(255,255,255,.12); color: #fff; backdrop-filter: blur(8px); transition: opacity .2s, transform .15s; opacity: 0; }
+  .cfa.l { left: 12px; } .cfa.l svg { transform: rotate(180deg); } .cfa.r { right: 12px; }
+  .cfa:active { transform: scale(.92); }
+  @media (hover: hover) and (min-width: 900px) {
+    .cfa { display: grid; } .cfwrap:hover .cfa, .cfa:focus-visible { opacity: 1; }
+    .cf { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%); }
+  }
+  .cfhint { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); width: 28px; height: 28px; border-radius: 50%; display: none; place-items: center;
+    background: rgba(18,16,20,.62); backdrop-filter: blur(6px); color: var(--gold); z-index: 2; pointer-events: none; }
+  .cfhint svg { width: 16px; height: 16px; transform: rotate(90deg); transition: transform .3s; }
+  .cfc.on .cfhint { display: grid; animation: hint-bob 2.2s ease-in-out infinite; }
+  .cfc[aria-expanded="true"] .cfhint svg { transform: rotate(-90deg); }
+  @keyframes hint-bob { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, 3px); } }
+  @media (min-width: 900px) { .cf { --cfw: 210px; } .cfinfo { max-width: 640px; margin-left: auto; margin-right: auto; }
+    .cfin .actions, .cfin .rbadges, .cfin .gpills { justify-content: center; } }
+
+  .rankrail { gap: 2px; padding-bottom: 6px; }
+  .rk { flex: none; display: flex; align-items: flex-start; scroll-snap-align: start; position: relative; }
+  .rk .rn { font: 900 112px/.8 "Inter", sans-serif; letter-spacing: -.09em; color: transparent; -webkit-text-stroke: 2.5px var(--gold);
+    min-width: 64px; text-align: right; margin: 100px -14px 0 0; position: relative; z-index: 0; user-select: none; opacity: .95; }
+  .rk .card { width: 128px; position: relative; z-index: 1; }
+  .rk:nth-child(n+10) .rn { min-width: 108px; margin-right: -22px; }
+  :root[data-theme="light"] .rk .rn { -webkit-text-stroke-color: #b98a2c; }
 
   .tgbanner { display: flex; align-items: center; gap: 12px; margin: 14px 16px 0; padding: 12px 14px; border-radius: 16px; text-decoration: none; color: var(--text);
     background: linear-gradient(120deg, color-mix(in srgb, var(--gold) 20%, var(--surface)), var(--surface)); border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent); }
@@ -796,6 +838,7 @@
   .tgbanner em { font-style: normal; font-weight: 800; font-size: 13px; padding: 8px 14px; border-radius: 12px; background: var(--grad); color: var(--on-grad); }
   @media (min-width: 900px) { .tgbanner { margin: 16px var(--pad) 0; max-width: 640px; } }
 
+  @media (max-width: 460px) { .top { gap: 5px; } .top .ibtn, .top .avatar { width: 36px; height: 36px; border-radius: 11px; } .top .ibtn svg { width: 18px; height: 18px; } }
   .top .ibtn#bSupport { background: var(--grad); color: var(--on-grad); border-color: transparent; animation: heartbeat 2.8s ease-in-out infinite; }
   .top .ibtn#bSupport svg { fill: currentColor; stroke: none; }
   @keyframes heartbeat {
@@ -811,8 +854,11 @@
   @media (hover: hover) { .rail .card .poster, .grid .card .poster { transition: transform .3s cubic-bezier(.2,.8,.2,1), box-shadow .3s; }
     .rail .card:hover .poster, .grid .card:hover .poster { transform: translateY(-5px); box-shadow: 0 16px 30px rgba(0,0,0,.45); } }
   @media (prefers-reduced-motion: reduce) {
-    .top .ibtn#bSupport, .hero .btn.primary::after { animation: none; }
+    .top .ibtn#bSupport, .hero .btn.primary::after, .cfc.on .cfhint { animation: none; }
     .rv { opacity: 1; transform: none; transition: none; } .amb { display: none; } }
+  @media (hover: hover) { .rail, .cf { cursor: grab; } .rail .card, .cf .cfc { cursor: pointer; } }
+  .dragging { cursor: grabbing !important; scroll-snap-type: none !important; user-select: none; -webkit-user-select: none; }
+  .dragging * { pointer-events: none; }
 </style>
 </head>
 <body>
@@ -1238,13 +1284,7 @@
       if (it.parts > 1) badges.appendChild(h("span", "badge glass", it.parts + " qism"));
       var qlt = topQuality(it); if (qlt) badges.appendChild(h("span", "badge glass", qlt));
       var lc = langCode(it); if (lc) badges.appendChild(h("span", "badge glass", lc));
-      var metaBits = [NAMES[it.cat] || "Kino"];
-      if (it.year) metaBits.push(String(it.year));
-      var dur = fmtDur(it.duration); if (dur) metaBits.push(dur);
-      var cn = countryName(it); if (cn) metaBits.push(cn);
-      var meta = h("div", "meta");
-      var ab = ageBadge(it); if (ab) meta.appendChild(ab);
-      metaBits.forEach(function (bt, k) { if (k) meta.appendChild(h("i", null, "·")); meta.appendChild(document.createTextNode(bt)); });
+      var meta = metaNode(it);
       var gp = h("div", "gpills");
       (it.genres || []).slice(0, 3).forEach(function (g) { gp.appendChild(h("span", "gpill", gname(g))); });
       var body = h("div", "hero-body", [badges, h("h1", "hero-title", it.title), meta, ratingBadges(it), gp.childNodes.length ? gp : null]);
@@ -1386,7 +1426,7 @@
     }
     sec.appendChild(h("div", "sec-head", [h("h2", null, r.title), moreBtn]));
     var list = h("div", "rail" + (r.cat === "music" ? " music" : "") + (r.cls ? " " + r.cls : ""));
-    r.items.forEach(function (it) { list.appendChild(card(it)); });
+    r.items.forEach(function (it, i) { list.appendChild(r.wrapItem ? r.wrapItem(it, i) : card(it)); });
     var wrap = h("div", "railwrap", [list]);
     var l = h("button", "rarrow l", [icon("chev")]), rr = h("button", "rarrow r", [icon("chev")]);
     l.setAttribute("aria-label", "Orqaga"); rr.setAttribute("aria-label", "Oldinga");
@@ -1458,7 +1498,19 @@
     document.addEventListener("visibilitychange", function () { box.classList.toggle("paused", document.hidden); });
   }
 
-  // 3D «coverflow» karusel: o'rtadagi poster katta va oltin ramkali, yon tomondagilar burilgan
+  // meta-satr: [16+] Film · 2026 · 2 soat 25 daq · AQSH
+  function metaNode(it) {
+    var bits = [NAMES[it.cat] || "Kino"];
+    if (it.year) bits.push(String(it.year));
+    var dur = fmtDur(it.duration); if (dur) bits.push(dur);
+    var cn = countryName(it); if (cn) bits.push(cn);
+    var meta = h("div", "meta");
+    var ab = ageBadge(it); if (ab) meta.appendChild(ab);
+    bits.forEach(function (bt, k) { if (k) meta.appendChild(h("i", null, "·")); meta.appendChild(document.createTextNode(bt)); });
+    return meta;
+  }
+
+  // 3D karusel (haftaning TOP'i): cheksiz aylanadi, sichqoncha bilan sudraladi, poster bosilsa qisqa ma'lumot ochiladi
   function coverflow(r) {
     var sec = h("section", "section cfsec");
     var moreBtn = null;
@@ -1467,48 +1519,174 @@
       moreBtn.onclick = r.more || function () { show(r.cat, { sort: r.sort, f: r.f }); };
     }
     sec.appendChild(h("div", "sec-head", [h("h2", null, r.title), moreBtn]));
+    var items = r.items.slice(0, 10), n = items.length, COPIES = 3, mid = n;   // 3 nusxa: o'rtadagisida turamiz, chekkaga yetsak sezdirmay ko'chamiz
     var cf = h("div", "cf");
-    r.items.slice(0, 10).forEach(function (it) { var c = card(it); c.classList.add("cfc"); cf.appendChild(c); });
-    sec.appendChild(cf);
-    var ticking = false;
-    function layout() {
-      ticking = false;
-      var cr = cf.getBoundingClientRect(), cx = cr.left + cr.width / 2;
-      Array.prototype.forEach.call(cf.children, function (c) {
-        var b = c.getBoundingClientRect();
-        var d = (b.left + b.width / 2 - cx) / b.width, ad = Math.min(Math.abs(d), 2.2);
-        c.style.transform = "perspective(700px) rotateY(" + (Math.max(-1.4, Math.min(1.4, d)) * -30).toFixed(1) + "deg) scale(" + (1 - ad * 0.14).toFixed(3) + ")";
-        c.style.setProperty("--po", (1 - Math.min(ad, 1.6) * 0.3).toFixed(2));
-        c.style.zIndex = String(10 - Math.round(ad * 3));
-        c.classList.toggle("on", ad < 0.4);
+    var inner = h("div", "cfin");
+    var info = h("div", "cfinfo", [inner]);
+    info.setAttribute("aria-live", "polite");
+    var cur = -1, curG = 0, tgt = null, open = false, idleT = 0, ticking = false;   // tgt — oxirgi bosilgan maqsad (tez bosilganda adashmaslik uchun)
+    function childLeft(el) { return el.offsetLeft - cf.offsetLeft - (cf.clientWidth - el.offsetWidth) / 2; }
+    function centerOn(g, instant) {
+      var el = cf.children[g];
+      if (!el) return;
+      tgt = g;
+      cf.scrollTo({ left: childLeft(el), behavior: (REDUCE || instant) ? "auto" : "smooth" });
+    }
+    var lastStep = 0;
+    function shiftSet(d) {   // bir nusxa kengligiga sezdirmay ko'chish (ko'rinish bir xil qoladi)
+      cf.style.scrollSnapType = "none";
+      cf.scrollLeft += d;
+      requestAnimationFrame(function () { cf.style.scrollSnapType = ""; });
+    }
+    function step(dir) {
+      lastStep = Date.now();
+      var base = tgt == null ? bestChild() : tgt;
+      if (base < n || base >= 2 * n) {   // chekka nusxada bo'lsak, avval o'rtadagisiga ko'chamiz — shunda qadam adashmaydi
+        var setW = cf.children[n].offsetLeft - cf.children[0].offsetLeft;
+        shiftSet(base < n ? setW : -setW);
+        base += base < n ? n : -n;
+      }
+      centerOn(base + dir);
+    }
+    function build(it) {   // poster bosilganda chiqadigan qisqa ma'lumot
+      var gp = h("div", "gpills");
+      (it.genres || []).slice(0, 3).forEach(function (g) { gp.appendChild(h("span", "gpill", gname(g))); });
+      var t = h("button", "cft", [it.title, icon("chev")]);
+      t.type = "button"; t.onclick = function () { openSheet(it); };
+      inner.replaceChildren(t, metaNode(it), ratingBadges(it), gp.childNodes.length ? gp : null, actionRow(it, false));
+    }
+    function setOpen(v) {
+      open = v;
+      if (v) build(items[cur]);
+      info.classList.toggle("open", v);
+      if (cf.children[curG]) cf.children[curG].setAttribute("aria-expanded", v ? "true" : "false");
+    }
+    for (var k = 0; k < COPIES; k++) {
+      items.forEach(function (it, i) {
+        var c = h("button", "cfc", [posterNode(it), h("span", "rkb", String(i + 1)), h("span", "cfhint", [icon("chev")])]);
+        c.type = "button"; c._i = i;
+        c.setAttribute("aria-label", (i + 1) + ". " + it.title);
+        c.setAttribute("aria-expanded", "false");
+        if (k !== 1) { c.setAttribute("aria-hidden", "true"); c.tabIndex = -1; }
+        c.onclick = function () {
+          haptic();
+          var g = Array.prototype.indexOf.call(cf.children, c);
+          if (c.classList.contains("on")) setOpen(!open); else { setOpen(false); centerOn(g); }
+        };
+        cf.appendChild(c);
       });
     }
+    var l = h("button", "cfa l", [icon("chev")]), rr = h("button", "cfa r", [icon("chev")]);
+    l.type = rr.type = "button";
+    l.setAttribute("aria-label", "Oldingi"); rr.setAttribute("aria-label", "Keyingi");
+    l.onclick = function () { setOpen(false); step(-1); };
+    rr.onclick = function () { setOpen(false); step(1); };
+    sec.appendChild(h("div", "cfwrap", [cf, l, rr]));
+    sec.appendChild(info);
+    function bestChild() {
+      var cr = cf.getBoundingClientRect(), cx = cr.left + cr.width / 2, best = 0, bd = 1e9;
+      Array.prototype.forEach.call(cf.children, function (c, i) {
+        var b = c.getBoundingClientRect(), d = Math.abs(b.left + b.width / 2 - cx);
+        if (d < bd) { bd = d; best = i; }
+      });
+      return best;
+    }
+    function layout() {
+      ticking = false;
+      var cr = cf.getBoundingClientRect(), cx = cr.left + cr.width / 2, best = 0, bd = 1e9;
+      Array.prototype.forEach.call(cf.children, function (c, i) {
+        var b = c.getBoundingClientRect();
+        if (b.right < cr.left - b.width || b.left > cr.right + b.width) { c.classList.remove("on"); return; }   // ko'rinmaydigan chetdagilarga tegmaymiz
+        var d = (b.left + b.width / 2 - cx) / b.width, ad = Math.min(Math.abs(d), 2.2);
+        c.style.transform = "perspective(800px) rotateY(" + (Math.max(-1.2, Math.min(1.2, d)) * -22).toFixed(1) + "deg) scale(" + (1 - ad * 0.1).toFixed(3) + ")";
+        c.style.setProperty("--po", (1 - Math.min(ad, 1.5) * 0.32).toFixed(2));
+        c.style.zIndex = String(10 - Math.round(ad * 3));
+        c.classList.toggle("on", ad < 0.4);
+        if (Math.abs(d) < bd) { bd = Math.abs(d); best = i; }
+      });
+      curG = best;
+      var oi = cf.children[best]._i;
+      if (oi !== cur) { cur = oi; if (open) { open = false; info.classList.remove("open"); } }   // boshqa kinoga o'tilsa panel yopiladi
+    }
     function queue() { if (!ticking) { ticking = true; requestAnimationFrame(layout); } }
-    cf.addEventListener("scroll", queue, { passive: true });
+    // to'xtagach: chekka nusxaga o'tib qolgan bo'lsak, bir xil joyga (o'rtadagi nusxaga) ko'chamiz — foydalanuvchi sezmaydi
+    function settle() {
+      if (cf.classList.contains("dragging") || !document.body.contains(cf)) return;
+      if (Date.now() - lastStep < 400) { clearTimeout(idleT); idleT = setTimeout(settle, 200); return; }   // qadam hali tugamagan
+      tgt = null;
+      var bi = bestChild(), setW = cf.children[n].offsetLeft - cf.children[0].offsetLeft, d = 0;
+      if (bi < n) d = setW; else if (bi >= 2 * n) d = -setW;
+      if (!d) return;
+      cf.style.scrollSnapType = "none";
+      cf.scrollLeft += d;
+      requestAnimationFrame(function () { cf.style.scrollSnapType = ""; layout(); });
+    }
+    cf.addEventListener("scroll", function () { queue(); clearTimeout(idleT); idleT = setTimeout(settle, 140); }, { passive: true });
+    cf._dragEnd = function () { centerOn(bestChild()); };
     window.addEventListener("resize", queue);
-    requestAnimationFrame(function () { requestAnimationFrame(function () { layout(); }); });
+    cf.addEventListener("keydown", function (e) {   // klaviatura: ← → strelkalar
+      var dir = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (!dir) return;
+      e.preventDefault(); setOpen(false);
+      step(dir);
+      setTimeout(function () {   // fokusni o'rtadagi nusxadagi markaziy kartochkaga beramiz
+        var g = bestChild(), t = cf.children[g < n ? g + n : g >= 2 * n ? g - n : g];
+        if (t) { try { t.focus({ preventScroll: true }); } catch (x) {} }
+      }, 500);
+    });
+    requestAnimationFrame(function () { requestAnimationFrame(function () { centerOn(mid, true); queue(); }); });
     // o'zi sekin aylanib turadi (ko'rinib turganda va tegilmaganda)
     if (!REDUCE) {
       var visible = false, idleUntil = 0;
       if ("IntersectionObserver" in window) {
-        new IntersectionObserver(function (e) { visible = e[0].isIntersecting; if (visible) queue(); }, { threshold: 0.4 }).observe(cf);
+        new IntersectionObserver(function (e) { visible = e[e.length - 1].isIntersecting; if (visible) queue(); }, { threshold: 0.4 }).observe(cf);
       }
-      ["pointerdown", "wheel", "touchstart"].forEach(function (ev) {
-        cf.addEventListener(ev, function () { idleUntil = Date.now() + 7000; }, { passive: true });
+      ["pointerdown", "wheel", "touchstart", "keydown"].forEach(function (ev) {
+        sec.addEventListener(ev, function () { idleUntil = Date.now() + 8000; }, { passive: true });
       });
       var iv = setInterval(function () {
         if (!document.body.contains(cf)) { clearInterval(iv); return; }
-        if (!visible || document.hidden || Date.now() < idleUntil || sheetOpen) return;
-        var kids = cf.children, cur = 0, cx = cf.getBoundingClientRect().left + cf.clientWidth / 2, best = 1e9;
-        for (var i = 0; i < kids.length; i++) {
-          var b = kids[i].getBoundingClientRect(), dd = Math.abs(b.left + b.width / 2 - cx);
-          if (dd < best) { best = dd; cur = i; }
-        }
-        var nx = kids[(cur + 1) % kids.length];
-        cf.scrollTo({ left: nx.offsetLeft - (cf.clientWidth - nx.offsetWidth) / 2, behavior: "smooth" });
-      }, 3600);
+        if (!visible || open || document.hidden || Date.now() < idleUntil || sheetOpen || cf.classList.contains("dragging")) return;
+        step(1);
+      }, 4200);
     }
     return sec;
+  }
+
+  // 🖱 kompyuterda: gorizontal ro'yxatlarni sichqonchaning chap tugmasini bosib ushlab sudrash
+  (function () {
+    var SEL = ".rail, .cf, .gchips", el = null, sx = 0, sl = 0, moved = false, suppress = false;
+    document.addEventListener("pointerdown", function (e) {
+      if (e.pointerType !== "mouse" || e.button !== 0 || !e.target.closest) return;
+      var t = e.target.closest(SEL);
+      if (!t || t.scrollWidth <= t.clientWidth + 2) return;
+      el = t; sx = e.clientX; sl = t.scrollLeft; moved = false;
+    });
+    document.addEventListener("pointermove", function (e) {
+      if (!el) return;
+      var dx = e.clientX - sx;
+      if (!moved) { if (Math.abs(dx) < 6) return; moved = true; el.classList.add("dragging"); }
+      el.scrollLeft = sl - dx;
+    });
+    function end() {
+      if (!el) return;
+      var t = el; el = null;
+      if (!moved) return;
+      suppress = true; setTimeout(function () { suppress = false; }, 0);   // sudrashdan keyin tasodifan bosilib ketmasin
+      t.classList.remove("dragging");
+      if (t._dragEnd) t._dragEnd();
+    }
+    document.addEventListener("pointerup", end);
+    document.addEventListener("pointercancel", end);
+    document.addEventListener("click", function (e) { if (suppress) { e.stopPropagation(); e.preventDefault(); } }, true);
+    document.addEventListener("dragstart", function (e) { if (e.target.closest && e.target.closest(SEL)) e.preventDefault(); });
+  })();
+
+  // umumiy TOP: katta raqamli «Top 10» qatori
+  function rankItem(it, i) {
+    var w = h("div", "rk", [h("span", "rn", String(i + 1)), card(it)]);
+    w.firstChild.setAttribute("aria-hidden", "true");
+    return w;
   }
 
   // mehmon (brauzer) uchun: Telegram ilovasida ochishni taklif qilish
@@ -1541,17 +1719,17 @@
     function add(node) { any = true; view.appendChild(node); }
     // 1-qator: haftaning TOP'i (shu haftadagi ko'rishlar), 2-qator: umumiy davr uchun eng ko'p ko'rilganlar
     var tp = byKey.top, weekly = data.weekly || [];
+    var topRail = tp && tp.items.length ? rail(Object.assign({}, tp, { title: "🏆 Eng ko'p ko'rilgan", items: tp.items.slice(0, 10),
+      cls: "rankrail", wrapItem: rankItem })) : null;
     if (weekly.length >= 3) {
       add(coverflow({ title: "🔥 Haftaning TOP'i", items: weekly, cat: "video", sort: "top" }));
-      if (tp && tp.items.length) add(rail(tp));
+      if (topRail) add(topRail);
     }
     var hist = PUB ? localHist : (data.history || []);
     if (hist.length) add(rail({ title: "🕘 Davom ettiring", items: hist, cls: "hist" }));
     if (data.foryou && data.foryou.length) add(rail({ title: "🎯 Siz uchun", items: data.foryou }));
     var nw = byKey["new"]; if (nw && nw.items.length) add(rail(nw));
-    if (weekly.length < 3 && tp && tp.items.length) {   // haftalik ma'lumot hali yo'q — umumiy TOP karusel bo'ladi
-      if (tp.items.length >= 3) add(coverflow(tp)); else add(rail(tp));
-    }
+    if (weekly.length < 3 && topRail) add(topRail);
     if (data.searched && data.searched.length >= 3) add(rail({ title: "🔎 Eng ko'p qidirilgan", items: data.searched }));
     if (data.choice && data.choice.length) add(rail({ title: "👑 Tomoshabinlar tanlovi", items: data.choice }));
     (data.collections || []).forEach(function (c) {
