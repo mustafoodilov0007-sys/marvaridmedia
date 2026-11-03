@@ -623,12 +623,21 @@ class Database:
         self.x("DELETE FROM view_days WHERE day < ?", ((now() + 18000) // 86400 - keep_days,))
 
     def weekly_top(self, limit: int = 10, days: int = 7) -> List[sqlite3.Row]:
-        """🔥 Shu haftada eng ko'p ko'rilgan kino/serial/multfilmlar (musiqasiz)."""
-        since = (now() + 18000) // 86400 - (days - 1)
+        """🔥 Haftaning TOP'i: avval shu haftada eng ko'p ko'rilganlar; yetmasa — oxirgi oyda qo'shilgan mashhurlari,
+        keyin umumiy TOP bilan to'ldiriladi (qator hech qachon bo'sh qolmasin; ma'lumot to'plangach o'zi haqiqiy bo'ladi)."""
+        t = now()
+        since = (t + 18000) // 86400 - (days - 1)
         ids = [r[0] for r in self.q(
             "SELECT v.movie_id FROM view_days v JOIN movies m ON m.id = v.movie_id"
             " WHERE v.day >= ? AND m.category<>'music' GROUP BY v.movie_id ORDER BY SUM(v.n) DESC, v.movie_id DESC LIMIT ?",
             (since, limit))]
+        for where, params in (("created_at >= ?", (t - 30 * 86400,)), ("1=1", ())):
+            if len(ids) >= limit:
+                break
+            skip = ",".join("?" * len(ids)) or "-1"
+            more = self.q(f"SELECT id FROM movies WHERE category<>'music' AND {where} AND id NOT IN ({skip})"
+                          " ORDER BY views DESC, id DESC LIMIT ?", (*params, *ids, limit - len(ids)))
+            ids += [r[0] for r in more]
         return self.catalog_rows(ids)
 
     def movie_rows(self, ids: List[int]) -> List[sqlite3.Row]:
