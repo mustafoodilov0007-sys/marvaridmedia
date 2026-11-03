@@ -842,6 +842,94 @@ def _kids_filter(o):
     return o
 
 
+# ───── 🌐 PWA va boy havola ko'rinishi (Open Graph) ─────
+
+STATIC_FILES = {
+    "/og.png": "image/png", "/icon-192.png": "image/png", "/icon-512.png": "image/png",
+    "/icon-maskable-512.png": "image/png", "/apple-touch-icon.png": "image/png",
+}
+
+SERVICE_WORKER = r"""// Marvarid Media — xizmat ishchisi: sahifa tezroq ochiladi, internet uzilsa ham ilova qobig'i chiqadi
+const V = "mm-v1", IMG = "mm-img-v1";
+self.addEventListener("install", (e) => { self.skipWaiting(); e.waitUntil(caches.open(V).then((c) => c.add("/"))); });
+self.addEventListener("activate", (e) => {
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V && k !== IMG).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+});
+async function trim(name, max) { const c = await caches.open(name), ks = await c.keys(); for (let i = 0; i < ks.length - max; i++) await c.delete(ks[i]); }
+self.addEventListener("fetch", (e) => {
+  const r = e.request, u = new URL(r.url);
+  if (r.method !== "GET" || u.origin !== location.origin) return;
+  if (r.mode === "navigate") {           // sahifa: avval tarmoq, bo'lmasa saqlangan nusxa
+    e.respondWith(fetch(r).then((res) => { if (res.ok && !u.search) { const cp = res.clone(); caches.open(V).then((c) => c.put("/", cp)); } return res; })
+      .catch(() => caches.match("/")));
+    return;
+  }
+  if (/^\/(api\/poster\/|icon-|og\.png|apple-touch)/.test(u.pathname)) {   // posterlar va ikonkalar: avval saqlangan
+    e.respondWith(caches.open(IMG).then((c) => c.match(r).then((hit) => hit || fetch(r).then((res) => { if (res.ok) { c.put(r, res.clone()); trim(IMG, 250); } return res; }))));
+  }
+});
+"""
+
+
+def _site_base(handler, app: App) -> str:
+    if app.config.webapp_url:
+        return app.config.webapp_url.rstrip("/")
+    proto = handler.headers.get("X-Forwarded-Proto") or "http"
+    return f"{proto}://{handler.headers.get('Host', 'localhost')}"
+
+
+def _manifest(app: App) -> bytes:
+    brand = app.brand
+    return json.dumps({
+        "name": brand, "short_name": brand[:12], "description": f"{brand} — eng sara kinolar, seriallar va multfilmlar",
+        "start_url": "/?utm=pwa", "scope": "/", "display": "standalone", "orientation": "portrait",
+        "background_color": "#0b0a0d", "theme_color": "#0b0a0d", "lang": "uz", "categories": ["entertainment", "video"],
+        "icons": [
+            {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {"src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+        ],
+        "shortcuts": [
+            {"name": "Qidiruv", "url": "/?v=search&utm=pwa", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}]},
+            {"name": "Seriallar", "url": "/?v=serial&utm=pwa", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}]},
+            {"name": "Saqlanganlar", "url": "/?v=saved&utm=pwa", "icons": [{"src": "/icon-192.png", "sizes": "192x192"}]},
+        ],
+    }, ensure_ascii=False).encode("utf-8")
+
+
+def _og_block(app: App, base: str, k: str = "") -> str:
+    """Havola ulashilganda (Telegram, WhatsApp...) chiqadigan kartochka: umumiy yoki aniq kino uchun."""
+    import html as _html
+    brand = app.brand
+    title = f"{brand} — kinolar, seriallar, multfilmlar"
+    desc = "Eng sara kinolar, seriallar va multfilmlar bir joyda. Qidiring, saqlang, tomosha qiling."
+    image, url = f"{base}/og.png", base + "/"
+    if re.fullmatch(r"m?\d{1,9}", k or ""):
+        movie = app.db.get_movie_by_code(-int(k[1:]) if k.startswith("m") else int(k))
+        if movie:
+            bits = [CATEGORY_NAMES.get(movie["category"], "Kino")]
+            if movie["year"]:
+                bits.append(str(movie["year"]))
+            g = ", ".join(genres.name(x) for x in genres.parse(movie["genres"])[:3])
+            if g:
+                bits.append(g)
+            title = f"{movie['title']} — {brand}"
+            desc = " • ".join(bits) + ((" — " + truncate(movie["description"] or "", 140)) if movie["description"] else "")
+            if movie["poster_id"]:
+                image = f"{base}/api/poster/{movie['id']}?v={_poster_key(movie['poster_id'])}"
+            url = f"{base}/?k={k}"
+    e = _html.escape
+    return (f'<meta name="description" content="{e(desc, True)}">\n'
+            f'<meta property="og:type" content="website">\n<meta property="og:site_name" content="{e(brand, True)}">\n'
+            f'<meta property="og:title" content="{e(title, True)}">\n<meta property="og:description" content="{e(desc, True)}">\n'
+            f'<meta property="og:url" content="{e(url, True)}">\n<meta property="og:image" content="{e(image, True)}">\n'
+            f'<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:title" content="{e(title, True)}">\n'
+            f'<meta name="twitter:description" content="{e(desc, True)}">\n<meta name="twitter:image" content="{e(image, True)}">')
+
+
+CATEGORY_NAMES = {"movie": "Kino", "serial": "Serial", "cartoon": "Multfilm", "music": "Musiqa"}
+
+
 class RateLimiter:
     """Oddiy "chelak" (token bucket): bitta IP daqiqada ko'pi bilan `per_min` ta so'rov yubora oladi."""
 
@@ -902,10 +990,10 @@ def make_handler(app: App):
             log.debug("%s - %s", self.address_string(), fmt % args)
 
         # ───── javoblar ─────
-        def _send(self, status: int, body: bytes, ctype: str, cache: str = "no-store") -> None:
+        def _send(self, status: int, body: bytes, ctype: str, cache: str = "no-store", extra: Optional[dict] = None) -> None:
             self.send_response(status)
             self.send_header("Content-Type", ctype)
-            if len(body) > 800 and ctype.startswith(("text/html", "application/json")):
+            if len(body) > 800 and ctype.startswith(("text/html", "application/json", "text/javascript")):
                 self.send_header("Vary", "Accept-Encoding")
                 if "gzip" in self.headers.get("Accept-Encoding", ""):
                     body = _gzip_cached(body)  # 4 baravar kichik: tezroq ochiladi, trafik tejaladi
@@ -913,6 +1001,8 @@ def make_handler(app: App):
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", cache)
             self.send_header("X-Content-Type-Options", "nosniff")
+            for k, v in (extra or {}).items():
+                self.send_header(k, v)
             self.end_headers()
             if self.command != "HEAD":
                 self.wfile.write(body)
@@ -977,8 +1067,18 @@ def make_handler(app: App):
             qs = dict(urllib.parse.parse_qsl(url.query))
             try:
                 if path in ("/", "/index.html"):
-                    body = (WEB_DIR / "index.html").read_bytes()
-                    return self._send(200, body, "text/html; charset=utf-8", "no-cache")
+                    page = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+                    base = _site_base(self, app)
+                    page = re.sub(r"<!--OG-->.*?<!--/OG-->", lambda m: "<!--OG-->\n" + _og_block(app, base, qs.get("k", "")) + "\n<!--/OG-->",
+                                  page, count=1, flags=re.S)
+                    return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8", "no-cache")
+                if path == "/manifest.webmanifest":
+                    return self._send(200, _manifest(app), "application/manifest+json; charset=utf-8", "public, max-age=3600")
+                if path == "/sw.js":
+                    return self._send(200, SERVICE_WORKER.encode("utf-8"), "text/javascript; charset=utf-8", "no-cache",
+                                      {"Service-Worker-Allowed": "/"})
+                if path in STATIC_FILES:
+                    return self._send(200, (WEB_DIR / path.lstrip("/")).read_bytes(), STATIC_FILES[path], "public, max-age=604800")
                 if path == "/healthz":
                     return self._send(200, b"ok", "text/plain")
                 m = re.fullmatch(r"/api/poster/(\d+)", path)

@@ -14,5 +14,7 @@ from . import admin_settings  # noqa: F401
 from . import admin_premium  # noqa: F401
 from . import promo  # noqa: F401
 from . import admin_site  # noqa: F401
+from . import ops  # noqa: F401
+from . import daily  # noqa: F401
 from .. import webapp  # noqa: F401  — 🌐 sayt (Mini App)
 from . import bootstrap  # noqa: F401
