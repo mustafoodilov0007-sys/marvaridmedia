@@ -392,6 +392,7 @@ def api_me(app: App, user: dict) -> dict:
         "premium": vip,
         "premium_on": app.setting_bool("premium_enabled"),
         "premium_until": app.db.premium_until(user["id"]) if user["id"] else 0,
+        "miniapp": app.miniapp_link(),
         "admin": bool(is_admin and user["id"]),
         "counts": dict(app.db.count_by_category(), shorts=app.db.count_shorts()),
         "channel": _channel_url(app),

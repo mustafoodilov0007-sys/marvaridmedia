@@ -280,10 +280,24 @@ class App:
     def deep_link(self, code) -> str:
         return f"https://t.me/{self.bot_username}?start={start_payload(code)}"
 
+    def miniapp_link(self, param: str = "") -> Optional[str]:
+        """Telegram'ning «to'g'ridan-to'g'ri Mini App» havolasi (t.me/bot/nom). Kanaldan bosilsa sayt Telegram ichida,
+        foydalanuvchi akkaunti bilan ochiladi. Faqat @BotFather'da /newapp qilinib, /miniapp bilan nomi kiritilsa ishlaydi."""
+        name = self.setting("miniapp").strip()
+        if not name or not self.bot_username:
+            return None
+        return f"https://t.me/{self.bot_username}/{name}" + (f"?startapp={param}" if param else "")
+
     def site_link(self, code) -> Optional[str]:
         """Saytda shu kinoni to'g'ridan-to'g'ri ochadigan havola (sayt sozlangan bo'lsa)."""
+        direct = self.miniapp_link("k" + start_payload(code))
+        if direct:
+            return direct
         url = self.config.webapp_url
         return f"{url}/?k={start_payload(code)}" if url else None
+
+    def site_home_link(self) -> Optional[str]:
+        return self.miniapp_link() or self.config.webapp_url
 
     # ───────── sozlamalar ─────────
 

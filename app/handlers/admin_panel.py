@@ -21,6 +21,8 @@ ADMIN_COMMANDS = [
     {"command": "admin", "description": "👨‍💻 Admin panel"},
     {"command": "top", "description": "🔥 Top kinolar"},
     {"command": "taklif", "description": "🤝 Do'st taklif qilib Premium olish"},
+    {"command": "saytpost", "description": "🌐 Kanalga «saytimiz ochiq» posti"},
+    {"command": "miniapp", "description": "🌐 Kanaldan saytga to'g'ridan-to'g'ri kirish"},
     {"command": "new", "description": "🆕 Yangi kinolar"},
     {"command": "premium", "description": "💎 Premium obuna"},
     {"command": "id", "description": "🆔 ID raqamni bilish"},

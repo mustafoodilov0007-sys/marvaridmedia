@@ -760,6 +760,59 @@
     .dnav button.on::after { left: 8px; right: 8px; }
     .top { gap: 5px; }
   }
+
+  /* ───── ✨ jonli animatsiyalar ───── */
+  .amb { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  .amb i { position: absolute; bottom: -10px; border-radius: 50%; opacity: 0; will-change: transform, opacity;
+    background: radial-gradient(circle, rgba(255,243,200,.95), rgba(226,180,80,.55) 45%, transparent 72%); animation: amb-up linear infinite; }
+  @keyframes amb-up {
+    0% { opacity: 0; transform: translate3d(0, 0, 0) scale(.6); }
+    12% { opacity: .85; } 55% { opacity: .45; transform: translate3d(var(--dx), -56vh, 0) scale(1); }
+    90% { opacity: .7; } 100% { opacity: 0; transform: translate3d(calc(var(--dx) * -1), -112vh, 0) scale(.7); } }
+  .amb::before { content: ""; position: absolute; left: -30vw; top: 8vh; width: 160vw; height: 34vh; opacity: 0;
+    background: linear-gradient(100deg, transparent 25%, rgba(233,150,43,.16) 50%, transparent 75%);
+    transform: rotate(-16deg); animation: amb-streak 16s ease-in-out infinite; }
+  @keyframes amb-streak { 0%, 100% { opacity: 0; transform: translate3d(-18%, 0, 0) rotate(-16deg); } 50% { opacity: 1; transform: translate3d(14%, 6vh, 0) rotate(-16deg); } }
+  .amb.paused i, .amb.paused::before { animation-play-state: paused; }
+  :root[data-theme="light"] .amb { opacity: .45; }
+  main#view { position: relative; z-index: 1; }
+
+  .rv { opacity: 0; transform: translateY(24px); transition: opacity .65s ease, transform .65s cubic-bezier(.2,.8,.2,1); }
+  .rv.in { opacity: 1; transform: none; }
+
+  .cf { display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+    padding: 14px calc(50% - var(--cfw) / 2) 18px; --cfw: min(46vw, 200px); }
+  .cf::-webkit-scrollbar { display: none; }
+  .cf .cfc { flex: 0 0 var(--cfw); scroll-snap-align: center; will-change: transform; }
+  .cf .cfc .poster { opacity: var(--po, 1); }
+  .cf .cfc:not(.on) .poster { filter: saturate(.8) brightness(.85); }
+  .cf .cfc.on .poster { box-shadow: 0 0 0 2px var(--gold), 0 14px 38px rgba(226,180,80,.38); }
+  .cf .cfc .poster { transition: box-shadow .35s, filter .3s; }
+
+  .tgbanner { display: flex; align-items: center; gap: 12px; margin: 14px 16px 0; padding: 12px 14px; border-radius: 16px; text-decoration: none; color: var(--text);
+    background: linear-gradient(120deg, color-mix(in srgb, var(--gold) 20%, var(--surface)), var(--surface)); border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent); }
+  .tgbanner .ti { font-size: 26px; } .tgbanner div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .tgbanner b { font-size: 14.5px; } .tgbanner div span { color: var(--muted); font-size: 12px; line-height: 1.3; }
+  .tgbanner em { font-style: normal; font-weight: 800; font-size: 13px; padding: 8px 14px; border-radius: 12px; background: var(--grad); color: var(--on-grad); }
+  @media (min-width: 900px) { .tgbanner { margin: 16px var(--pad) 0; max-width: 640px; } }
+
+  .top .ibtn#bSupport { background: var(--grad); color: var(--on-grad); border-color: transparent; animation: heartbeat 2.8s ease-in-out infinite; }
+  .top .ibtn#bSupport svg { fill: currentColor; stroke: none; }
+  @keyframes heartbeat {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(226,180,80,.5); }
+    10% { transform: scale(1.13); } 22% { transform: scale(1); } 34% { transform: scale(1.08); }
+    55% { transform: scale(1); box-shadow: 0 0 0 12px rgba(226,180,80,0); } }
+
+  .hero .btn.primary { position: relative; overflow: hidden; }
+  .hero .btn.primary::after { content: ""; position: absolute; top: 0; left: 0; width: 38%; height: 100%; pointer-events: none;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,.5), transparent); transform: translateX(-160%) skewX(-20deg);
+    animation: btn-shine 5s ease-in-out 2.5s infinite; }
+  @keyframes btn-shine { 0% { transform: translateX(-160%) skewX(-20deg); } 28%, 100% { transform: translateX(380%) skewX(-20deg); } }
+  @media (hover: hover) { .rail .card .poster, .grid .card .poster { transition: transform .3s cubic-bezier(.2,.8,.2,1), box-shadow .3s; }
+    .rail .card:hover .poster, .grid .card:hover .poster { transform: translateY(-5px); box-shadow: 0 16px 30px rgba(0,0,0,.45); } }
+  @media (prefers-reduced-motion: reduce) {
+    .top .ibtn#bSupport, .hero .btn.primary::after { animation: none; }
+    .rv { opacity: 1; transform: none; transition: none; } .amb { display: none; } }
 </style>
 </head>
 <body>
@@ -1372,11 +1425,13 @@
     return b;
   }
   var homeGenres = [];
-  function quickChips(genresList) {
+  function quickChips(genresList, noRandom) {
     var row = h("div", "gchips qchips");
-    var rnd = h("button", "gchip rnd", [icon("dice"), "Tasodifiy kino"]);
-    rnd.onclick = function () { randomMovie(rnd); };
-    row.appendChild(rnd);
+    if (!noRandom) {
+      var rnd = h("button", "gchip rnd", [icon("dice"), "Tasodifiy kino"]);
+      rnd.onclick = function () { randomMovie(rnd); };
+      row.appendChild(rnd);
+    }
     (genresList || []).forEach(function (g) {
       var c = h("button", "gchip", [g.label, h("i", null, String(g.n))]);
       c.onclick = function () { haptic(); show("video", { f: { genre: g.key } }); };
@@ -1384,9 +1439,101 @@
     });
     return h("div", "qwrap", [row]);
   }
+
+  // ───── ✨ jonli animatsiyalar: fon zarralari, ikonkalar qatori, 3D karusel, kolleksiya va davlatlar ─────
+  var ambientOn = false;
+  function startAmbient() {
+    if (ambientOn || REDUCE) return;
+    ambientOn = true;
+    var box = h("div", "amb");
+    box.setAttribute("aria-hidden", "true");
+    var n = (navigator.hardwareConcurrency || 4) <= 4 ? 9 : 15;
+    for (var i = 0; i < n; i++) {
+      var d = document.createElement("i"), sz = 3 + Math.random() * 5;
+      d.style.cssText = "left:" + (Math.random() * 100) + "%;width:" + sz + "px;height:" + sz + "px;animation-duration:" +
+        (11 + Math.random() * 12) + "s;animation-delay:" + (-Math.random() * 18) + "s;--dx:" + (Math.random() * 90 - 45) + "px";
+      box.appendChild(d);
+    }
+    document.body.insertBefore(box, document.body.firstChild);
+    document.addEventListener("visibilitychange", function () { box.classList.toggle("paused", document.hidden); });
+  }
+
+  // 3D «coverflow» karusel: o'rtadagi poster katta va oltin ramkali, yon tomondagilar burilgan
+  function coverflow(r) {
+    var sec = h("section", "section cfsec");
+    var moreBtn = null;
+    if (r.cat || r.more) {
+      moreBtn = h("button", "more", ["Hammasi", icon("chev")]);
+      moreBtn.onclick = r.more || function () { show(r.cat, { sort: r.sort, f: r.f }); };
+    }
+    sec.appendChild(h("div", "sec-head", [h("h2", null, r.title), moreBtn]));
+    var cf = h("div", "cf");
+    r.items.slice(0, 10).forEach(function (it) { var c = card(it); c.classList.add("cfc"); cf.appendChild(c); });
+    sec.appendChild(cf);
+    var ticking = false;
+    function layout() {
+      ticking = false;
+      var cr = cf.getBoundingClientRect(), cx = cr.left + cr.width / 2;
+      Array.prototype.forEach.call(cf.children, function (c) {
+        var b = c.getBoundingClientRect();
+        var d = (b.left + b.width / 2 - cx) / b.width, ad = Math.min(Math.abs(d), 2.2);
+        c.style.transform = "perspective(700px) rotateY(" + (Math.max(-1.4, Math.min(1.4, d)) * -30).toFixed(1) + "deg) scale(" + (1 - ad * 0.14).toFixed(3) + ")";
+        c.style.setProperty("--po", (1 - Math.min(ad, 1.6) * 0.3).toFixed(2));
+        c.style.zIndex = String(10 - Math.round(ad * 3));
+        c.classList.toggle("on", ad < 0.4);
+      });
+    }
+    function queue() { if (!ticking) { ticking = true; requestAnimationFrame(layout); } }
+    cf.addEventListener("scroll", queue, { passive: true });
+    window.addEventListener("resize", queue);
+    requestAnimationFrame(function () { requestAnimationFrame(function () { layout(); }); });
+    // o'zi sekin aylanib turadi (ko'rinib turganda va tegilmaganda)
+    if (!REDUCE) {
+      var visible = false, idleUntil = 0;
+      if ("IntersectionObserver" in window) {
+        new IntersectionObserver(function (e) { visible = e[0].isIntersecting; if (visible) queue(); }, { threshold: 0.4 }).observe(cf);
+      }
+      ["pointerdown", "wheel", "touchstart"].forEach(function (ev) {
+        cf.addEventListener(ev, function () { idleUntil = Date.now() + 7000; }, { passive: true });
+      });
+      var iv = setInterval(function () {
+        if (!document.body.contains(cf)) { clearInterval(iv); return; }
+        if (!visible || document.hidden || Date.now() < idleUntil || sheetOpen) return;
+        var kids = cf.children, cur = 0, cx = cf.getBoundingClientRect().left + cf.clientWidth / 2, best = 1e9;
+        for (var i = 0; i < kids.length; i++) {
+          var b = kids[i].getBoundingClientRect(), dd = Math.abs(b.left + b.width / 2 - cx);
+          if (dd < best) { best = dd; cur = i; }
+        }
+        var nx = kids[(cur + 1) % kids.length];
+        cf.scrollTo({ left: nx.offsetLeft - (cf.clientWidth - nx.offsetWidth) / 2, behavior: "smooth" });
+      }, 3600);
+    }
+    return sec;
+  }
+
+  // mehmon (brauzer) uchun: Telegram ilovasida ochishni taklif qilish
+  function openInTelegram() {
+    var b = h("a", "tgbanner", [h("span", "ti", "📱"), h("div", null, [h("b", null, "Telegram'da oching"),
+      h("span", null, "Kino bir bosishda chatga keladi, baho va sevimlilar saqlanadi")]), h("em", null, "Ochish")]);
+    b.href = me.miniapp; b.target = "_blank"; b.rel = "noopener";
+    return b;
+  }
+
+  // bo'limlar ekranga kirganda silliq paydo bo'ladi
+  function reveal(view) {
+    var els = view.querySelectorAll(".section, .foot");
+    if (REDUCE || !("IntersectionObserver" in window)) return;
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+    }, { threshold: 0.06, rootMargin: "0px 0px -4% 0px" });
+    Array.prototype.forEach.call(els, function (el, i) { if (i > 0) { el.classList.add("rv"); io.observe(el); } });
+  }
+
   function renderHome(view, data) {
+    startAmbient();
     homeGenres = data.genres || [];
     view.replaceChildren(heroView(data.hero || []));
+    if (PUB && me.miniapp) view.appendChild(openInTelegram());
     view.appendChild(quickChips(homeGenres));
     var any = false;
     var byKey = {};
@@ -1395,7 +1542,9 @@
     var hist = PUB ? localHist : (data.history || []);
     if (hist.length) add(rail({ title: "🕘 Davom ettiring", items: hist, cls: "hist" }));
     if (data.foryou && data.foryou.length) add(rail({ title: "🎯 Siz uchun", items: data.foryou }));
-    ["new", "top"].forEach(function (k) { var r = byKey[k]; if (r && r.items.length) add(rail(r)); });
+    var nw = byKey["new"]; if (nw && nw.items.length) add(rail(nw));
+    var tp = byKey.top;   // «Eng ko'p ko'rilgan» — 3D karusel ko'rinishida
+    if (tp && tp.items.length >= 3) add(coverflow(tp)); else if (tp && tp.items.length) add(rail(tp));
     if (data.searched && data.searched.length >= 3) add(rail({ title: "🔎 Eng ko'p qidirilgan", items: data.searched }));
     if (data.choice && data.choice.length) add(rail({ title: "👑 Tomoshabinlar tanlovi", items: data.choice }));
     (data.collections || []).forEach(function (c) {
@@ -1418,6 +1567,7 @@
     var heart = h("button", "more", "💝 Bizni qo'llab-quvvatlang");
     heart.onclick = function () { haptic(); show("support"); };
     view.appendChild(h("div", "foot", [h("span", null, (me.brand || "Marvarid Media") + " — eng sara kinolar bir joyda"), heart]));
+    reveal(view);
   }
 
   // splash animatsiyasi paytida bosh sahifa chizilmaydi (qotib qolmasin): ma'lumot oldindan olinadi, chizish animatsiya tugagach
