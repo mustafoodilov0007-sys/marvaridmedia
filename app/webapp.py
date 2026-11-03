@@ -1139,7 +1139,7 @@ def start_web(app: App) -> None:
         keyboards.SITE_ON = True
         # chat pastidagi «Menu» tugmasi saytni ochadi
         app.bot.safe("setChatMenuButton", {"menu_button": {
-            "type": "web_app", "text": app.brand[:30] or "Sayt", "web_app": {"url": cfg.webapp_url}}})
+            "type": "web_app", "text": "🌐 Saytni ochish", "web_app": {"url": cfg.webapp_url}}})
         log.info("🌐 Sayt ishga tushdi: %s (port %s)", cfg.webapp_url, cfg.web_port)
     else:
         log.warning("🌐 Sayt %s-portda ishlayapti, lekin manzili noma'lum — .env ga WEBAPP_URL=https://... "
