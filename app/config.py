@@ -38,6 +38,12 @@ class Config:
         self.card_number = re.sub(r"\D", "", os.getenv("CARD_NUMBER", ""))
         self.card_holder = os.getenv("CARD_HOLDER", "").strip()
         self.brand = os.getenv("BRAND_NAME", "").strip() or "Marvarid Media"
+        # 🌐 kino ma'lumotini avtomatik topish (TMDB — bepul kalit: themoviedb.org → Settings → API; OMDb — IMDb reyting uchun, ixtiyoriy)
+        self.tmdb_key = os.getenv("TMDB_API_KEY", "").strip()
+        self.tmdb_lang = os.getenv("TMDB_LANG", "").strip() or "ru-RU"
+        self.omdb_key = os.getenv("OMDB_API_KEY", "").strip()
+        self.tmdb_base = os.getenv("TMDB_BASE", "").strip()      # (sinov uchun)
+        self.omdb_base = os.getenv("OMDB_BASE", "").strip()
 
         # Railway: hosting avtomatik qo'yadigan o'zgaruvchilar
         self.on_railway = any(os.getenv(k) for k in ("RAILWAY_PROJECT_ID", "RAILWAY_SERVICE_ID",

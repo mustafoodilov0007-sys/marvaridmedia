@@ -442,6 +442,23 @@ def api_admin_movie(app: App, user: dict, qs: dict) -> dict:
     }
 
 
+def api_admin_tmdb(app: App, user: dict, qs: dict) -> dict:
+    """🌐 TMDB: qidiruv (?q=nomi&year=) yoki to'liq ma'lumot (?kind=movie&id=123). Faqat admin."""
+    if not _admin_only(app, user):
+        return {"ok": False, "reason": "forbidden"}
+    from . import tmdb
+    t = tmdb.get(app)
+    if not t.configured:
+        return {"ok": False, "reason": "not_configured"}
+    try:
+        if qs.get("id"):
+            return {"ok": True, "data": t.details(qs.get("kind", ""), int(qs["id"]))}
+        year = int(qs["year"]) if (qs.get("year") or "").isdigit() else None
+        return {"ok": True, "items": t.search(qs.get("q", ""), year)}
+    except (tmdb.TmdbError, ValueError, KeyError) as exc:
+        return {"ok": False, "reason": "tmdb", "message": str(exc)[:150]}
+
+
 def api_admin_save(app: App, user: dict, body: dict) -> dict:
     if not _admin_only(app, user):
         return {"ok": False, "reason": "forbidden"}
@@ -1180,6 +1197,8 @@ def make_handler(app: App):
                         return self._json(api_support(app, user))
                     if path == "/api/admin/stats":
                         return self._json(api_admin_stats(app, user))
+                    if path == "/api/admin/tmdb":
+                        return self._json(api_admin_tmdb(app, user, qs))
                     if path == "/api/admin/analytics":
                         return self._json(api_admin_analytics(app, user))
                     if path == "/api/admin/movie":

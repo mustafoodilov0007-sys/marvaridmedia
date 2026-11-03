@@ -1091,6 +1091,7 @@ def meta_menu(ctx: Ctx, movie) -> None:
     ctx.edit(text, ikb([btn("🎭 Janr", f"dm:gen:{mid}", style=PRIMARY), btn("🌍 Davlat", f"dm:ctr:{mid}", style=PRIMARY)],
                        [btn("📅 Yil", f"dm:yr:{mid}", style=PRIMARY), btn("🗣 Til", f"dm:lg:{mid}", style=PRIMARY)],
                        [btn("🎞 Sifat", f"dm:ql:{mid}", style=PRIMARY)],
+                       [btn("🌐 TMDB dan avtomatik to'ldirish", f"dm:tm:{mid}", style=SUCCESS)],
                        [btn("⬅️ Orqaga", f"dm:open:{mid}", style=DANGER)]))
 
 
@@ -1265,6 +1266,9 @@ def cb_manage(ctx: Ctx) -> None:
     elif action == "meta":
         ctx.answer()
         meta_menu(ctx, movie)
+    elif action == "tm":
+        from .admin_tmdb import start as tmdb_start
+        tmdb_start(ctx, movie)
     elif action in ("ctr", "yr", "lg"):
         ctx.answer()
         back = [[btn("⬅️ Orqaga", f"dm:meta:{mid}", style=DANGER)]]

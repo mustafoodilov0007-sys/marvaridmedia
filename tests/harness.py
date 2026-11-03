@@ -56,7 +56,8 @@ class FakeBot:
         for name, a, k in self.sent:
             if name in ("send_message", "send_photo", "send_video", "send_document", "edit_message_text"):
                 if chat is None or (a and a[0] == chat):
-                    out.append(str(a[1]) if len(a) > 1 else str(k.get("text", "")))
+                    idx = 2 if name == "edit_message_text" else 1     # (edit: chat_id, message_id, matn)
+                    out.append(str(a[idx]) if len(a) > idx else str(k.get("text", "")))
         return out
 
 
