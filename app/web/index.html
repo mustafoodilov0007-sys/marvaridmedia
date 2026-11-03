@@ -979,6 +979,16 @@
   // Telegram'dan tashqarida (📱 ilova yoki brauzer) — mehmon rejimi: katalog ochiq, ko'rish Telegram botda
   var PUB = !initData;
   var APP = /MarvaridApp/.test(navigator.userAgent);
+  // 🔎 SEO manzillar: /kino/123-nomi, /janr/comedy, /kinolar ... — qidiruv tizimlari uchun alohida sahifalar, odam uchun — shu sayt
+  function pathInfo() {
+    var p = location.pathname, m;
+    if ((m = p.match(/^\/kino\/(\d{1,9})/))) return { k: m[1] };
+    if ((m = p.match(/^\/janr\/([a-z]{3,20})$/))) return { view: "video", genre: m[1] };
+    var v = { "/kinolar": "movie", "/seriallar": "serial", "/multfilmlar": "cartoon" }[p];
+    return v ? { view: v } : {};
+  }
+  function slugOf(t) { return String(t || "").toLowerCase().replace(/[ʻʼ'`’‘]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60); }
+  function moviePath(it) { return it.code > 0 ? "/kino/" + it.code + (slugOf(it.title) ? "-" + slugOf(it.title) : "") : "/?k=m" + (-it.code); }
   // 📲 oddiy brauzerda: ilova sifatida o'rnatish (PWA) — Telegram ichida kerak emas
   var installEv = null;
   var IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -990,7 +1000,7 @@
       if (!sessionStorage.getItem("hit")) {
         sessionStorage.setItem("hit", "1");
         var hq = new URLSearchParams(location.search), hr = document.referrer || "";
-        var hsrc = APP ? "apk" : hq.get("utm") || (hq.get("k") ? "havola" : !hr ? "direct" : /t\.me|telegram/.test(hr) ? "telegram" : /google|bing|yandex|duckduckgo/.test(hr) ? "qidiruv" : "boshqa");
+        var hsrc = APP ? "apk" : hq.get("utm") || (/google|bing|yandex|duckduckgo/.test(hr) ? "qidiruv" : (hq.get("k") || pathInfo().k) ? "havola" : !hr ? "direct" : /t\.me|telegram/.test(hr) ? "telegram" : "boshqa");
         fetch("/pub/hit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ src: hsrc }) }).catch(function () {});
       }
     } catch (e) {}
@@ -1439,7 +1449,7 @@
   function share(it) {
     haptic();
     // sayt havolasi ulashiladi: Telegram/WhatsApp'da poster va nom bilan chiroyli kartochka bo'lib chiqadi
-    var link = location.origin + "/?k=" + (it.code < 0 ? "m" + (-it.code) : it.code);
+    var link = location.origin + moviePath(it);
     var text = "🎬 " + it.title + " — " + me.brand;
     if (PUB && navigator.share) {
       navigator.share({ title: it.title, text: text, url: link }).catch(function () {});
@@ -3252,7 +3262,7 @@
     var parts = (name || "Marvarid Media").toUpperCase().split(" ");
     var last = parts.length > 1 ? parts.pop() : "";
     $("word").replaceChildren(h("span", "w1", parts.join(" ")), last ? h("span", "w2", last) : null);
-    document.title = name;
+    if (!document.querySelector('link[rel="canonical"]')) document.title = name;   // SEO sahifalarda serverdagi sarlavha saqlanadi
   }
   function setAvatar(user) {
     var a = $("avatar");
@@ -3300,7 +3310,7 @@
     var el = $("welcome");
     if (!el) return;
     var link = "";
-    try { var qp = new URLSearchParams(location.search); link = qp.get("k") || qp.get("v") || ""; } catch (e) {}
+    try { var qp = new URLSearchParams(location.search); link = qp.get("k") || qp.get("v") || pathInfo().k || (pathInfo().view ? "v" : ""); } catch (e) {}
     var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (link || reduce) { el.remove(); return; }   // kanal postidagi havola — kino darhol ochilsin
     var user = !PUB && tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
@@ -3341,18 +3351,20 @@
   ///WELCOME
   var startView = "";
   try { startView = new URLSearchParams(location.search).get("v") || ""; } catch (e) {}
-  show(["stats", "support", "search", "saved", "movie", "serial", "cartoon", "music", "shorts"].indexOf(startView) >= 0 ? startView : "home");
+  var pI = pathInfo();
+  if (pI.genre) show("video", { f: { genre: pI.genre } });
+  else show(pI.view || (["stats", "support", "search", "saved", "movie", "serial", "cartoon", "music", "shorts"].indexOf(startView) >= 0 ? startView : "home"));
   // 🔗 kanal postidagi havola: ?k=15 (kino) yoki ?k=m3 (musiqa) — shu kino oynasi darhol ochiladi
   (function () {
     var k = "";
-    try { k = new URLSearchParams(location.search).get("k") || ""; } catch (e) {}
+    try { k = new URLSearchParams(location.search).get("k") || pathInfo().k || ""; } catch (e) {}
     if (!k && tg && tg.initDataUnsafe && /^k/.test(tg.initDataUnsafe.start_param || "")) k = tg.initDataUnsafe.start_param.slice(1);
     if (!/^m?\d{1,9}$/.test(k)) return;
     api("/api/catalog?k=" + k).then(function (d) {
       if (d.ok && d.items && d.items.length) openSheet(d.items[0]);
       else toast("😔 Bu kino topilmadi yoki o'chirilgan");
     }).catch(function () {});
-    try { history.replaceState(null, "", location.pathname); } catch (e) {}
+    try { history.replaceState(null, "", "/"); } catch (e) {}
   })();
 })();
 </script>

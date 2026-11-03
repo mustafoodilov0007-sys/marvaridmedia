@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
 
-from . import genres, keyboards
+from . import genres, keyboards, seo
 from .core import App, Ctx, router, start_payload
 from .database import CATEGORIES
 from .telegram import Forbidden, TelegramError
@@ -1024,6 +1024,19 @@ def make_handler(app: App):
 
         _kids = False
 
+        def _index(self, qs: dict, page: Optional[dict], status: int = 200) -> None:
+            """Asosiy sahifa (SPA); SEO ma'lumotlari bilan boyitiladi (kino/ro'yxat sahifalari, ?k= havolalari)."""
+            html_text = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+            base = _site_base(self, app)
+            if page is None and re.fullmatch(r"\d{1,9}", qs.get("k", "")):       # eski ko'rinishdagi havola: ?k=15
+                page = seo.movie_page(app, base, int(qs["k"]), _poster_key)
+            if page is not None:
+                html_text = seo.apply(html_text, page)
+            else:
+                html_text = re.sub(r"<!--OG-->.*?<!--/OG-->", lambda m: "<!--OG-->\n" + _og_block(app, base, qs.get("k", "")) + "\n<!--/OG-->",
+                                   html_text, count=1, flags=re.S)
+            self._send(status, html_text.encode("utf-8"), "text/html; charset=utf-8", "no-cache")
+
         def _json(self, obj: dict, status: int = 200) -> None:
             if self._kids and isinstance(obj, dict):
                 obj = _kids_filter(obj)
@@ -1082,11 +1095,20 @@ def make_handler(app: App):
             qs = dict(urllib.parse.parse_qsl(url.query))
             try:
                 if path in ("/", "/index.html"):
-                    page = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+                    return self._index(qs, None)
+                if path == "/robots.txt":
+                    return self._send(200, seo.robots(_site_base(self, app)).encode(), "text/plain; charset=utf-8", "public, max-age=3600")
+                if path == "/sitemap.xml":
+                    return self._send(200, seo.sitemap(app, _site_base(self, app)).encode(), "application/xml; charset=utf-8", "public, max-age=3600")
+                m = re.fullmatch(r"/kino/(\d{1,9})(?:-[a-z0-9-]*)?", path)
+                if m:
+                    page = seo.movie_page(app, _site_base(self, app), int(m.group(1)), _poster_key)
+                    return self._index(qs, page, 200 if page else 404)
+                m = re.fullmatch(r"/janr/([a-z]{3,20})", path)
+                if m or path in seo.LIST_PAGES:
                     base = _site_base(self, app)
-                    page = re.sub(r"<!--OG-->.*?<!--/OG-->", lambda m: "<!--OG-->\n" + _og_block(app, base, qs.get("k", "")) + "\n<!--/OG-->",
-                                  page, count=1, flags=re.S)
-                    return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8", "no-cache")
+                    page = (seo.list_page(app, base, genre=m.group(1)) if m else seo.list_page(app, base, cat=seo.LIST_PAGES[path][0]))
+                    return self._index(qs, page, 200 if page else 404)
                 if path == "/manifest.webmanifest":
                     return self._send(200, _manifest(app), "application/manifest+json; charset=utf-8", "public, max-age=3600")
                 if path == "/sw.js":
