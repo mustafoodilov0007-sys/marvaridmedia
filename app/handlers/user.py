@@ -705,7 +705,7 @@ def build_caption(app, movie, part, total: int) -> str:
     footer = render(app.setting("caption_footer"), brand=esc(app.brand), bot=app.bot_username).strip()
     link = (movie["group_link"] if "group_link" in movie.keys() else "") or ""
     link_block = (f"📺 <b>{esc(movie['title'])}</b> qolgan qismlari bu yerda 👇👇\n{esc(link)}"
-                  if link and movie["category"] == "serial" else "")
+                  if link and movie["category"] in ("serial", "cartoon") else "")
     blocks = [head]
     budget = 1000 - visible_len(head) - visible_len(meta) - visible_len(footer) - visible_len(link_block) - 14
     desc = (movie["description"] or "").strip()
@@ -745,7 +745,7 @@ def part_kb(app, movie, part, total: int, extra_rows=None) -> dict:
         rows.append([btn(f"👍 {r['likes']}", f"rt:{movie['id']}:{part['id']}:1", style=SUCCESS),
                      btn(f"👎 {r['dislikes']}", f"rt:{movie['id']}:{part['id']}:-1", style=DANGER)])
     link = (movie["group_link"] if "group_link" in movie.keys() else "") or ""
-    if link and movie["category"] == "serial":
+    if link and movie["category"] in ("serial", "cartoon"):
         rows.append([btn("📺 Qolgan qismlar", url=link, style=SUCCESS)])
     last = [btn("📤 Do'stlarga ulashish", url=share, style=PRIMARY)]
     if movie["category"] != "music":

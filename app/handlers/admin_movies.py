@@ -38,9 +38,22 @@ def _cat(ctx: Ctx) -> str:
     return c if c in CATEGORIES else "movie"
 
 
+def _ms(ctx: Ctx) -> bool:
+    """Multserial: turi «multfilm», lekin qismlari alohida guruhda (link bilan), xuddi serial kabi."""
+    return bool(ctx.sdata.get("ms")) and _cat(ctx) == "cartoon"
+
+
+def _linked(ctx: Ctx) -> bool:
+    return _cat(ctx) == "serial" or _ms(ctx)
+
+
+def _cname(ctx: Ctx) -> str:
+    return "Multserial" if _ms(ctx) else cat_name(_cat(ctx))
+
+
 def _noun(ctx: Ctx) -> str:
     """«kino» / «multfilm» / «musiqa» — joriy turga mos so'z."""
-    return cat_name(_cat(ctx)).lower()
+    return _cname(ctx).lower()
 
 
 def _is_music(ctx: Ctx) -> bool:
@@ -73,6 +86,7 @@ def st_file(ctx: Ctx) -> None:
 def category_rows(prefix: str) -> list:
     return [[btn("🎬 Kino", f"{prefix}:movie", style=SUCCESS), btn("📺 Serial", f"{prefix}:serial", style=PRIMARY),
              btn("🧸 Multfilm", f"{prefix}:cartoon", style=SUCCESS)],
+            [btn("🧸📺 Multserial", f"{prefix}:multserial", style=PRIMARY)],
             [btn("❌ Bekor qilish", "cancel", style=DANGER)]]
 
 
@@ -90,14 +104,16 @@ def ask_category(ctx: Ctx, prefill=None) -> None:
     ctx.send(f"{head}\n\nBu nima? Turini tanlang 👇", ikb(*category_rows("am:cat")))
 
 
-def start_add(ctx: Ctx, prefill=None, category: str = "movie") -> None:
+def start_add(ctx: Ctx, prefill=None, category: str = "movie", ms: bool = False) -> None:
     code = ctx.db.next_code()
     data = {"cat": category if category in CATEGORIES else "movie"}
+    if ms and data["cat"] == "cartoon":
+        data["ms"] = True
     if prefill:
         data.update({"file_id": prefill[0], "file_type": prefill[1], "caption": prefill[2],
                      "caption_html": ctx.sdata.get("caption_html", "")})
     ctx.set_state("am:code", **data)
-    icon, name = cat_icon(data["cat"]), cat_name(data["cat"])
+    icon, name = cat_icon(data["cat"]), ("Multserial" if data.get("ms") else cat_name(data["cat"]))
     noun = name.lower()
     if prefill:
         head = "🎵 <b>Audio qabul qilindi!</b>" if prefill[1] == "audio" else "📹 <b>Video qabul qilindi!</b>"
@@ -180,6 +196,10 @@ def choose_code(ctx: Ctx, code: int) -> None:
 def ask_title(ctx: Ctx, code: int) -> None:
     if _is_music(ctx):
         example = "Shahzoda — Yoningdaman"
+    elif ctx.sdata.get("hint"):
+        example = ctx.sdata["hint"]
+    elif _ms(ctx):
+        example = "Gravity Falls"
     elif _cat(ctx) == "cartoon":
         example = "Shrek 2 (2004)"
     elif _cat(ctx) == "serial":
@@ -188,7 +208,7 @@ def ask_title(ctx: Ctx, code: int) -> None:
         example = "Avatar: Suv yo'li (2022)"
     ready = f"✅ Kod: <b>{code}</b>, fayl tayyor." if code else "✅ Fayl tayyor."
     ctx.send(f"{ready}\n\n"
-             f"3️⃣ {cat_name(_cat(ctx))} <b>nomini</b> yuboring:\n💡 Masalan: <code>{esc(example)}</code>",
+             f"3️⃣ {_cname(ctx)} <b>nomini</b> yuboring:\n💡 Masalan: <code>{esc(example)}</code>",
              cancel_kb())
 
 
@@ -400,12 +420,12 @@ def clean_link(text: str) -> str:
 
 def after_desc(ctx: Ctx, desc: str, desc_html: str = "") -> None:
     ctx.goto("am:desc", desc=desc, desc_html=desc_html)
-    if _cat(ctx) == "serial":
+    if _linked(ctx):
         ctx.goto("am:link")
         ctx.send("🔗 <b>Qolgan qismlar linki</b>\n\n"
-                 "Serialning qolgan qismlari joylangan Telegram guruh yoki post havolasini yuboring.\n"
+                 f"{_cname(ctx)}ning qolgan qismlari joylangan Telegram guruh yoki post havolasini yuboring.\n"
                  "💡 Masalan: <code>https://t.me/MarvaridMediaderial/1170</code>\n\n"
-                 "Bot serialni yuborganda «qolgan qismlari bu yerda 👇» deb shu linkni qo'shadi.\n"
+                 f"Bot {_noun(ctx)}ni yuborganda «qolgan qismlari bu yerda 👇» deb shu linkni qo'shadi.\n"
                  "📢 Kanal e'loniga bu link <b>qo'yilmaydi</b>.",
                  ikb([btn("⏭ O'tkazib yuborish", "am:lskip", style=DANGER)]))
         return
@@ -542,7 +562,7 @@ def show_confirm(ctx: Ctx, poster) -> None:
                f"📅 Yil: {d.get('year') or '—'}\n"
                f"🗣 Til: {genres.lang_label(d.get('lang')) or '—'}\n"
                f"🎞 Sifat: {genres.quality_text(genres.quality_dump(d.get('quality') or [])) or '—'}\n") +
-            (f"🔗 Qismlar linki: {esc(d.get('group_link') or '—')}\n" if cat == "serial" else "") +
+            (f"🔗 Qismlar linki: {esc(d.get('group_link') or '—')}\n" if _linked(ctx) else "") +
             f"📹 Fayl: {file_txt}\n"
             f"🖼 Poster: {poster_txt}\n\n"
             "Qanday saqlaymiz? 👇")
@@ -566,12 +586,13 @@ def save_movie(ctx: Ctx, premium: bool) -> None:
         start_add(ctx, prefill=(d["file_id"], d["file_type"], d.get("caption", "")), category=_cat(ctx))
         return
     cat = _cat(ctx)
+    linked = _linked(ctx)
     movie_id = db.add_movie(d["code"], d["title"], d.get("desc") or "", d.get("poster"), premium,
                             ctx.user_id, d["file_id"], d["file_type"], cat, d.get("desc_html") or "",
                             genre_keys=d.get("genres"), year=d.get("year"),
                             country=d.get("country"), lang=d.get("lang"),
                             quality=genres.quality_dump(d.get("quality") or []),
-                            group_link=d.get("group_link") or "" if cat == "serial" else "")
+                            group_link=(d.get("group_link") or "") if _linked(ctx) else "")
     ctx.clear_state()
     ctx.answer("✅ Saqlandi!")
     code = db.get_movie(movie_id)["code"]
@@ -583,7 +604,8 @@ def save_movie(ctx: Ctx, premium: bool) -> None:
              f"🔗 Havola: {esc(ctx.app.deep_link(code))}"
              + (f"\n\n📨 Bu kinoni so'ragan <b>{notified}</b> kishiga avtomatik xabar yuborildi!" if notified else ""),
              ikb([btn("📢 Kanalga e'lon qilish", f"an:{movie_id}", style=SUCCESS)],
-                 [btn("➕ Keyingi qismni qo'shish", f"am:addpart:{movie_id}", style=PRIMARY)],
+                 [btn("➕ Keyingi qismni qo'shish", f"am:addpart:{movie_id}", style=PRIMARY)] if linked or cat == "music"
+                 else [btn(f"➕ Keyingi qism (kod {db.next_code()})", f"am:next:{movie_id}", style=PRIMARY)],
                  [btn("🎞 Shorts qo'shish (saytda)", f"dm:shadd:{movie_id}", style=PRIMARY)],
                  [btn("➕ Yana qo'shish", "am:new", style=SUCCESS)]))
 
@@ -753,7 +775,8 @@ def cb_add_movie(ctx: Ctx) -> None:
                      ikb(*category_rows("am:bulkcat")))
         return
     if action == "bulkcat":
-        cat = parts[2] if len(parts) > 2 and parts[2] in CATEGORIES else "movie"
+        cat = "cartoon" if (len(parts) > 2 and parts[2] == "multserial") else (
+            parts[2] if len(parts) > 2 and parts[2] in CATEGORIES else "movie")
         ctx.answer(f"{cat_icon(cat)} {cat_name(cat)}")
         ctx.set_state("am:bulkcat", cat=cat)
         start_bulk(ctx)
@@ -766,13 +789,25 @@ def cb_add_movie(ctx: Ctx) -> None:
         btn_add_music(ctx)  # eski xabarlardagi «🎵 Musiqa» tugmasi — musiqa alohida bo'limda
         return
     if action == "cat":
-        cat = parts[2] if len(parts) > 2 and parts[2] in CATEGORIES else "movie"
-        ctx.answer(f"{cat_icon(cat)} {cat_name(cat)}")
+        ms = len(parts) > 2 and parts[2] == "multserial"
+        cat = "cartoon" if ms else (parts[2] if len(parts) > 2 and parts[2] in CATEGORIES else "movie")
+        ctx.answer(f"{cat_icon(cat)} {'Multserial' if ms else cat_name(cat)}")
         prefill = None
         if state == "am:cat" and ctx.sdata.get("file_id"):
             d = ctx.sdata
             prefill = (d["file_id"], d["file_type"], d.get("caption", ""))
-        start_add(ctx, prefill, cat)
+        start_add(ctx, prefill, cat, ms)
+    elif action == "next" and len(parts) > 2 and parts[2].isdigit():
+        # Kino franshizasi: har bir qism — alohida kod (60, 61, 62...). Serial/multserial esa bitta kod ichida qismlanadi.
+        movie = ctx.db.get_movie(int(parts[2]))
+        if not movie:
+            ctx.answer("😔 Kino topilmadi", alert=True)
+            return
+        ctx.answer()
+        m = re.match(r"^(.*?)[\s\-]*(\d{1,2})$", movie["title"].strip())
+        base, n = (m.group(1), int(m.group(2))) if m and m.group(1) else (movie["title"].strip(), 1)
+        ctx.set_state("am:code", cat=movie["category"], hint=f"{base} {n + 1}")
+        choose_code(ctx, ctx.db.next_code())
     elif action == "new":
         ctx.answer()
         prefill = None
@@ -1050,7 +1085,7 @@ def manage_view(ctx: Ctx, movie):
                f"📅 Yil: <b>{movie['year'] or '—'}</b>\n"
                f"🗣 Til: <b>{genres.lang_label(movie['lang']) or '—'}</b>\n"
                f"🎞 Sifat: <b>{genres.quality_text(movie['quality']) or '—'}</b>\n") +
-            (f"🔗 Qismlar linki: {esc(movie['group_link'] or '—')}\n" if cat == "serial" else "") +
+            (f"🔗 Qismlar linki: {esc(movie['group_link'] or '—')}\n" if (cat == "serial" or movie["group_link"]) else "") +
             f"👁 Ko'rishlar: <b>{fmt_num(movie['views'])}</b>\n"
             f"💎 Premium: <b>{premium_txt}</b>\n"
             f"🖼 Poster: <b>{poster_txt}</b>\n"
@@ -1064,7 +1099,7 @@ def manage_view(ctx: Ctx, movie):
                  btn("🖼 Poster", f"dm:ep:{mid}", style=PRIMARY)])
     if cat != "music":
         rows.append([btn("🏷 Janr • Davlat • Yil • Til • Sifat", f"dm:meta:{mid}", style=SUCCESS)])
-    if cat == "serial":
+    if cat in ("serial", "cartoon"):
         rows.append([btn("🔗 Qolgan qismlar linki", f"dm:el:{mid}", style=PRIMARY)])
     rows.append([btn(f"🏷 Turini o'zgartirish ({cat_icon(cat)} {cat_name(cat)})", f"dm:cat:{mid}",
                      style=SUCCESS)])

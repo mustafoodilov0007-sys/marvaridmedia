@@ -157,3 +157,18 @@ class Alerts(BotCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AdminSequels(BotCase):
+    def test_next_sequel_gets_next_code(self):
+        mid = add_movie(self.app, 60, "Transformerlar 1")
+        self.msg(1, "/start")
+        self.press(1, f"am:next:{mid}")
+        txt = " ".join(self.app.bot.texts(1))
+        self.assertIn("Kod: <b>61</b>", txt)
+
+    def test_multserial_choice_sets_flag(self):
+        self.msg(1, "/start")
+        self.press(1, "am:cat:multserial")
+        txt = " ".join(self.app.bot.texts(1))
+        self.assertIn("Multserial", txt)
