@@ -468,7 +468,7 @@
   .sheet .info .rb { font-size: 18px; }
   @media (min-width: 900px) { .rbadges, .gpills { justify-content: flex-start; } }
   .kids .nav button[data-view=shorts], .kids .nav button[data-view=music],
-  .kids .dnav button[data-view=shorts], .kids .dnav button[data-view=music] { display: none; }
+  .kids .dnav button[data-view=shorts], .kids .dnav button[data-view=music], .kids .ctabs [data-k=music] { display: none; }
   .card .mine { position: absolute; top: 8px; right: 8px; font-size: 16px; padding: 3px 6px; border-radius: 9px; background: rgba(0,0,0,.6); z-index: 2; }
   .donate.free { background: linear-gradient(135deg, #2a2733, #1b1920); color: var(--text); box-shadow: none; border: 1px solid var(--line); }
   :root[data-theme="light"] .donate.free { background: linear-gradient(135deg, #fff, #f3ede2); }
@@ -861,6 +861,67 @@
     border: 1px solid rgba(60,40,10,.14); box-shadow: 0 6px 18px rgba(60,40,10,.12); }
   :root[data-theme="light"] .hero .btn.sq.on { color: #8a6220; }
   :root[data-theme="light"] .dot { background: rgba(60,40,10,.22); } :root[data-theme="light"] .dot.on { background: rgba(60,40,10,.14); }
+
+  /* ═══════════════ 🆕 v2: yangi vizual tizim — toza, tinch, kontent birinchi ═══════════════ */
+  :root { --bg: #0a0c10; --bg-soft: #0f1218; --surface: #141820; --surface-2: #1c212b; --line: rgba(255,255,255,.07);
+    --text: #f3f5f8; --muted: #8b93a1; --accent: #f2b544; --accent-2: #f2b544; --on-grad: #1a1204; --glow: rgba(242,181,68,.2);
+    --grad: #f2b544; --gold: #f2b544; --shadow: 0 8px 24px rgba(0,0,0,.4); --nav-h: 62px; --r: 14px; }
+  :root[data-theme="light"] { --bg: #f4f5f8; --bg-soft: #eceef3; --surface: #ffffff; --surface-2: #eef0f5; --line: rgba(15,20,35,.09);
+    --text: #12151c; --muted: #5d6676; --accent: #c98a14; --accent-2: #8a5a05; --gold: #8a5a05; --shadow: 0 8px 24px rgba(20,28,50,.1); }
+  .amb { display: none !important; }
+  /* sarlavha: faqat logotip, qidiruv va profil. Qolganlari «Men» sahifasida */
+  .top #bSupport, .top #bStats, .top #bTheme, .top #bChannel { display: none !important; }
+  .top { gap: 10px; }
+  .top .ibtn, .top .avatar { border-radius: 50%; }
+  .ibtn { background: rgba(10,12,16,.45); border: 0; }
+  .top.solid .ibtn { background: var(--surface); border: 0; }
+  .emblem { width: 34px; height: 34px; filter: none; }
+  .logo { gap: 9px; }
+  .word { flex-direction: row; align-items: baseline; gap: 6px; }
+  .word .w1, .word .w2 { font: 800 16px/1 "Inter", sans-serif; letter-spacing: .12em; margin: 0; max-width: none; overflow: visible; filter: none;
+    background: none; -webkit-text-fill-color: currentColor; color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,.35); }
+  .word .w2 { font-weight: 500; color: rgba(255,255,255,.62); }
+  .word .w2::before, .word .w2::after { display: none; }
+  .top.solid .word .w1, :root[data-theme="light"] .top.solid .word .w1 { background: none; color: var(--text); text-shadow: none; }
+  .top.solid .word .w2, :root[data-theme="light"] .top.solid .word .w2 { color: var(--muted); }
+  /* pastki menyu: 5 ta bo'lim */
+  .nav { grid-template-columns: repeat(7, 1fr); height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg) 80%, transparent); backdrop-filter: blur(24px) saturate(1.5); -webkit-backdrop-filter: blur(24px) saturate(1.5); }
+  .nav button { font-size: 10.5px; font-weight: 600; letter-spacing: -.1px; gap: 4px; }
+  .nav button svg { width: 23px; height: 23px; }
+  @media (max-width: 400px) { .nav button { font-size: 9.5px; } .nav button svg { width: 21px; height: 21px; } }
+  .nav button.on, .nav button.on svg { color: var(--accent-2); }
+  .nav button.on::before { display: none; }
+  body.in-shorts .nav button.on, body.in-shorts .nav button.on svg { color: #fff; }
+  .dnav button.on::after { height: 2px; background: var(--accent); }
+  /* bo'lim sarlavhalari va kartalar */
+  .section { margin-top: 30px; }
+  .sec-head h2 { font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+  .more { color: var(--accent-2); font-weight: 600; }
+  .page h1 { font-size: 30px; font-weight: 800; letter-spacing: -.03em; }
+  .card .t { font-weight: 600; font-size: 14px; }
+  .poster { border-radius: 12px; }
+  /* tugmalar: tekis, yorug'lik va shimmer yo'q */
+  .btn { border-radius: 14px; font-weight: 700; }
+  .btn.primary, .hero .btn.primary { box-shadow: none; }
+  .hero .btn.primary::after, .btn.primary::after { display: none; }
+  .btn.soft, .btn.sq { background: var(--surface-2); }
+  .hero .btn.soft, .hero .btn.sq { background: rgba(255,255,255,.16); color: #fff; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  :root[data-theme="light"] .hero .btn.soft, :root[data-theme="light"] .hero .btn.sq { background: rgba(255,255,255,.85); color: var(--text); }
+  /* chiplar va tablar: faol — teskari rangli tabletka */
+  .gchip { background: var(--surface); border: 1px solid var(--line); color: var(--text); font-weight: 600; }
+  .gchip.on, .gchip.on:hover { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .gchip.on i { color: var(--bg); opacity: .6; }
+  .cpills .gchip { display: inline-flex; align-items: center; gap: 7px; padding: 9px 15px; }
+  .cpills .gchip svg { width: 16px; height: 16px; }
+  .cpills .gchip.rnd { background: transparent; border-style: dashed; color: var(--muted); }
+  .ctabs { display: flex; gap: 8px; overflow-x: auto; margin: 6px -16px 14px; padding: 0 16px 2px; scrollbar-width: none; }
+  .ctabs::-webkit-scrollbar { display: none; }
+  .ctab { flex: none; padding: 9px 17px; border-radius: 999px; font-size: 14px; font-weight: 600; background: var(--surface); color: var(--muted);
+    border: 1px solid var(--line); transition: background .2s, color .2s; }
+  .ctab.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .chip.gold, .badge.gold, .cm-badge.pre { color: #f2b544; }   /* qora fonli belgilar: har ikki mavzuda oltin matn */
+  @media (min-width: 900px) { .ctabs { margin-left: 0; margin-right: 0; padding: 0; } }
   /*/REDESIGN*/
 
   /* kichikroq noutbuk / keng bo'lmagan oynalar: sarlavha sig'sin */
@@ -1616,7 +1677,7 @@
       moreBtn = h("button", "more", ["Hammasi", icon("chev")]);
       moreBtn.onclick = r.more || function () { show(r.cat, { sort: r.sort, f: r.f }); };
     }
-    sec.appendChild(h("div", "sec-head", [h("h2", null, r.title), moreBtn]));
+    sec.appendChild(h("div", "sec-head", [h("h2", null, String(r.title || "").replace(/^[^\p{L}\p{N}]+/u, "")), moreBtn]));
     var list = h("div", "rail" + (r.cat === "music" ? " music" : "") + (r.cls ? " " + r.cls : ""));
     r.items.forEach(function (it, i) { list.appendChild(r.wrapItem ? r.wrapItem(it, i) : card(it)); });
     var wrap = h("div", "railwrap", [list]);
@@ -1899,8 +1960,20 @@
     Array.prototype.forEach.call(els, function (el, i) { if (i > 0) { el.classList.add("rv"); io.observe(el); } });
   }
 
+  function catPills() {
+    var row = h("div", "gchips qchips cpills");
+    [["video", "Hammasi", "grid"], ["movie", "Kinolar", "film"], ["serial", "Seriallar", "tv"], ["cartoon", "Multfilmlar", "smile"], ["music", "Musiqa", "music"]].forEach(function (o) {
+      var c = h("button", "gchip", [icon(o[2]), o[1]]);
+      c.dataset.k = o[0];
+      c.onclick = function () { haptic(); show(o[0]); };
+      row.appendChild(c);
+    });
+    var rnd = h("button", "gchip rnd", [icon("dice"), "Tasodifiy"]);
+    rnd.onclick = function () { randomMovie(rnd); };
+    row.appendChild(rnd);
+    return h("div", "qwrap", [row]);
+  }
   function renderHome(view, data) {
-    startAmbient();
     homeGenres = data.genres || [];
     view.replaceChildren(heroView(data.hero || []));
     if (PUB && me.miniapp) view.appendChild(openInTelegram());
@@ -1911,17 +1984,16 @@
     function add(node) { any = true; view.appendChild(node); }
     // 1-qator: haftaning TOP'i (shu haftadagi ko'rishlar), 2-qator: umumiy davr uchun eng ko'p ko'rilganlar
     var tp = byKey.top, weekly = data.weekly || [];
-    var topRail = tp && tp.items.length ? rail(Object.assign({}, tp, { title: "🏆 Eng ko'p ko'rilgan", items: tp.items.slice(0, 10),
+    var topRail = tp && tp.items.length ? rail(Object.assign({}, tp, { title: "Eng ko'p ko'rilgan", items: tp.items.slice(0, 10),
       cls: "rankrail", wrapItem: rankItem })) : null;
     if (weekly.length >= 3) {
-      add(coverflow({ title: "🔥 Haftaning TOP'i", items: weekly, cat: "video", sort: "top" }));
-      if (topRail) add(topRail);
+      add(rail({ title: "Haftaning TOP-10", items: weekly.slice(0, 10), cat: "video", sort: "top", cls: "rankrail", wrapItem: rankItem }));
     }
     var hist = PUB ? localHist : (data.history || []);
     if (hist.length) add(rail({ title: "🕘 Davom ettiring", items: hist, cls: "hist" }));
     if (data.foryou && data.foryou.length) add(rail({ title: "🎯 Siz uchun", items: data.foryou }));
     var nw = byKey["new"]; if (nw && nw.items.length) add(rail(nw));
-    if (weekly.length < 3 && topRail) add(topRail);
+    if (topRail && weekly.length < 3) add(topRail);
     if (data.searched && data.searched.length >= 3) add(rail({ title: "🔎 Eng ko'p qidirilgan", items: data.searched }));
     if (data.choice && data.choice.length) add(rail({ title: "👑 Tomoshabinlar tanlovi", items: data.choice }));
     (data.collections || []).forEach(function (c) {
@@ -1949,11 +2021,11 @@
 
   // splash animatsiyasi paytida bosh sahifa chizilmaydi (qotib qolmasin): ma'lumot oldindan olinadi, chizish animatsiya tugagach
   var splashGate = null, homePre = null;
-  function navKey(name) { return name === "video" ? "movie" : name; }
+  function navKey(name) { return name === "video" || name === "cats" || name === "col" ? "movie" : name; }
   // ───── 🧭 brauzer tarixi (oddiy brauzer / o'rnatilgan ilova): «orqaga» tugmasi oynani yopadi, URL kino manzili bo'ladi ─────
   // Telegram ichida o'zining «Orqaga» tugmasi bor — u yerda tarix yozuvlari qo'shilmaydi.
   var HIST = PUB, histFirst = true, skipPop = 0;
-  var VIEW_PATH = { home: "/", movie: "/kinolar", serial: "/seriallar", cartoon: "/multfilmlar" };
+  var VIEW_PATH = { home: "/", movie: "/kinolar", serial: "/seriallar", cartoon: "/multfilmlar", video: "/?v=catalog" };
   function kOf(it) { return it.code > 0 ? String(it.code) : "m" + (-it.code); }
   function pushView(name, opts) {
     if (!HIST) return;
@@ -1991,6 +2063,7 @@
 
   function show(name, opts) {
     opts = opts || {};
+    if (name === "catalog") name = "video";          // «Katalog» tugmasi — barcha turlar (tepada tur tablari bor)
     if (!opts.nopush) pushView(name, opts);
     current = name;
     stopHero();
@@ -2002,7 +2075,7 @@
       if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
     document.querySelectorAll(".dnav button").forEach(function (b) {
-      var on = b.dataset.view === (name === "video" ? "movie" : name);
+      var on = b.dataset.view === key;
       b.classList.toggle("on", on);
       if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
@@ -2055,8 +2128,16 @@
     }
     var page = h("div", "page");
     var count = h("span");
-    page.appendChild(h("h1", null, PLURAL[cat] || "Kinolar"));
+    page.appendChild(h("h1", null, cat === "video" ? "Katalog" : (PLURAL[cat] || "Kinolar")));
     page.appendChild(h("p", "lead", [count]));
+    var ctabs = h("div", "ctabs");
+    [["video", "Hammasi"], ["movie", "Kinolar"], ["serial", "Seriallar"], ["cartoon", "Multfilmlar"], ["music", "Musiqa"]].forEach(function (o) {
+      var tb = h("button", "ctab" + (o[0] === cat ? " on" : ""), o[1]);
+      tb.dataset.k = o[0];
+      tb.onclick = function () { if (o[0] !== cat) { haptic(); show(o[0]); } };
+      ctabs.appendChild(tb);
+    });
+    page.appendChild(ctabs);
     var seg = h("div", "seg");
     [["new", "Yangi"], ["top", "Top"]].concat(cat === "music" ? [] : [["rating", "Reyting"]]).forEach(function (o) {
       var b = h("button", o[0] === sort ? "on" : "", o[1]);
@@ -3732,9 +3813,9 @@
     var link = "";
     try { var qp = new URLSearchParams(location.search); link = qp.get("k") || qp.get("v") || pathInfo().k || (pathInfo().view ? "v" : ""); } catch (e) {}
     var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-    var seen = +store.get("wt") || 0;
-    if (link || reduce || Date.now() - seen < 6 * 3600e3) { el.remove(); return; }   // havola yoki yaqinda ko'rsatilgan — to'g'ri saytga
-    store.set("wt", String(Date.now()));
+    // kirish animatsiyasi faqat BIR MARTA: qurilma xotirasi (kesh) tozalanmaguncha qayta chiqmaydi
+    if (link || reduce || store.get("wt")) { el.remove(); return; }
+    store.set("wt", "1");
     var user = !PUB && tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
     var first = user && user.first_name ? String(user.first_name).trim().slice(0, 18) : "";
     var openGate;
@@ -3775,7 +3856,7 @@
   try { startView = new URLSearchParams(location.search).get("v") || ""; } catch (e) {}
   var pI = pathInfo();
   if (pI.genre) show("video", { f: { genre: pI.genre } });
-  else show(pI.view || (["stats", "support", "search", "saved", "movie", "serial", "cartoon", "music", "shorts"].indexOf(startView) >= 0 ? startView : "home"));
+  else show(pI.view || (["stats", "support", "search", "saved", "movie", "serial", "cartoon", "music", "shorts", "profile", "catalog"].indexOf(startView) >= 0 ? startView : "home"));
   // 🔗 kanal postidagi havola: ?k=15 (kino) yoki ?k=m3 (musiqa) — shu kino oynasi darhol ochiladi
   (function () {
     var k = "";
