@@ -982,6 +982,35 @@
   .seg button { min-height: 40px; }
   @media (max-width: 400px) { .nav button { font-size: 10px; } }
   @media (max-width: 899px) { .hero { height: min(78svh, 700px); } }
+
+  /* ═════ 📐 yozuv o'lchamlari tizimi (12 / 13 / 14 / 16 / 18 / 22 / 26 / 34) va iOS tuzatishlari ═════ */
+  :root { --fs-xs: 11px; --fs-sm: 12px; --fs-base: 14px; --fs-md: 16px; --fs-lg: 18px; --fs-xl: 22px; --fs-2xl: 26px; --fs-hero: 34px; }
+  .page h1 { font-size: var(--fs-2xl); letter-spacing: -.02em; margin: 4px 0 4px; }
+  .page .lead { font-size: 13px; }
+  .sec-head h2 { font-size: var(--fs-lg); }
+  .more { font-size: 13px; }
+  .card .t { font-size: 13px; line-height: 1.3; } .card .m { font-size: 12px; }
+  .btn { font-size: 15px; } .hero .btn { height: 48px; font-size: 15px; }
+  .gchip, .ctab { font-size: 13px; } .seg button { font-size: 13px; }
+  .meta { font-size: 14px; }
+  .sheet .info h3 { font-size: var(--fs-xl); line-height: 1.2; }
+  .tb-txt h3 { font-size: var(--fs-xl); } .tb-meta, .tb-type { font-size: 12.5px; }
+  .cm-head h2 { font-size: var(--fs-lg); } .cm-text { font-size: 14px; } .cm-meta { font-size: 13px; }
+  .crow b { font-size: 14.5px; } .note { font-size: 13px; }
+  .short .bottom h3 { font: 800 var(--fs-xl)/1.2 "Inter", sans-serif; }
+  @media (max-width: 899px) { .hero-title { font-size: clamp(28px, 8.4vw, var(--fs-hero)); } }
+  @media (min-width: 900px) { .hero-title { font-size: clamp(34px, 3.6vw, 52px); } .page h1 { font-size: 30px; } .tb-txt h3 { font-size: 26px; } }
+  /* iOS: Shorts haqiqiy ko'rinadigan balandlikka moslanadi; PWA'da «cho'lqin» (notch) ostida qolmaydi */
+  .shorts { -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+  .sbg { inset: -30px; filter: blur(28px) saturate(1.2) brightness(.42); }
+  @media (max-width: 899px) {
+    .shorts { top: 0; bottom: auto; height: calc(var(--vh, 100dvh) - var(--nav-h) - env(safe-area-inset-bottom, 0px)); }
+    .short { height: calc(var(--vh, 100dvh) - var(--nav-h) - env(safe-area-inset-bottom, 0px)); }
+    .short .side { bottom: calc(96px + env(safe-area-inset-bottom, 0px) * .3); }
+  }
+  .top { padding-top: calc(12px + max(var(--tgtop, 0px), env(safe-area-inset-top, 0px))); }
+  .page { padding-top: calc(76px + max(var(--tgtop, 0px), env(safe-area-inset-top, 0px))); }
+  .shorts-head { padding-top: calc(14px + max(var(--tgtop, 0px), env(safe-area-inset-top, 0px))); }
   /*/REDESIGN*/
 
   /* kichikroq noutbuk / keng bo'lmagan oynalar: sarlavha sig'sin */
@@ -2132,7 +2161,7 @@
     var topRail = tp && tp.items.length ? rail(Object.assign({}, tp, { title: "Eng ko'p ko'rilgan", items: tp.items.slice(0, 10),
       cls: "rankrail", wrapItem: rankItem })) : null;
     if (weekly.length >= 1) add(topBanner(weekly));
-    (data.collections || []).forEach(function (c) {
+    (data.collections || []).slice(0, 2).forEach(function (c) {
       add(rail({ title: c.title, items: c.items, more: function () { show("col", { id: c.id }); } }));
     });
     if (weekly.length >= 3) add(coverflow({ title: "🔥 Haftaning TOP'i", items: weekly, cat: "video", sort: "top" }));
@@ -2141,9 +2170,7 @@
     if (data.foryou && data.foryou.length) add(rail({ title: "🎯 Siz uchun", items: data.foryou }));
     var nw = byKey["new"]; if (nw && nw.items.length) add(rail(nw));
     if (topRail && weekly.length < 3) add(topRail);
-    if (data.searched && data.searched.length >= 3) add(rail({ title: "🔎 Eng ko'p qidirilgan", items: data.searched }));
-    if (data.choice && data.choice.length) add(rail({ title: "👑 Tomoshabinlar tanlovi", items: data.choice }));
-    (data.extra || []).forEach(function (r) { add(rail(r)); });
+    (data.extra || []).slice(0, 2).forEach(function (r) { add(rail(r)); });
     ["serial", "cartoon"].forEach(function (k) { var r = byKey[k]; if (r && r.items.length) add(rail(r)); });
     if (data.shorts && data.shorts.length) {
       var sec = h("section", "section");
@@ -2274,14 +2301,7 @@
     var count = h("span");
     page.appendChild(h("h1", null, cat === "video" ? "Katalog" : (PLURAL[cat] || "Kinolar")));
     page.appendChild(h("p", "lead", [count]));
-    var ctabs = h("div", "ctabs");
-    [["video", "Hammasi"], ["movie", "Kinolar"], ["serial", "Seriallar"], ["cartoon", "Multfilmlar"], ["music", "Musiqa"]].forEach(function (o) {
-      var tb = h("button", "ctab" + (o[0] === cat ? " on" : ""), o[1]);
-      tb.dataset.k = o[0];
-      tb.onclick = function () { if (o[0] !== cat) { haptic(); show(o[0]); } };
-      ctabs.appendChild(tb);
-    });
-    page.appendChild(ctabs);
+
     var seg = h("div", "seg");
     [["new", "Yangi"], ["top", "Top"]].concat(cat === "music" ? [] : [["rating", "Reyting"]]).forEach(function (o) {
       var b = h("button", o[0] === sort ? "on" : "", o[1]);
@@ -3930,6 +3950,17 @@
     var t = ((tg.safeAreaInset || {}).top || 0) + ((tg.contentSafeAreaInset || {}).top || 0);
     document.documentElement.style.setProperty("--tgtop", t + "px");
   }
+  // 📐 haqiqiy ko'rinadigan balandlik (iOS Safari manzil paneli, Telegram oynasi o'zgarganda ham to'g'ri): --vh
+  function setVH() {
+    var vv = window.visualViewport;
+    var hgt = (!PUB && tg && tg.viewportStableHeight) || (vv && vv.height) || window.innerHeight;
+    document.documentElement.style.setProperty("--vh", Math.round(hgt) + "px");
+  }
+  setVH();
+  window.addEventListener("resize", setVH);
+  window.addEventListener("orientationchange", function () { setTimeout(setVH, 250); });
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", setVH);
+  if (!PUB && tg && tg.onEvent) { try { tg.onEvent("viewportChanged", setVH); } catch (e) {} }
   if (tg && !PUB) { tg.ready(); tg.expand(); try { tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {} }
   if (canFullscreen()) {
     try {
