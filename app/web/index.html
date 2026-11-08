@@ -1034,6 +1034,14 @@
     .chip.g { background: rgba(246,183,60,.16); }
     .tb-dots i { background: rgba(150,150,150,.4); }
   }
+
+  /* 📱 Shorts (telefon): tepada o'z paneli (xavfsiz hudud ostida), video esa uning ostidan pastki menyugacha — hech narsa kesilmaydi */
+  @media (max-width: 899px) {
+    :root { --sh-top: calc(54px + max(var(--tgtop, 0px), env(safe-area-inset-top, 0px))); }
+    .shorts-head { background: #08070a; height: var(--sh-top); padding: max(var(--tgtop, 0px), env(safe-area-inset-top, 0px)) 16px 0; align-items: center; pointer-events: auto; }
+    .shorts { top: var(--sh-top); bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); height: auto; }
+    .short { height: var(--feedH, 100%); }
+  }
   /*/REDESIGN*/
 
   /* kichikroq noutbuk / keng bo'lmagan oynalar: sarlavha sig'sin */
@@ -2932,6 +2940,7 @@
 
     // kadr o'lchami: butun kadr sig'adi, cho'zilmaydi va kesilmaydi
     function fit(el) {
+      feed.style.setProperty("--feedH", feed.clientHeight + "px");     // har bir short aynan ko'rinadigan oyna balandligida
       var fr = el._frame, vw = el._vw || 9, vh = el._vh || 16;
       var cw = feed.clientWidth, wide = cw >= 900, ch = feed.clientHeight - (wide ? 28 : 0);
       var sc = Math.min((wide ? Math.min(cw * 0.92, 1180) : cw) / vw, ch / vh);
