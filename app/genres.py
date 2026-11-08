@@ -17,16 +17,31 @@ GENRES = {
     "drama":     ("🎭", "Drama",        ("drama", "dramatik")),
     "thriller":  ("🔪", "Triller",      ("triller", "thriller", "sirli")),
     "horror":    ("👻", "Qo'rqinchli",  ("qorqinchli", "horror", "uzhas", "ujas", "dahshatli", "vahimali")),
-    "fantasy":   ("🚀", "Fantastika",   ("fantastika", "fantastik", "fantasy", "fentezi")),
+    "fantasy":   ("🚀", "Fantastika",   ("fantastika", "fantastik", "scifi", "kosmik")),
     "adventure": ("🗺", "Sarguzasht",   ("sarguzasht", "priklyuchen", "adventure")),
     "romance":   ("❤️", "Melodrama",    ("melodrama", "romantik", "romance", "muhabbat")),
     "crime":     ("🕵️", "Detektiv",     ("detektiv", "kriminal", "jinoyat", "crime")),
-    "history":   ("🏛", "Tarixiy",      ("tarixiy", "harbiy", "urush", "voennyy", "istorich", "biografik")),
+    "history":   ("🏛", "Tarixiy",      ("tarixiy", "istorich")),
     "family":    ("👨‍👩‍👧", "Oilaviy",   ("oilaviy", "family", "semeyn")),
     "anime":     ("🌸", "Anime",        ("anime",)),
     "indian":    ("🇮🇳", "Hind",         ("hind", "hindiston", "indiysk", "bollivud")),
     "turkish":   ("🇹🇷", "Turk",         ("turk", "turkiya", "turkcha", "turetsk")),
     "korean":    ("🇰🇷", "Koreys",       ("koreys", "koreya", "dorama", "korean")),
+    "magic":     ("🧙", "Fentezi",      ("fentezi", "fantasy", "sehrli", "sehr")),
+    "war":       ("⚔️", "Harbiy",       ("harbiy", "urush", "voennyy", "vojna")),
+    "biography": ("📖", "Biografik",    ("biografik", "biografiya", "biography")),
+    "docu":      ("🎞", "Hujjatli",     ("hujjatli", "dokumental", "documentary")),
+    "musical":   ("🎶", "Musiqiy",      ("musiqiy", "myuzikl", "musical")),
+    "sport":     ("⚽", "Sport",        ("sport", "sportiv")),
+    "western":   ("🤠", "Vestern",      ("vestern", "western")),
+    "mystery":   ("🔮", "Mistika",      ("mistika", "mistik", "mystery")),
+    "superhero": ("🦸", "Superqahramon", ("superqahramon", "superhero", "supergeroy")),
+    "disaster":  ("🌪", "Falokat",      ("falokat", "katastrofa", "disaster")),
+    "psycho":    ("🧠", "Psixologik",   ("psixologik", "psihologik", "psychological")),
+    "teen":      ("🎒", "O'smirlar",    ("osmirlar", "osmir", "teen", "maktab")),
+    "kids":      ("🧒", "Bolalar",      ("bolalar", "bolalarbop", "detskiy")),
+    "russian":   ("🇷🇺", "Rus kinosi",   ("ruskino", "rossiyaning")),
+    "uzbek":     ("🇺🇿", "O'zbek kinosi", ("ozbekfilm", "ozbekkino")),
 }
 
 # qisqa kalit so'zlar faqat to'liq so'z bo'lsa mos keladi («turk» ≠ «turkum», «hind» ≠ «hindu...» emas)
@@ -78,34 +93,54 @@ def line(stored: Optional[str]) -> str:
 # ───────── 🌍 davlat va 🗣 til ─────────
 
 # kalit → (bayroq, nomi, izohdagi kalit so'zlar — so'z boshi bo'yicha)
-COUNTRIES = {
-    "us": ("🇺🇸", "AQSH",            ("aqsh", "amerika", "usa", "ssha")),
-    "uz": ("🇺🇿", "O'zbekiston",     ("ozbekiston",)),
-    "kz": ("🇰🇿", "Qozog'iston",     ("qozogiston",)),
-    "kg": ("🇰🇬", "Qirg'iziston",    ("qirgiziston", "qirgizstan")),
-    "gb": ("🇬🇧", "Buyuk Britaniya", ("britaniya", "angliya", "england")),
-    "fr": ("🇫🇷", "Fransiya",        ("fransiya", "frantsiya", "fransuz")),
-    "de": ("🇩🇪", "Germaniya",       ("germaniya", "nemis")),
-    "it": ("🇮🇹", "Italiya",         ("italiya",)),
-    "es": ("🇪🇸", "Ispaniya",        ("ispaniya",)),
-    "ru": ("🇷🇺", "Rossiya",         ("rossiya",)),
-    "tr": ("🇹🇷", "Turkiya",         ("turkiya",)),
-    "in": ("🇮🇳", "Hindiston",       ("hindiston",)),
-    "kr": ("🇰🇷", "Janubiy Koreya",  ("koreya",)),
-    "jp": ("🇯🇵", "Yaponiya",        ("yaponiya",)),
-    "cn": ("🇨🇳", "Xitoy",           ("xitoy",)),
-    "ca": ("🇨🇦", "Kanada",          ("kanada",)),
-    "au": ("🇦🇺", "Avstraliya",      ("avstraliya",)),
-    "ir": ("🇮🇷", "Eron",            ("eron",)),
-    "ua": ("🇺🇦", "Ukraina",         ("ukraina",)),
-    "br": ("🇧🇷", "Braziliya",       ("braziliya",)),
-    "mx": ("🇲🇽", "Meksika",         ("meksika",)),
-}
+def _flag(cc: str) -> str:
+    return "".join(chr(0x1F1E6 + ord(c) - 65) for c in cc.upper())
 
+
+# (kalit — ISO kod, nomi, izohdagi kalit so'zlar). Mashhurlari oldinda.
+_COUNTRY_LIST = [
+    ("us", "AQSH", ("aqsh", "amerika", "usa", "ssha")), ("uz", "O'zbekiston", ("ozbekiston",)),
+    ("kz", "Qozog'iston", ("qozogiston",)), ("kg", "Qirg'iziston", ("qirgiziston", "qirgizstan")),
+    ("gb", "Buyuk Britaniya", ("britaniya", "angliya", "england")), ("fr", "Fransiya", ("fransiya", "frantsiya", "fransuz")),
+    ("de", "Germaniya", ("germaniya", "nemis")), ("it", "Italiya", ("italiya",)), ("es", "Ispaniya", ("ispaniya",)),
+    ("ru", "Rossiya", ("rossiya",)), ("tr", "Turkiya", ("turkiya",)), ("in", "Hindiston", ("hindiston",)),
+    ("kr", "Janubiy Koreya", ("koreya",)), ("jp", "Yaponiya", ("yaponiya",)), ("cn", "Xitoy", ("xitoy",)),
+    ("ca", "Kanada", ("kanada",)), ("au", "Avstraliya", ("avstraliya",)), ("ir", "Eron", ("eron",)),
+    ("ua", "Ukraina", ("ukraina",)), ("br", "Braziliya", ("braziliya",)), ("mx", "Meksika", ("meksika",)),
+    ("tj", "Tojikiston", ("tojikiston",)), ("tm", "Turkmaniston", ("turkmaniston",)), ("az", "Ozarbayjon", ("ozarbayjon", "ozerbayjon")),
+    ("am", "Armaniston", ("armaniston",)), ("ge", "Gruziya", ("gruziya",)), ("by", "Belarus", ("belarus", "belorussiya")),
+    ("pl", "Polsha", ("polsha",)), ("se", "Shvetsiya", ("shvetsiya",)), ("dk", "Daniya", ("daniya",)),
+    ("no", "Norvegiya", ("norvegiya",)), ("fi", "Finlandiya", ("finlandiya",)), ("nl", "Niderlandiya", ("niderlandiya", "gollandiya")),
+    ("be", "Belgiya", ("belgiya",)), ("ch", "Shveytsariya", ("shveytsariya",)), ("at", "Avstriya", ("avstriya",)),
+    ("pt", "Portugaliya", ("portugaliya",)), ("gr", "Gretsiya", ("gretsiya",)), ("ie", "Irlandiya", ("irlandiya",)),
+    ("cz", "Chexiya", ("chexiya",)), ("ro", "Ruminiya", ("ruminiya",)), ("hu", "Vengriya", ("vengriya",)),
+    ("bg", "Bolgariya", ("bolgariya",)), ("rs", "Serbiya", ("serbiya",)), ("hr", "Xorvatiya", ("xorvatiya",)),
+    ("il", "Isroil", ("isroil",)), ("eg", "Misr", ("misr",)), ("sa", "Saudiya Arabistoni", ("saudiya",)),
+    ("ae", "BAA", ("baa", "emirliklar")), ("pk", "Pokiston", ("pokiston",)), ("th", "Tailand", ("tailand",)),
+    ("id", "Indoneziya", ("indoneziya",)), ("ph", "Filippin", ("filippin",)), ("vn", "Vetnam", ("vetnam",)),
+    ("my", "Malayziya", ("malayziya",)), ("hk", "Gonkong", ("gonkong",)), ("tw", "Tayvan", ("tayvan",)),
+    ("nz", "Yangi Zelandiya", ("zelandiya",)), ("ar", "Argentina", ("argentina",)), ("co", "Kolumbiya", ("kolumbiya",)),
+    ("cl", "Chili", ("chili",)), ("pe", "Peru", ("peru",)), ("za", "Janubiy Afrika", ("afrika",)), ("ng", "Nigeriya", ("nigeriya",)),
+]
+COUNTRIES = {k: (_flag(k), n, kw) for k, n, kw in _COUNTRY_LIST}
+
+# kalit → (bayroq, nomi, izohdagi kalit so'zlar)
 LANGS = {
     "uz": ("🇺🇿", "O'zbek tilida",  ("ozbek tilida", "ozbekcha", "uzbek")),
     "ru": ("🇷🇺", "Rus tilida",     ("rus tilida", "ruscha", "russkiy")),
     "en": ("🇬🇧", "Ingliz tilida",  ("ingliz tilida", "inglizcha", "english")),
+    "tr": ("🇹🇷", "Turk tilida",    ("turk tilida", "turkcha tilida")),
+    "ko": ("🇰🇷", "Koreys tilida",  ("koreys tilida", "koreyscha")),
+    "hi": ("🇮🇳", "Hind tilida",    ("hind tilida", "hindcha")),
+    "kk": ("🇰🇿", "Qozoq tilida",   ("qozoq tilida", "qozoqcha")),
+    "tg": ("🇹🇯", "Tojik tilida",   ("tojik tilida", "tojikcha")),
+    "es": ("🇪🇸", "Ispan tilida",   ("ispan tilida", "ispancha")),
+    "fr": ("🇫🇷", "Fransuz tilida", ("fransuz tilida", "fransuzcha")),
+    "de": ("🇩🇪", "Nemis tilida",   ("nemis tilida", "nemischa")),
+    "ja": ("🇯🇵", "Yapon tilida",   ("yapon tilida", "yaponcha")),
+    "zh": ("🇨🇳", "Xitoy tilida",   ("xitoy tilida", "xitoycha")),
+    "ar": ("🇸🇦", "Arab tilida",    ("arab tilida", "arabcha")),
+    "orig": ("🎬", "Original (subtitr)", ("subtitr", "subtitrli", "original")),
 }
 
 YEAR_MIN, YEAR_MAX = 1920, 2049

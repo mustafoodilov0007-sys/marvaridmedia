@@ -22,20 +22,26 @@ IMG = "https://image.tmdb.org/t/p/"
 
 # TMDB janr identifikatorlari → bizning janr kalitlari
 GENRE_MAP = {
-    28: "action", 10759: "action", 10752: "action", 37: "action",
+    28: "action", 10759: "action",
+    10752: "war", 37: "western",
     12: "adventure",
     35: "comedy",
     18: "drama", 10766: "drama",
     53: "thriller", 9648: "thriller",
     27: "horror",
-    14: "fantasy", 878: "fantasy", 10765: "fantasy",
+    14: "magic", 878: "fantasy", 10765: "fantasy",
+    99: "docu", 10402: "musical", 10770: "drama",
     10749: "romance",
     80: "crime",
     36: "history", 10768: "history",
     10751: "family", 10762: "family",
 }
-COUNTRY_MAP = {c: c.lower() for c in ("US", "UZ", "KZ", "KG", "GB", "FR", "DE", "IT", "ES", "RU", "TR", "IN", "KR", "JP", "CN",
-                                      "CA", "AU", "IR", "UA", "BR", "MX")}
+def _country_map():
+    from . import genres as _G
+    return {k.upper(): k for k in _G.COUNTRIES}
+
+
+COUNTRY_MAP = _country_map()
 AGE_MAP = {"G": 0, "PG": 6, "PG-13": 12, "R": 16, "NC-17": 18,
            "TV-Y": 0, "TV-Y7": 6, "TV-G": 0, "TV-PG": 6, "TV-14": 16, "TV-MA": 18}
 

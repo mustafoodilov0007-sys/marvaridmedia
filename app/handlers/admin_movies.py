@@ -9,7 +9,7 @@ import time
 from .. import genres
 from ..core import NEXT, Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, number_rows
-from ..telegram import InputFile, TelegramError
+from ..telegram import BadRequest, InputFile, TelegramError
 from ..texts import B, CATEGORIES, cat_icon, cat_name
 from .audit import audit
 from ..utils import (entities_to_html, esc, extract_media, fmt_date, fmt_datetime, fmt_num, message_html, normalize, post_link,
@@ -102,6 +102,61 @@ def nav_kb(ctx: Ctx = None) -> dict:
     return ikb(nav_row(ctx))
 
 
+def _summary(ctx: Ctx) -> str:
+    """Karta tepasida shu paytgacha kiritilgan ma'lumotlar (kino saqlanmaguncha bitta xabar tahrirlanib boradi)."""
+    d = ctx.sdata
+    if not d.get("title") or _is_music(ctx):
+        return ""
+    bits = []
+    if d.get("genres"):
+        bits.append("🎭 " + ", ".join(genres.name(k) for k in d["genres"]))
+    if d.get("country"):
+        bits.append(genres.country_label(d["country"]))
+    if d.get("year"):
+        bits.append(f"📅 {d['year']}")
+    if d.get("lang"):
+        bits.append(genres.lang_label(d["lang"]))
+    q = genres.quality_text(genres.quality_dump(d.get("quality") or []))
+    if q:
+        bits.append(f"🎞 {q}")
+    head = f"{cat_icon(_cat(ctx))} <b>{esc(d['title'])}</b>"
+    if d.get("code"):
+        head += f"  •  🔢 <code>{d['code']}</code>"
+    return head + ("\n" + "  ".join(bits) if bits else "") + "\n" + "─" * 14 + "\n\n"
+
+
+def card(ctx: Ctx, text: str, kb=None) -> None:
+    """Bosqich xabari: oldingi «karta» xabarini tahrirlaydi (yangi xabar yubormaydi) — tez va chat toza qoladi."""
+    text = _summary(ctx) + text
+    d = ctx.sdata
+    wid = d.get("wid")
+    msg = ctx.cb_message
+    mid = None if wid == -1 else ((msg["message_id"] if msg and "text" in msg else None) or wid)
+    if mid:
+        try:
+            ctx.bot.edit_message_text(ctx.chat_id, mid, text, kb)
+            if wid != mid:
+                ctx.goto(ctx.state, wid=mid)
+            return
+        except BadRequest as exc:
+            if exc.has("message is not modified"):
+                if wid != mid:
+                    ctx.goto(ctx.state, wid=mid)
+                return
+        except TelegramError:
+            pass
+    sent = ctx.send(text, kb)
+    if isinstance(sent, dict) and sent.get("message_id") and ctx.state:
+        ctx.goto(ctx.state, wid=sent["message_id"])
+
+
+def eat(ctx: Ctx) -> None:
+    """Adminning matnli javobini (nom, izoh, link...) o'chiradi — natija kartada ko'rinadi."""
+    m = ctx.message
+    if m and m.get("message_id") and ctx.callback is None and m.get("text"):
+        ctx.bot.safe("deleteMessage", {"chat_id": ctx.chat_id, "message_id": m["message_id"]})
+
+
 FLOW = ["am:code", "am:title", "am:genre", "am:country", "am:year", "am:lang", "am:quality", "am:desc",
         "am:link", "am:wlink", "am:poster", "am:confirm"]
 
@@ -115,6 +170,8 @@ def _prev_state(ctx: Ctx):
     while i > 0:
         i -= 1
         if FLOW[i] == "am:link" and not _linked(ctx):
+            continue
+        if FLOW[i] == "am:quality" and ctx.sdata.get("quality_auto") and ctx.sdata.get("quality"):
             continue
         return FLOW[i]
     return None
@@ -169,7 +226,7 @@ def ask_category(ctx: Ctx, prefill=None) -> None:
         head = "📹 <b>Fayl qabul qilindi!</b>"
     else:
         head = "➕ <b>Yangi qo'shish</b>"
-    ctx.send(f"{head}\n\nBu nima? Turini tanlang 👇", ikb(*category_rows("am:cat")))
+    card(ctx, f"{head}\n\nBu nima? Turini tanlang 👇", ikb(*category_rows("am:cat")))
 
 
 def start_add(ctx: Ctx, prefill=None, category: str = "movie", ms: bool = False) -> None:
@@ -235,7 +292,7 @@ def ask_code(ctx: Ctx) -> None:
                 f"💡 Bo'sh kod: <code>{code}</code> — pastdagi tugma bilan avtomatik tanlang.\n"
                 f"ℹ️ Band kod yuborsangiz, o'sha {noun}ga yangi qism qo'shiladi."
                 + ("" if prefill else f"\n⚡️ Ko'p {noun}ni birdaniga ko'chirish uchun — «Ommaviy qo'shish»."))
-    ctx.send(text, ikb(*rows))
+    card(ctx, text, ikb(*rows))
 
 
 @router.button(B.ADD_MOVIE, admin=True)
@@ -269,9 +326,9 @@ def choose_code(ctx: Ctx, code: int) -> None:
     movie = ctx.db.get_movie_by_code(code)
     if movie:
         n = ctx.db.count_parts(movie["id"])
-        ctx.send(f"⚠️ <b>{code}</b> kodi band: {cat_icon(movie['category'])} <b>{esc(movie['title'])}</b>"
-                 f" ({n} qism).\n\n"
-                 "Unga yangi qism qo'shamizmi yoki boshqa kod tanlaysizmi?",
+        card(ctx, f"⚠️ <b>{code}</b> kodi band: {cat_icon(movie['category'])} <b>{esc(movie['title'])}</b>"
+                  f" ({n} qism).\n\n"
+                  "Unga yangi qism qo'shamizmi yoki boshqa kod tanlaysizmi?",
                  ikb([btn(f"➕ {n + 1}-qism sifatida qo'shish", f"am:addpart:{movie['id']}", style=SUCCESS)],
                      [btn("🔢 Boshqa kod kiritish", "am:new", style=PRIMARY)],
                      [btn("❌ Bekor qilish", "cancel", style=DANGER)]))
@@ -287,9 +344,9 @@ def choose_code(ctx: Ctx, code: int) -> None:
                  "Audio, fayl yoki klip (video) ko'rinishida yuborishingiz, kanaldan forward qilishingiz mumkin.",
                  cancel_kb())
         return
-    ctx.send(f"✅ Kod: <b>{code}</b>\n\n"
-             f"2️⃣ Endi {_noun(ctx)} <b>videosini</b> yuboring 📹\n"
-             "Video yoki fayl ko'rinishida yuborishingiz, kanaldan forward qilishingiz mumkin.", cancel_kb())
+    card(ctx, f"✅ Kod: <b>{code}</b>\n\n"
+              f"2️⃣ Endi {_noun(ctx)} <b>videosini</b> yuboring 📹\n"
+              "Video yoki fayl ko'rinishida yuborishingiz, kanaldan forward qilishingiz mumkin.", cancel_kb())
 
 
 def ask_title(ctx: Ctx, code: int) -> None:
@@ -306,9 +363,9 @@ def ask_title(ctx: Ctx, code: int) -> None:
     else:
         example = "Avatar: Suv yo'li (2022)"
     ready = f"✅ Kod: <b>{code}</b>, fayl tayyor." if code else "✅ Fayl tayyor."
-    ctx.send(f"{ready}\n\n"
-             f"3️⃣ {_cname(ctx)} <b>nomini</b> yuboring:\n💡 Masalan: <code>{esc(example)}</code>",
-             nav_kb(ctx))
+    card(ctx, f"{ready}\n\n"
+         f"3️⃣ {_cname(ctx)} <b>nomini</b> yuboring:\n💡 Masalan: <code>{esc(example)}</code>",
+         nav_kb(ctx))
 
 
 @router.state("am:code", admin=True)
@@ -317,6 +374,7 @@ def st_code(ctx: Ctx) -> None:
     if not m:
         ctx.send("❗️ Kod faqat raqamlardan iborat bo'lishi kerak (masalan: <code>25</code>).", cancel_kb())
         return
+    eat(ctx)
     choose_code(ctx, int(m.group(1)))
 
 
@@ -353,13 +411,15 @@ def st_title(ctx: Ctx) -> None:
                         (normalize(title),))
         if dup:
             ctx.goto("am:title", dup_seen=title)
-            ctx.send(f"⚠️ <b>Shu nomli kino allaqachon bor:</b> {cat_icon(dup['category'])} {esc(dup['title'])}"
+            eat(ctx)
+            card(ctx, f"⚠️ <b>Shu nomli kino allaqachon bor:</b> {cat_icon(dup['category'])} {esc(dup['title'])}"
                      f" (kod <code>{dup['code']}</code>).\n\n"
                      "Boshqa nom yuboring, yoki xuddi shu nomni <b>yana bir marta</b> yuboring — shu nom bilan saqlanadi. "
                      "Agar bu o'sha kinoning keyingi qismi bo'lsa, bekor qilib, kino ro'yxatidan «➕ Qism qo'shish» ni tanlang.",
                      nav_kb(ctx))
             return
     ctx.goto("am:title", title=title)
+    eat(ctx)
     if _is_music(ctx):
         ask_desc(ctx)
     else:
@@ -374,12 +434,12 @@ def ask_desc(ctx: Ctx) -> None:
     rows.append([btn("⏭ O'tkazib yuborish", "am:skip", style=SUCCESS)])
     rows.append(nav_row(ctx))
     if _is_music(ctx):
-        ctx.send(f"4️⃣ Musiqa haqida <b>qisqacha ma'lumot</b> yuboring:\n💡 Masalan: ijrochi, albom, yil.\n\n"
-                 "Yoki bu bosqichni o'tkazib yuboring 👇", ikb(*rows))
+        card(ctx, f"4️⃣ Musiqa haqida <b>qisqacha ma'lumot</b> yuboring:\n💡 Masalan: ijrochi, albom, yil.\n\n"
+                  "Yoki bu bosqichni o'tkazib yuboring 👇", ikb(*rows))
         return
-    ctx.send(f"9️⃣ Endi {_noun(ctx)} haqida <b>izoh</b> yozing ✍️\n"
-             "💡 Masalan: syujeti, IMDb reytingi. Izoh botda kino bilan chiqadi, kanal postiga qo'yilmaydi.\n"
-             "Premium emoji, <b>qalin</b>, <i>kursiv</i> yozuvlar saqlanadi.\n\nYoki o'tkazib yuboring 👇", ikb(*rows))
+    card(ctx, f"8️⃣ Endi {_noun(ctx)} haqida <b>izoh</b> yozing ✍️\n"
+              "💡 Masalan: syujeti, IMDb reytingi. Izoh botda kino bilan chiqadi, kanal postiga qo'yilmaydi.\n"
+              "Premium emoji, <b>qalin</b>, <i>kursiv</i> yozuvlar saqlanadi.\n\nYoki o'tkazib yuboring 👇", ikb(*rows))
 
 
 @router.state("am:desc", admin=True)
@@ -402,6 +462,7 @@ def st_desc(ctx: Ctx) -> None:
     if len(desc) > 800:
         ctx.send("❗️ Ma'lumot juda uzun — 800 belgigacha qisqartiring.")
         return
+    eat(ctx)
     after_desc(ctx, desc, message_html(ctx.message).strip())
 
 
@@ -442,12 +503,21 @@ def begin_meta(ctx: Ctx) -> None:
 def ask_genre(ctx: Ctx) -> None:
     d = ctx.sdata
     sel = list(d.get("genres") or [])
-    ctx.send(genre_prompt(d.get("title") or "", sel), {"inline_keyboard": genre_rows(sel, "am:g:", "am:gok", extra=[nav_row(ctx)])})
+    card(ctx, genre_prompt(d.get("title") or "", sel), {"inline_keyboard": genre_rows(sel, "am:g:", "am:gok", extra=[nav_row(ctx)])})
 
 
-def country_rows(selected: str, prefix: str, extra=None) -> list:
+COUNTRY_PAGE = 24
+
+
+def country_rows(selected: str, prefix: str, extra=None, page=None, pager: str = "") -> list:
+    """Davlatlar 2 ustunda, sahifa-sahifa (24 tadan). `pager` — sahifa tugmalari callback boshlanishi (masalan «am:cp»)."""
+    keys = list(genres.COUNTRIES)
+    pages = (len(keys) + COUNTRY_PAGE - 1) // COUNTRY_PAGE
+    if page is None:
+        page = keys.index(selected) // COUNTRY_PAGE if selected in keys else 0
+    page = max(0, min(int(page), pages - 1))
     rows, row = [], []
-    for k in genres.COUNTRIES:
+    for k in keys[page * COUNTRY_PAGE:(page + 1) * COUNTRY_PAGE]:
         on = k == selected
         row.append(btn(("✅ " if on else "") + genres.country_label(k), f"{prefix}{k}", style=SUCCESS if on else None))
         if len(row) == 2:
@@ -455,6 +525,11 @@ def country_rows(selected: str, prefix: str, extra=None) -> list:
             row = []
     if row:
         rows.append(row)
+    if pager and pages > 1:
+        nav = []
+        for i in range(pages):
+            nav.append(btn(f"• {i + 1} •" if i == page else str(i + 1), f"{pager}{i}", style=PRIMARY if i == page else None))
+        rows.append(nav)
     return rows + (extra or [])
 
 
@@ -475,9 +550,9 @@ def year_rows(selected: int, prefix: str, extra=None) -> list:
 
 
 def lang_rows(selected: str, prefix: str, extra=None) -> list:
-    rows = [[btn(("✅ " if k == selected else "") + genres.lang_label(k), f"{prefix}{k}",
-                 style=SUCCESS if k == selected else PRIMARY)] for k in genres.LANGS]
-    return rows + (extra or [])
+    bs = [btn(("✅ " if k == selected else "") + genres.lang_label(k), f"{prefix}{k}",
+              style=SUCCESS if k == selected else None) for k in genres.LANGS]
+    return [bs[i:i + 2] for i in range(0, len(bs), 2)] + (extra or [])
 
 
 def _skip_row(cb: str) -> list:
@@ -488,23 +563,23 @@ def ask_country(ctx: Ctx) -> None:
     ctx.goto("am:country")
     sel = ctx.sdata.get("country") or ""
     hint = f"\n💡 Fayl izohidan topildi: <b>{genres.country_label(sel)}</b> — to'g'ri bo'lsa shuni bosing." if sel else ""
-    ctx.send(f"5️⃣ <b>Davlatini</b> tanlang 🌍{hint}",
-             {"inline_keyboard": country_rows(sel, "am:c:", _skip_row("am:c:-") + [nav_row(ctx)])})
+    card(ctx, f"5️⃣ <b>Davlatini</b> tanlang 🌍{hint}\n💡 Davlat ko'p — pastdagi raqamlar bilan sahifalarni almashtiring.",
+         {"inline_keyboard": country_rows(sel, "am:c:", _skip_row("am:c:-") + [nav_row(ctx)], page=ctx.sdata.get("cpage"), pager="am:cp:")})
 
 
 def ask_year(ctx: Ctx) -> None:
     ctx.goto("am:year")
     sel = int(ctx.sdata.get("year") or 0)
     hint = f"\n💡 Topilgan yil: <b>{sel}</b>" if sel else ""
-    ctx.send(f"6️⃣ <b>Chiqqan yilini</b> tanlang 📅{hint}\n\n"
-             "Ro'yxatda yo'q bo'lsa — yilni yozib yuboring (masalan <code>1997</code>).",
-             {"inline_keyboard": year_rows(sel, "am:y:", _skip_row("am:y:0") + [nav_row(ctx)])})
+    card(ctx, f"6️⃣ <b>Chiqqan yilini</b> tanlang 📅{hint}\n\n"
+         "Ro'yxatda yo'q bo'lsa — yilni yozib yuboring (masalan <code>1997</code>).",
+         {"inline_keyboard": year_rows(sel, "am:y:", _skip_row("am:y:0") + [nav_row(ctx)])})
 
 
 def ask_lang(ctx: Ctx) -> None:
     ctx.goto("am:lang")
     sel = ctx.sdata.get("lang") or ""
-    ctx.send("7️⃣ <b>Tilini</b> tanlang 🗣", {"inline_keyboard": lang_rows(sel, "am:l:", _skip_row("am:l:-") + [nav_row(ctx)])})
+    card(ctx, "7️⃣ <b>Tilini</b> tanlang 🗣", {"inline_keyboard": lang_rows(sel, "am:l:", _skip_row("am:l:-") + [nav_row(ctx)])})
 
 
 def quality_rows(selected, prefix: str, done_cb: str, done_text: str = "✅ Tayyor — davom etish", extra=None) -> list:
@@ -517,15 +592,24 @@ def quality_rows(selected, prefix: str, done_cb: str, done_text: str = "✅ Tayy
 def quality_prompt(selected, auto: bool = False) -> str:
     chosen = genres.quality_text(genres.quality_dump(selected)) or "—"
     hint = ("\n🤖 <b>Bot videodan avtomatik aniqladi</b> — to'g'ri bo'lsa «✅ Tayyor» ni bosing, aks holda o'zgartiring." if auto and selected else "")
-    return (f"8️⃣ <b>Video sifatini</b> tanlang 🎞 (360p, 480p, 720p, 1080p, 2K, 4K — bir nechtasini tanlash mumkin)\n\n"
+    return (f"🎞 <b>Video sifatini</b> tanlang (360p, 480p, 720p, 1080p, 2K, 4K — bir nechtasini tanlash mumkin)\n\n"
             f"Tanlangan: <b>{chosen}</b>{hint}\n\n💡 Tanlab bo'lgach «✅ Tayyor» ni bosing.")
 
 
 def ask_quality(ctx: Ctx) -> None:
     ctx.goto("am:quality")
     sel = ctx.sdata.get("quality") or []
-    ctx.send(quality_prompt(sel, bool(ctx.sdata.get("quality_auto"))),
-             {"inline_keyboard": quality_rows(sel, "am:q:", "am:qok", extra=[nav_row(ctx)])})
+    card(ctx, quality_prompt(sel, bool(ctx.sdata.get("quality_auto"))),
+         {"inline_keyboard": quality_rows(sel, "am:q:", "am:qok", extra=[nav_row(ctx)])})
+
+
+def after_lang(ctx: Ctx) -> None:
+    """Sifat videodan/izohdan aniqlangan bo'lsa — qayta so'ralmaydi (tasdiq bosqichida o'zgartirish mumkin)."""
+    d = ctx.sdata
+    if d.get("quality_auto") and d.get("quality"):
+        ask_desc(ctx)
+    else:
+        ask_quality(ctx)
 
 
 LINK_RE = re.compile(r"(?:https?://)?(?:t\.me|telegram\.me)/\S+|https?://\S+", re.I)
@@ -549,7 +633,7 @@ def after_desc(ctx: Ctx, desc: str, desc_html: str = "") -> None:
 
 def ask_link(ctx: Ctx) -> None:
     ctx.goto("am:link")
-    ctx.send("🔗 <b>Qolgan qismlar linki</b>\n\n"
+    card(ctx, "🔗 <b>Qolgan qismlar linki</b>\n\n"
              f"{_cname(ctx)}ning qolgan qismlari joylangan Telegram guruh yoki post havolasini yuboring.\n"
              "💡 Masalan: <code>https://t.me/MarvaridMediaderial/1170</code>\n\n"
              f"Bot {_noun(ctx)}ni yuborganda «qolgan qismlari bu yerda 👇» deb shu linkni qo'shadi.\n"
@@ -570,7 +654,7 @@ def clean_web(text: str) -> str:
 
 def ask_wlink(ctx: Ctx) -> None:
     ctx.goto("am:wlink")
-    ctx.send("🌐 <b>Saytdagi link (ixtiyoriy)</b>\n\n"
+    card(ctx, "🌐 <b>Saytdagi link (ixtiyoriy)</b>\n\n"
              f"Bu {_noun(ctx)} joylangan boshqa saytning havolasini yuboring. Saytimizda poster bosilganda <b>ikkita tugma</b> chiqadi: "
              "«🤖 Botda ko'rish» (sizning botingiz) va «🌐 Saytda ko'rish» (shu link).\n"
              "💡 Masalan: <code>https://uzmovi.tv/kino/123</code>\n\n"
@@ -594,7 +678,7 @@ def st_wlink(ctx: Ctx) -> None:
                  ikb([btn("⏭ O'tkazib yuborish", "am:wskip", style=SUCCESS)], nav_row(ctx)))
         return
     ctx.goto("am:wlink", watch_url=link)
-    ctx.send(f"🌐 Sayt linki saqlandi ✅\n{esc(link)}", preview=False)
+    eat(ctx)
     to_poster(ctx)
 
 
@@ -623,7 +707,7 @@ def st_link(ctx: Ctx) -> None:
                  "yoki «⏭ O'tkazib yuborish» ni bosing.", ikb([btn("⏭ O'tkazib yuborish", "am:lskip", style=DANGER)], nav_row(ctx)))
         return
     ctx.goto("am:link", group_link=link)
-    ctx.send(f"🔗 Link saqlandi ✅\n{esc(link)}", preview=False)
+    eat(ctx)
     ask_wlink(ctx)
 
 
@@ -643,7 +727,7 @@ def st_meta(ctx: Ctx) -> None:
             ctx.send(f"❗️ Yil {genres.YEAR_MIN}–{genres.YEAR_MAX} oralig'ida bo'lsin.")
             return
         ctx.goto("am:year", year=int(text))
-        ctx.send(f"📅 Yil: <b>{text}</b> ✅")
+        eat(ctx)
         ask_lang(ctx)
         return
     hint = {"am:genre": "janrlarni tanlab «✅ Tayyor» ni bosing", "am:country": "davlatni tanlang",
@@ -696,10 +780,10 @@ def poster_error(ctx: Ctx, extra: str = "") -> None:
 def ask_poster(ctx: Ctx, desc: str, desc_html: str = "") -> None:
     ctx.goto("am:poster", desc=desc, desc_html=desc_html)
     what = "muqovasini" if _is_music(ctx) else "posterini"
-    step = "5️⃣" if _is_music(ctx) else "🔟"
-    ctx.send(f"{step} {cat_name(_cat(ctx))} <b>{what}</b> (rasm) yuboring 🖼\n"
-             "Rasm saytda, kanal e'lonida va qismlar ro'yxatida chiroyli ko'rinadi.\n\nYoki o'tkazib yuboring 👇",
-             ikb([btn("⏭ O'tkazib yuborish", "am:skip", style=SUCCESS)], nav_row(ctx)))
+    step = "5️⃣" if _is_music(ctx) else "9️⃣"
+    card(ctx, f"{step} {cat_name(_cat(ctx))} <b>{what}</b> (rasm) yuboring 🖼\n"
+              "Rasm saytda, kanal e'lonida va qismlar ro'yxatida chiroyli ko'rinadi.\n\nYoki o'tkazib yuboring 👇",
+         ikb([btn("⏭ O'tkazib yuborish", "am:skip", style=SUCCESS)], nav_row(ctx)))
 
 
 @router.state("am:poster", admin=True)
@@ -736,8 +820,10 @@ def show_confirm(ctx: Ctx, poster) -> None:
     rows = [[btn("✅ Saqlash", "am:save:0", style=SUCCESS)]]
     if ctx.app.setting_bool("premium_enabled"):
         rows.append([btn("💎 Premium sifatida saqlash", "am:save:1", style=PRIMARY)])
+    if cat != "music":
+        rows.append([btn("🎞 Sifatni o'zgartirish", "am:eq", style=PRIMARY)])
     rows.append(nav_row(ctx))
-    ctx.send(text, ikb(*rows))
+    card(ctx, text, ikb(*rows))
 
 
 @router.state("am:confirm", admin=True)
@@ -1067,13 +1153,12 @@ def cb_add_movie(ctx: Ctx) -> None:
         ctx.goto("am:genre", genres=sel)
         ctx.answer(genres.label(key))
         d = ctx.sdata
-        ctx.edit(genre_prompt(d.get("title") or "", sel), {"inline_keyboard": genre_rows(sel, "am:g:", "am:gok", extra=[nav_row(ctx)])})
+        card(ctx, genre_prompt(d.get("title") or "", sel), {"inline_keyboard": genre_rows(sel, "am:g:", "am:gok", extra=[nav_row(ctx)])})
     elif action == "gok":
         if state != "am:genre":
             _stale(ctx)
             return
         ctx.answer()
-        ctx.edit(f"🎭 Janr: <b>{genres.line(genres.dump(ctx.sdata.get('genres') or [])) or '—'}</b> ✅")
         ask_country(ctx)
     elif action == "c" and len(parts) > 2:
         if state != "am:country":
@@ -1082,7 +1167,6 @@ def cb_add_movie(ctx: Ctx) -> None:
         key = parts[2] if parts[2] in genres.COUNTRIES else ""
         ctx.goto("am:country", country=key)
         ctx.answer()
-        ctx.edit(f"🌍 Davlat: <b>{genres.country_label(key) or '—'}</b> ✅")
         ask_year(ctx)
     elif action == "y" and len(parts) > 2 and parts[2].isdigit():
         if state != "am:year":
@@ -1091,7 +1175,6 @@ def cb_add_movie(ctx: Ctx) -> None:
         year = int(parts[2])
         ctx.goto("am:year", year=year)
         ctx.answer()
-        ctx.edit(f"📅 Yil: <b>{year or '—'}</b> ✅")
         ask_lang(ctx)
     elif action == "l" and len(parts) > 2:
         if state != "am:lang":
@@ -1100,8 +1183,7 @@ def cb_add_movie(ctx: Ctx) -> None:
         key = parts[2] if parts[2] in genres.LANGS else ""
         ctx.goto("am:lang", lang=key)
         ctx.answer()
-        ctx.edit(f"🗣 Til: <b>{genres.lang_label(key) or '—'}</b> ✅")
-        ask_quality(ctx)
+        after_lang(ctx)
     elif action == "q" and len(parts) > 2 and parts[2] in genres.QUALITIES:
         if state != "am:quality":
             _stale(ctx)
@@ -1110,14 +1192,31 @@ def cb_add_movie(ctx: Ctx) -> None:
         sel.remove(parts[2]) if parts[2] in sel else sel.append(parts[2])
         ctx.goto("am:quality", quality=sel, quality_auto=False)
         ctx.answer(genres.QUALITIES[parts[2]])
-        ctx.edit(quality_prompt(sel), {"inline_keyboard": quality_rows(sel, "am:q:", "am:qok", extra=[nav_row(ctx)])})
+        card(ctx, quality_prompt(sel), {"inline_keyboard": quality_rows(sel, "am:q:", "am:qok", extra=[nav_row(ctx)])})
     elif action == "qok":
         if state != "am:quality":
             _stale(ctx)
             return
         ctx.answer()
-        ctx.edit(f"🎞 Sifat: <b>{genres.quality_text(genres.quality_dump(ctx.sdata.get('quality') or [])) or '—'}</b> ✅")
-        ask_desc(ctx)
+        if ctx.sdata.get("qback"):                    # tasdiq oynasidan kelgan — shu yerga qaytamiz
+            ctx.goto("am:confirm", qback=False)
+            show_confirm(ctx, ctx.sdata.get("poster"))
+        else:
+            ask_desc(ctx)
+    elif action == "eq":
+        if state != "am:confirm":
+            _stale(ctx)
+            return
+        ctx.answer()
+        ctx.goto("am:quality", qback=True, quality_auto=False)
+        ask_quality(ctx)
+    elif action == "cp" and len(parts) > 2 and parts[2].isdigit():
+        if state != "am:country":
+            _stale(ctx)
+            return
+        ctx.answer()
+        ctx.goto("am:country", cpage=int(parts[2]))
+        ask_country(ctx)
     elif action == "lskip":
         if state != "am:link":
             _stale(ctx)
@@ -1577,11 +1676,15 @@ def cb_manage(ctx: Ctx) -> None:
     elif action == "tm":
         from .admin_tmdb import start as tmdb_start
         tmdb_start(ctx, movie)
-    elif action in ("ctr", "yr", "lg"):
+    elif action in ("ctr", "yr", "lg") or (action[:3] == "cpg" and action[3:].isdigit()):
         ctx.answer()
+        cpage = int(action[3:]) if action[:3] == "cpg" else None
+        if cpage is not None:
+            action = "ctr"
         back = [[btn("⬅️ Orqaga", f"dm:meta:{mid}", style=DANGER)]]
         if action == "ctr":
-            rows = country_rows(movie["country"], "dm:cs", [[btn("🚫 Olib tashlash", "dm:cs-", style=DANGER)]] + back)
+            rows = country_rows(movie["country"], "dm:cs", [[btn("🚫 Olib tashlash", "dm:cs-", style=DANGER)]] + back,
+                                page=cpage, pager="dm:cpg")
             title = "🌍 <b>Davlatini</b> tanlang:"
         elif action == "yr":
             rows = year_rows(movie["year"], "dm:ys", [[btn("✍️ Boshqa yil yozish", f"dm:ey:{mid}", style=PRIMARY),
@@ -1592,7 +1695,7 @@ def cb_manage(ctx: Ctx) -> None:
             title = "🗣 <b>Tilini</b> tanlang:"
         for r in rows:
             for b in r:
-                if b.get("callback_data", "")[:5] in ("dm:cs", "dm:ys", "dm:ls"):
+                if b.get("callback_data", "")[:6] in ("dm:cs-", "dm:ys0") or b.get("callback_data", "")[:5] in ("dm:cs", "dm:ys", "dm:ls", "dm:cp"):
                     b["callback_data"] += f":{mid}"
         ctx.edit(f"🎬 <b>{esc(movie['title'])}</b>\n\n{title}", {"inline_keyboard": rows})
     elif (action[:2] == "cs" and (action[2:] in genres.COUNTRIES or action[2:] == "-")) \

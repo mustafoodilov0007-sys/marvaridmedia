@@ -233,7 +233,7 @@ class AddFlow(AdminCase):
 
     def buttons(self, uid=1):
         for n, a, k in reversed(self.app.bot.sent):
-            kb = (k.get("reply_markup") if k else None) or (a[2] if len(a) > 2 and isinstance(a[2], dict) else None)
+            kb = (k.get("reply_markup") if k else None) or next((x for x in a[2:] if isinstance(x, dict) and "inline_keyboard" in x), None)
             if isinstance(kb, dict) and "inline_keyboard" in kb:
                 return [b.get("callback_data") for r in kb["inline_keyboard"] for b in r if b.get("callback_data")]
         return []
@@ -278,7 +278,7 @@ class AddFlow(AdminCase):
         self.press(1, "am:cat:movie")
         self.press(1, "am:auto")
         self.msg(1, "Matritsa")
-        for cb in ("am:gok", "am:c:-", "am:y:0", "am:l:-", "am:qok", "am:skip"):
+        for cb in ("am:gok", "am:c:-", "am:y:0", "am:l:-", "am:skip"):
             self.press(1, cb)
         self.assertIn("Saytdagi link", self.last(1))
         self.msg(1, "https://uzmovi.tv/kino/55")
@@ -290,12 +290,69 @@ class AddFlow(AdminCase):
         self.assertEqual(m["watch_url"], "https://uzmovi.tv/kino/55")
         self.assertEqual(m["quality"], ",720,")
 
+    def sends(self):
+        return sum(1 for n, a, k in self.app.bot.sent if n == "send_message" and a and a[0] == 1)
+
+    def test_one_card_edited_in_place_and_catalogs_large(self):
+        from app import genres
+        self.assertGreaterEqual(len(genres.GENRES), 28)
+        self.assertGreaterEqual(len(genres.COUNTRIES), 55)
+        self.assertGreaterEqual(len(genres.LANGS), 12)
+        self.video("Kino 1080p")
+        self.press(1, "am:cat:movie")
+        self.press(1, "am:auto")
+        self.msg(1, "Kartali kino")
+        before = self.sends()
+        for cb in ("am:gok", "am:c:-", "am:y:2020", "am:l:uz"):
+            self.press(1, cb)
+        self.assertEqual(self.sends(), before)                       # bosqichlar yangi xabar yubormaydi — bitta karta tahrirlanadi
+        self.assertIn("Kartali kino", self.last(1))                  # tepada yig'ma ma'lumot
+        self.assertIn("izoh", self.last(1))                          # sifat aniqlangan — qayta so'ralmadi, to'g'ri izohga o'tdi
+
+    def test_quality_asked_once_only_when_not_detected(self):
+        self.video("", w=0, h=0)
+        self.press(1, "am:cat:movie")
+        self.press(1, "am:auto")
+        self.msg(1, "Noma'lum sifat")
+        for cb in ("am:gok", "am:c:-", "am:y:0", "am:l:-"):
+            self.press(1, cb)
+        self.assertIn("sifatini", self.last(1))                      # aniqlanmadi — bir marta so'raladi
+        self.press(1, "am:q:720")
+        self.press(1, "am:qok")
+        self.assertIn("izoh", self.last(1))
+        for cb in ("am:skip", "am:wskip", "am:skip"):
+            self.press(1, cb)
+        self.assertIn("am:eq", self.buttons())                       # tasdiqda o'zgartirish tugmasi bor
+        self.press(1, "am:eq")
+        self.press(1, "am:q:1080")
+        self.press(1, "am:qok")
+        self.assertIn("am:save:0", self.buttons())                   # tasdiqqa qaytdi
+        self.press(1, "am:save:0")
+        self.assertEqual(self.app.db.get_movie_by_code(1)["quality"], ",720,1080,")
+
+    def test_country_pages(self):
+        self.video("Kino 720p")
+        self.press(1, "am:cat:movie")
+        self.press(1, "am:auto")
+        self.msg(1, "Sahifali")
+        self.press(1, "am:gok")
+        self.assertIn("am:cp:1", self.buttons())
+        self.press(1, "am:cp:2")
+        self.assertIn("am:c:ng", self.buttons())
+        self.press(1, "am:c:ng")
+        self.press(1, "am:y:0")
+        self.press(1, "am:l:tr")
+        for cb in ("am:skip", "am:wskip", "am:skip", "am:save:0"):
+            self.press(1, cb)
+        m = self.app.db.get_movie_by_code(1)
+        self.assertEqual((m["country"], m["lang"]), ("ng", "tr"))
+
     def test_site_link_optional(self):
         self.video("")
         self.press(1, "am:cat:movie")
         self.press(1, "am:auto")
         self.msg(1, "Kinochalar")
-        for cb in ("am:gok", "am:c:-", "am:y:0", "am:l:-", "am:qok", "am:skip", "am:wskip", "am:skip"):
+        for cb in ("am:gok", "am:c:-", "am:y:0", "am:l:-", "am:skip", "am:wskip", "am:skip"):
             self.press(1, cb)
         self.press(1, "am:save:0")
         self.assertEqual(self.app.db.get_movie_by_code(1)["watch_url"], "")
