@@ -1725,7 +1725,7 @@
   function actionRow(it, hero) {
     var row = h("div", "actions");
     var watchBtn = h("button", "btn primary" + (it.locked ? " lock" : ""),
-      [icon(it.locked ? "lock" : "play"), it.locked ? "Premium" : (it.cat === "music" ? "Tinglash" : "Kinoni ko'rish")]);
+      [icon(it.locked ? "lock" : (PUB && it.cat !== "music" ? "send" : "play")), it.locked ? "Premium" : (it.cat === "music" ? "Tinglash" : (PUB ? "Telegramda ko'rish" : "Kinoni ko'rish"))]);
     watchBtn.onclick = function (e) {
       e.stopPropagation();
       if (it.cat === "music" && !it.locked) { Player.play(it, [it]); closeSheet(); }
@@ -3083,7 +3083,7 @@
       if (it.parts > 1) bits.push(it.parts + " qism");
       if (it.code > 0) bits.push("Kod: " + it.code);
       var go = h("button", "go" + (it.locked ? " lock" : ""),
-        [icon(it.locked ? "lock" : "play"), it.locked ? "Premium" : (it.cat === "music" ? "To'liq tinglash" : "To'liq ko'rish")]);
+        [icon(it.locked ? "lock" : (PUB && it.cat !== "music" ? "send" : "play")), it.locked ? "Premium" : (it.cat === "music" ? "To'liq tinglash" : (PUB ? "Telegramda ko'rish" : "To'liq ko'rish"))]);
       go.onclick = function () { watch(it, go); };
       var bottomBox = h("div", "bottom", [it.premium ? h("span", "badge gold", "PREMIUM") : null,
         h("h3", null, it.title), h("div", "m", bits.join(" · ")), go]);
@@ -3620,7 +3620,7 @@
   }
   // 🎬 pastdagi «yopishqoq» tugma: asosiy tugma ko'rinishdan chiqqach (izohlarni o'qiyotganda ham) kinoni ko'rish doim qo'l ostida
   function stickyBar(it, acts) {
-    var b = h("button", "btn primary" + (it.locked ? " lock" : ""), [icon(it.locked ? "lock" : "play"), it.locked ? "Premium" : "Kinoni ko'rish"]);
+    var b = h("button", "btn primary" + (it.locked ? " lock" : ""), [icon(it.locked ? "lock" : (PUB ? "send" : "play")), it.locked ? "Premium" : (PUB ? "Telegramda ko'rish" : "Kinoni ko'rish")]);
     b.onclick = function () { watch(it, b); };
     var bar = h("div", "sbar", [h("div", "sbar-t", [h("b", null, it.title), h("span", null, [it.year ? String(it.year) : "", NAMES[it.cat] || ""].filter(Boolean).join(" · "))]), b]);
     if ("IntersectionObserver" in window) {
