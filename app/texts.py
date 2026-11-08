@@ -30,6 +30,7 @@ class B:
     ADMINS = "👮 Adminlar"
     PREMIUMS = "💎 Premiumlar"
     TEXTS = "⚙️ Matnlar"
+    TOOLS = "🧰 Qo'shimcha"
     HOME = "🏠 Bosh menyu"
 
 

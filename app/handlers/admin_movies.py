@@ -11,7 +11,8 @@ from ..core import NEXT, Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, number_rows
 from ..telegram import InputFile, TelegramError
 from ..texts import B, CATEGORIES, cat_icon, cat_name
-from ..utils import (entities_to_html, esc, extract_media, fmt_date, fmt_num, message_html, normalize, post_link,
+from .audit import audit
+from ..utils import (entities_to_html, esc, extract_media, fmt_date, fmt_datetime, fmt_num, message_html, normalize, post_link,
                      premium_html, truncate)
 from .contact import notify_requesters
 from .user import build_list, fmt_item, part_label, search_ids
@@ -167,6 +168,10 @@ def choose_code(ctx: Ctx, code: int) -> None:
     if code <= 0:
         ctx.send("❗️ Kod musbat son bo'lishi kerak.", cancel_kb())
         return
+    if code > MAX_CODE:
+        ctx.send(f"❗️ Kod {MAX_CODE:,} dan katta bo'lmasin (aks holda keyingi avtomatik kodlar ham katta bo'lib ketadi).".replace(",", " "),
+                 cancel_kb())
+        return
     movie = ctx.db.get_movie_by_code(code)
     if movie:
         n = ctx.db.count_parts(movie["id"])
@@ -248,6 +253,17 @@ def st_title(ctx: Ctx) -> None:
     if len(title) > 150:
         ctx.send("❗️ Nom juda uzun — 150 belgigacha qisqartiring.", cancel_kb())
         return
+    if not _is_music(ctx) and ctx.sdata.get("dup_seen") != title:
+        dup = ctx.db.q1("SELECT code, title, category FROM movies WHERE norm_title=? AND category<>'music' LIMIT 1",
+                        (normalize(title),))
+        if dup:
+            ctx.goto("am:title", dup_seen=title)
+            ctx.send(f"⚠️ <b>Shu nomli kino allaqachon bor:</b> {cat_icon(dup['category'])} {esc(dup['title'])}"
+                     f" (kod <code>{dup['code']}</code>).\n\n"
+                     "Boshqa nom yuboring, yoki xuddi shu nomni <b>yana bir marta</b> yuboring — shu nom bilan saqlanadi. "
+                     "Agar bu o'sha kinoning keyingi qismi bo'lsa, bekor qilib, kino ro'yxatidan «➕ Qism qo'shish» ni tanlang.",
+                     cancel_kb())
+            return
     ctx.goto("am:title", title=title)
     if _is_music(ctx):
         ask_desc(ctx)
@@ -596,6 +612,7 @@ def save_movie(ctx: Ctx, premium: bool) -> None:
     ctx.clear_state()
     ctx.answer("✅ Saqlandi!")
     code = db.get_movie(movie_id)["code"]
+    audit(ctx.app, ctx.user_id, "movie_add", f"{d['title']} (kod {code})")
     notified = notify_requesters(ctx.app, movie_id)
     ctx.edit(f"🎉 <b>{cat_name(cat)} muvaffaqiyatli saqlandi!</b>\n\n"
              f"{cat_icon(cat)} <b>{esc(d['title'])}</b>\n"
@@ -669,7 +686,10 @@ def st_part(ctx: Ctx) -> None:
 
 # ═════════════════════════ ⚡️ Ommaviy qo'shish (forward) ═════════════════════════
 
-CAPTION_CODE = re.compile(r"(?:\bkod(?:i)?\b|\bcode\b|\bкод(?:и)?\b|#)\s*[:№\-–]?\s*(\d{1,9})\b", re.I)
+CAPTION_CODE = re.compile(r"(?:\bkod(?:i)?\b|\bcode\b|\bкод(?:и)?\b)\s*[:№#\-–]?\s*(\d{1,6})\b", re.I)
+HASH_CODE = re.compile(r"(?<![\w#])#(\d{1,6})\b(?!\w)")        # «#45» — faqat yil/sifat bo'lmasa kod hisoblanadi
+_NOT_CODES = {240, 360, 480, 540, 720, 1080, 1440, 2160, 4320}   # sifat xeshtegi (#1080)
+MAX_CODE = 999_999
 _CODE_WORDS = {"kino", "film", "multfilm", "serial", "anime", "kod", "kodi", "code", "raqami", "nomer", "id"}
 
 
@@ -678,12 +698,24 @@ def parse_caption(caption: str):
     text = caption or ""
     m = CAPTION_CODE.search(text)
     code = int(m.group(1)) if m else None
+    if code is None:
+        for h in HASH_CODE.finditer(text):
+            n = int(h.group(1))
+            if n > 0 and n not in _NOT_CODES and not 1900 <= n <= 2100:   # #2024 — yil, #1080 — sifat
+                code = n
+                break
+    if code is not None and not 0 < code <= MAX_CODE:
+        code = None
     title, rest = "", []
     for line in (ln.strip() for ln in text.splitlines()):
         if not line:
             continue
-        has_code = bool(CAPTION_CODE.search(line))
-        clean = CAPTION_CODE.sub("", line).strip()
+        has_code = bool(CAPTION_CODE.search(line) or HASH_CODE.search(line))
+        clean = HASH_CODE.sub("", CAPTION_CODE.sub("", line)).strip()
+        hashtags_only = bool(line) and not re.sub(r"#\w+", "", clean).strip()
+        if hashtags_only:
+            continue  # «#kino #film #2024» kabi qator — nom ham, ma'lumot ham emas
+        clean = re.sub(r"(?<!\w)#\w+", "", clean).strip() if not rest and not title else clean
         if has_code and not (set(normalize(clean).split()) - _CODE_WORDS):
             continue  # «🔢 Kino kodi: 45» kabi qator
         clean = re.sub(r"^[\W_]+", "", clean)
@@ -704,8 +736,8 @@ def start_bulk(ctx: Ctx) -> None:
     sent = ctx.send(f"⚡️ <b>Ommaviy qo'shish</b>  •  {cat_icon(cat)} {cat_name(cat)}\n\n"
                     f"Kanal yoki guruhdan {files} birdaniga <b>forward</b> qiling — har biri "
                     "avtomatik saqlanadi:\n\n"
-                    "• <b>Kod</b> izohdan olinadi (<code>Kod: 45</code>, <code>#45</code>); topilmasa — "
-                    "keyingi bo'sh kod beriladi.\n"
+                    "• <b>Kod</b> izohdan olinadi (<code>Kod: 45</code> yoki <code>#45</code>; <code>#2024</code> — yil, "
+                    "<code>#1080</code> — sifat, ular kod hisoblanmaydi); topilmasa — keyingi bo'sh kod beriladi.\n"
                     "• <b>Nomi</b> — izohning birinchi qatori.\n"
                     "• Izohdagi kod band bo'lsa — o'sha kodga <b>yangi qism</b> bo'lib qo'shiladi.\n\n"
                     "Tugatgach «🏁 Tugatish» ni bosing.",
@@ -981,8 +1013,9 @@ def cb_announce(ctx: Ctx) -> None:
     app = ctx.app
     parts = ctx.data.split(":")
     preview = len(parts) > 2 and parts[1] == "pv"  # «premium ko'rinishini menga yuborish»
+    mode = parts[1] if len(parts) > 2 and parts[1] in ("f", "x", "fx") else ""   # f — baribir, fx — eskisini o'chirib, x — faqat o'chirish
     try:
-        movie = ctx.db.get_movie(int(parts[2] if preview else parts[1]))
+        movie = ctx.db.get_movie(int(parts[2] if (preview or mode) else parts[1]))
     except (IndexError, ValueError):
         return
     if not movie:
@@ -994,6 +1027,24 @@ def cb_announce(ctx: Ctx) -> None:
     channel = app.setting("post_channel")
     if not channel:
         ctx.answer("❗️ E'lon kanali sozlanmagan. ⚙️ Matnlar → 📣 E'lon kanali", alert=True)
+        return
+    old = ctx.db.get_announces(movie["id"])
+    if mode in ("x", "fx"):
+        gone = 0
+        for r in old:
+            if ctx.bot.safe("deleteMessage", {"chat_id": r["chat_id"], "message_id": r["message_id"]}) is not None:
+                gone += 1
+        ctx.db.drop_announces(movie["id"])
+        old = []
+        if mode == "x":
+            ctx.answer(f"🗑 Kanaldagi {gone} ta e'lon o'chirildi", alert=True)
+            return
+    if old and mode != "f":
+        ctx.answer()
+        ctx.send(f"⚠️ <b>{esc(movie['title'])}</b> allaqachon kanalga e'lon qilingan "
+                 f"({fmt_datetime(old[0]['created_at'])}).\n\nYana e'lon qilamizmi?",
+                 ikb([btn("📢 Baribir yana e'lon qilish", f"an:f:{movie['id']}", style=SUCCESS)],
+                     [btn("🗑 Eskisini o'chirib, yangisini qo'yish", f"an:fx:{movie['id']}", style=DANGER)]))
         return
     text = announce_text(app, movie, ctx.db.count_parts(movie["id"]))
     kb = announce_kb(app, movie)
@@ -1014,6 +1065,8 @@ def cb_announce(ctx: Ctx) -> None:
                    "tekshiring.", alert=True)
         return
     ctx.answer("✅ Kanalga e'lon qilindi!")
+    ctx.db.add_announce(movie["id"], (sent.get("chat") or {}).get("id") or channel, sent.get("message_id"))
+    audit(app, ctx.user_id, "announce", movie["title"])
     link = post_link(sent.get("chat") or {}, sent.get("message_id"))
     rows = [[btn("👁 Postni ko'rish", url=link, style=PRIMARY)]] if link else []
     note = ""
@@ -1094,11 +1147,12 @@ def manage_view(ctx: Ctx, movie):
         text += f"\n\n📝 {esc(truncate(movie['description'], 500))}"
     rows = [[btn("🗑 Butunlay o'chirish", f"dm:del:{mid}", style=DANGER)]]
     if n > 1:
-        rows.append([btn("🎞 Qismni o'chirish", f"dm:parts:{mid}", style=DANGER)])
+        rows.append([btn("🎞 Qismlar: tartib • nom • o'chirish", f"dm:parts:{mid}", style=PRIMARY)])
     rows.append([btn("✏️ Nomi", f"dm:et:{mid}", style=PRIMARY), btn("📝 Ma'lumoti", f"dm:ed:{mid}", style=PRIMARY),
                  btn("🖼 Poster", f"dm:ep:{mid}", style=PRIMARY)])
     if cat != "music":
         rows.append([btn("🏷 Janr • Davlat • Yil • Til • Sifat", f"dm:meta:{mid}", style=SUCCESS)])
+        rows.append([btn("🔢 Kodni o'zgartirish", f"dm:cd:{mid}", style=PRIMARY)])
     if cat in ("serial", "cartoon"):
         rows.append([btn("🔗 Qolgan qismlar linki", f"dm:el:{mid}", style=PRIMARY)])
     rows.append([btn(f"🏷 Turini o'zgartirish ({cat_icon(cat)} {cat_name(cat)})", f"dm:cat:{mid}",
@@ -1182,6 +1236,38 @@ def cb_manage(ctx: Ctx) -> None:
     action, value = parts[1], parts[2]
     db = ctx.db
 
+    if action in ("pm", "pu", "pdn", "pn"):
+        part = db.get_part(int(value)) if value.isdigit() else None
+        movie = db.get_movie(part["movie_id"]) if part else None
+        if not part or not movie:
+            ctx.answer("😔 Qism topilmadi", alert=True)
+            return
+        if action in ("pu", "pdn"):
+            moved = db.move_part(part["id"], up=action == "pu")
+            ctx.answer("↕️ Tartib o'zgardi" if moved else "Bu chekka qism")
+            part = db.get_part(part["id"])
+        elif action == "pn":
+            ctx.answer()
+            ctx.set_state("dm:ptitle", part_id=part["id"], movie_id=movie["id"])
+            ctx.send(f"✏️ <b>{esc(movie['title'])}</b> — <b>{part['part_no']}-qism</b> uchun nom yuboring.\n"
+                     "Masalan: <code>1-qism: Boshlanish</code>\nNomni olib tashlash uchun <code>-</code> yuboring.",
+                     cancel_kb())
+            return
+        else:
+            ctx.answer()
+        total = db.count_parts(movie["id"])
+        nav = []
+        if part["part_no"] > 1:
+            nav.append(btn("⬆️ Yuqoriga", f"dm:pu:{part['id']}", style=PRIMARY))
+        if part["part_no"] < total:
+            nav.append(btn("⬇️ Pastga", f"dm:pdn:{part['id']}", style=PRIMARY))
+        rows = ([nav] if nav else []) + [
+            [btn("✏️ Nom berish", f"dm:pn:{part['id']}", style=SUCCESS), btn("🗑 O'chirish", f"dm:pdel:{part['id']}", style=DANGER)],
+            [btn("⬅️ Qismlar", f"dm:parts:{movie['id']}", style=PRIMARY)]]
+        ctx.edit(f"🎞 <b>{esc(movie['title'])}</b>\n\n<b>{part['part_no']}-qism</b> / {total}: {esc(part_label(part))}\n"
+                 "💡 ⬆️⬇️ — qismni oldinga yoki orqaga surish.", ikb(*rows))
+        return
+
     if action in ("pdel", "pdelok"):
         part = db.get_part(int(value)) if value.isdigit() else None
         movie = db.get_movie(part["movie_id"]) if part else None
@@ -1195,8 +1281,12 @@ def cb_manage(ctx: Ctx) -> None:
                      ikb([btn("✅ Ha, o'chirilsin", f"dm:pdelok:{part['id']}", style=DANGER)],
                          [btn("⬅️ Orqaga", f"dm:parts:{movie['id']}", style=PRIMARY)]))
             return
-        if db.count_parts(movie["id"]) <= 1:  # oxirgi qism — kino ham o'chadi
-            _drop_short_files(ctx, db.delete_shorts(movie["id"]))
+        if db.count_parts(movie["id"]) <= 1:  # oxirgi qism — kino ham o'chadi (chiqindi qutisiga tushadi)
+            db.trash_movie(movie["id"], ctx.user_id)
+            audit(ctx.app, ctx.user_id, "movie_del", f"{movie['title']} (oxirgi qism, kod {movie['code']})")
+            ctx.answer("🗑 O'chirildi")
+            ctx.edit("🗑 Oxirgi qism o'chirildi — kino chiqindi qutisiga o'tdi (30 kun saqlanadi).")
+            return
         left = db.delete_part(part["id"])
         ctx.answer("🗑 Qism o'chirildi")
         movie = db.get_movie(movie["id"])
@@ -1223,21 +1313,23 @@ def cb_manage(ctx: Ctx) -> None:
         ctx.answer()
         n = db.count_parts(mid)
         ctx.edit(f"⚠️ <b>{esc(movie['title'])}</b> ({n} qism) butunlay o'chirilsinmi?\n\n"
-                 "❗️ Bu amalni ortga qaytarib bo'lmaydi!",
+                 "♻️ O'chirilgach 30 kun chiqindi qutisida saqlanadi.",
                  ikb([btn("✅ Ha, o'chirilsin", f"dm:delok:{mid}", style=DANGER)],
                      [btn("⬅️ Yo'q, orqaga", f"dm:open:{mid}", style=PRIMARY)]))
     elif action == "delok":
-        _drop_short_files(ctx, db.delete_shorts(mid))
-        db.delete_movie(mid)
+        db.trash_movie(mid, ctx.user_id)          # 30 kun «chiqindi qutisi»da saqlanadi
+        db.drop_announces(mid)
+        audit(ctx.app, ctx.user_id, "movie_del", f"{movie['title']} (kod {movie['code']})")
         ctx.answer("🗑 O'chirildi")
-        ctx.edit(f"🗑 <b>{esc(movie['title'])}</b> o'chirildi.")
+        ctx.edit(f"🗑 <b>{esc(movie['title'])}</b> o'chirildi.\n\n"
+                 "♻️ Xato bo'lsa, 30 kun ichida «🧰 Qo'shimcha → Chiqindi qutisi» orqali qaytarishingiz mumkin.")
     elif action == "parts":
         ctx.answer()
         plist = db.get_parts(mid)
-        lines = [f"🎞 <b>{esc(movie['title'])}</b> — qaysi qismni o'chiramiz?", ""]
+        lines = [f"🎞 <b>{esc(movie['title'])}</b> — qaysi qismni boshqaramiz?", ""]
         for p in plist[:50]:
             lines.append(f"<b>{p['part_no']}.</b> {esc(part_label(p))}")
-        rows = number_rows([(p["part_no"], f"dm:pdel:{p['id']}") for p in plist[:50]], style=DANGER)
+        rows = number_rows([(p["part_no"], f"dm:pm:{p['id']}") for p in plist[:50]], style=PRIMARY)
         rows.append([btn("⬅️ Orqaga", f"dm:open:{mid}", style=DANGER)])
         ctx.edit("\n".join(lines), {"inline_keyboard": rows})
     elif action == "sh":
@@ -1368,6 +1460,12 @@ def cb_manage(ctx: Ctx) -> None:
         cur = movie["group_link"] or "—"
         ctx.send(f"📺 <b>{esc(movie['title'])}</b>\n\nHozirgi link: {esc(cur)}\n\n"
                  "Yangi <b>linkni</b> yuboring (olib tashlash uchun <code>-</code>):", cancel_kb(), preview=False)
+    elif action == "cd":
+        ctx.answer()
+        ctx.set_state("dm:code", movie_id=mid)
+        ctx.send(f"🔢 <b>{esc(movie['title'])}</b> — hozirgi kod: <code>{movie['code']}</code>\n\n"
+                 f"Yangi kodni yuboring (1–{MAX_CODE}).\n⚠️ Eski havolalar (<code>?start={movie['code']}</code>) "
+                 "ishlamay qoladi.", cancel_kb())
     elif action in ("et", "ed", "ep"):
         ctx.answer()
         state = {"et": "dm:title", "ed": "dm:desc", "ep": "dm:poster"}[action]
@@ -1449,6 +1547,47 @@ def _edit_target(ctx: Ctx):
         if not admin_media_shortcut(ctx):
             ctx.send("😔 Kino topilmadi (o'chirilgan bo'lishi mumkin).")
     return movie
+
+
+@router.state("dm:code", admin=True)
+def st_edit_code(ctx: Ctx) -> None:
+    movie = _edit_target(ctx)
+    if not movie:
+        return
+    m = CODE_RE.fullmatch(ctx.text.strip())
+    code = int(m.group(1)) if m else 0
+    if not 0 < code <= MAX_CODE:
+        ctx.send(f"❗️ Kod 1 dan {MAX_CODE} gacha son bo'lishi kerak.", cancel_kb())
+        return
+    if ctx.db.code_taken(code, movie["id"]):
+        other = ctx.db.get_movie_by_code(code)
+        ctx.send(f"⚠️ <b>{code}</b> kodi band: {esc(other['title'])}. Boshqa kod yuboring:", cancel_kb())
+        return
+    old = movie["code"]
+    ctx.db.update_movie(movie["id"], code=code)
+    ctx.clear_state()
+    audit(ctx.app, ctx.user_id, "movie_edit", f"{movie['title']}: kod {old} → {code}")
+    ctx.send(f"✅ Kod o'zgartirildi: <code>{old}</code> → <code>{code}</code>")
+    send_manage(ctx, ctx.db.get_movie(movie["id"]))
+
+
+@router.state("dm:ptitle", admin=True)
+def st_part_title(ctx: Ctx) -> None:
+    part = ctx.db.get_part(ctx.sdata.get("part_id") or 0)
+    if not part:
+        ctx.clear_state()
+        ctx.send("😔 Qism topilmadi.")
+        return
+    title = ctx.text.strip()
+    if not title or len(title) > 100:
+        ctx.send("❗️ Nom 1–100 belgi bo'lsin (olib tashlash uchun <code>-</code>).", cancel_kb())
+        return
+    ctx.db.set_part_title(part["id"], "" if title == "-" else title)
+    ctx.clear_state()
+    ctx.send("✅ Qism nomi saqlandi.")
+    movie = ctx.db.get_movie(part["movie_id"])
+    if movie:
+        send_manage(ctx, movie)
 
 
 @router.state("dm:title", admin=True)

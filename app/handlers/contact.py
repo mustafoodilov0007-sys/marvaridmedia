@@ -6,7 +6,7 @@ import logging
 import time
 
 from ..core import Ctx, router
-from ..keyboards import PRIMARY, btn, cancel_kb, ikb
+from ..keyboards import DANGER, PRIMARY, btn, cancel_kb, ikb
 from ..telegram import Forbidden, TelegramError
 from ..texts import B
 from ..utils import esc, message_html, user_link, visible_len
@@ -17,7 +17,22 @@ CONTACT_TTL = 600        # murojaat yozish holati 10 daqiqa amal qiladi
 _last_contact = {}       # spamdan himoya: foydalanuvchi -> oxirgi murojaat vaqti
 
 
+def ticket_kb(uid: int, tid: int, banned: bool = False) -> dict:
+    return ikb([btn("✍️ Javob berish", f"rep:{uid}:{tid}", style=PRIMARY),
+                btn("✅ Cheklashni olish" if banned else "🚫 Cheklash", f"bn:{uid}:{tid}", style=DANGER)])
+
+
+def _banned_reply(ctx: Ctx) -> bool:
+    if ctx.db.is_contact_banned(ctx.user_id):
+        ctx.clear_state()
+        ctx.send("⛔️ Hozircha murojaat yuborish imkoni cheklangan.")
+        return True
+    return False
+
+
 def start_contact(ctx: Ctx) -> None:
+    if _banned_reply(ctx):
+        return
     ctx.set_state("contact", ttl=CONTACT_TTL)
     ctx.send("✍️ <b>Murojaat</b>\n\n"
              "Adminlarga xabaringizni yozing: kino so'rovi, taklif yoki muammo.\n"
@@ -48,20 +63,24 @@ def st_contact(ctx: Ctx) -> None:
         _last_contact.clear()
     _last_contact[ctx.user_id] = time.time()
     ctx.clear_state()
+    if _banned_reply(ctx):
+        return
+    tid = ctx.db.create_ticket("msg", ctx.user_id)
 
     uname = f" (@{esc(ctx.user['username'])})" if ctx.user.get("username") else ""
     header = (f"📨 <b>Yangi murojaat</b>\n\n👤 {user_link(ctx.user_id, ctx.user.get('first_name'))}{uname}\n"
               f"🆔 <code>{ctx.user_id}</code>")
-    kb = ikb([btn("✍️ Javob berish", f"rep:{ctx.user_id}", style=PRIMARY)])
+    kb = ticket_kb(ctx.user_id, tid)
     body = message_html(msg) if msg.get("text") else ""
     delivered = 0
     for admin_id in app.admin_ids():
         try:
             if body and visible_len(body) < 3500:
-                ctx.bot.send_message(admin_id, f"{header}\n\n💬 {body}", kb)
+                sent = ctx.bot.send_message(admin_id, f"{header}\n\n💬 {body}", kb)
             else:
                 ctx.bot.send_message(admin_id, header)
-                ctx.bot.copy_message(admin_id, ctx.chat_id, msg["message_id"], reply_markup=kb)
+                sent = ctx.bot.copy_message(admin_id, ctx.chat_id, msg["message_id"], reply_markup=kb)
+            ctx.db.add_ticket_msg(tid, admin_id, sent["message_id"])
             delivered += 1
         except TelegramError as exc:
             log.warning("Murojaat adminga yetmadi (%s): %s", admin_id, exc.description)
@@ -71,22 +90,59 @@ def st_contact(ctx: Ctx) -> None:
         ctx.send("⚠️ Xabarni yuborib bo'lmadi. Birozdan so'ng qayta urinib ko'ring.")
 
 
+def _handled_kb(name: str) -> dict:
+    return ikb([btn(f"✅ Javob berildi — {name[:30]}", "nop")])
+
+
+@router.callback("nop")
+def cb_nop(ctx: Ctx) -> None:
+    ctx.answer()
+
+
 @router.callback("rep", admin=True)
 def cb_reply(ctx: Ctx) -> None:
+    parts = ctx.data.split(":")
     try:
-        uid = int(ctx.data.split(":")[1])
+        uid = int(parts[1])
+        tid = int(parts[2]) if len(parts) > 2 else 0
     except (IndexError, ValueError):
+        return
+    t = ctx.db.get_ticket(tid) if tid else None
+    if t and t["status"] == "done" and t["handled_by"] != ctx.user_id:
+        who = ctx.db.get_user(t["handled_by"])
+        ctx.answer(f"ℹ️ Bu murojaatga {(who['first_name'] if who else '') or 'boshqa admin'} allaqachon javob bergan.",
+                   alert=True)
         return
     ctx.answer()
     u = ctx.db.get_user(uid)
     name = esc(u["first_name"]) if u and u["first_name"] else str(uid)
-    ctx.set_state("reply", uid=uid)
+    ctx.set_state("reply", uid=uid, tid=tid)
     ctx.send(f"✍️ <b>{name}</b> ga javobingizni yozing (matn, rasm, video...):", cancel_kb())
+
+
+@router.callback("bn", admin=True)
+def cb_ban(ctx: Ctx) -> None:
+    from .audit import audit
+    parts = ctx.data.split(":")
+    try:
+        uid, tid = int(parts[1]), int(parts[2])
+    except (IndexError, ValueError):
+        return
+    banned = not ctx.db.is_contact_banned(uid)
+    ctx.db.set_contact_banned(uid, banned)
+    audit(ctx.app, ctx.user_id, "ban", f"{uid}: {'cheklandi' if banned else 'cheklash olindi'}")
+    ctx.answer("🚫 Murojaat yuborishi cheklandi" if banned else "✅ Cheklash olindi", alert=True)
+    t = ctx.db.get_ticket(tid)
+    if t and t["status"] == "open":
+        for row in ctx.db.ticket_msgs(tid):
+            ctx.bot.safe("editMessageReplyMarkup", {"chat_id": row["admin_id"], "message_id": row["message_id"],
+                                                    "reply_markup": ticket_kb(uid, tid, banned)})
 
 
 @router.state("reply", admin=True)
 def st_reply(ctx: Ctx) -> None:
     uid = ctx.sdata.get("uid")
+    tid = ctx.sdata.get("tid") or 0
     ctx.clear_state()
     msg = ctx.message
     try:
@@ -104,6 +160,11 @@ def st_reply(ctx: Ctx) -> None:
         ctx.send(f"❌ Javob yuborilmadi: {esc(exc.description)}")
         return
     ctx.send("✅ Javobingiz foydalanuvchiga yuborildi!")
+    if tid and ctx.db.close_ticket(tid, ctx.user_id):      # boshqa adminlarda «javob berildi» deb ko'rinsin
+        name = ctx.user.get("first_name") or "Admin"
+        for row in ctx.db.ticket_msgs(tid):
+            ctx.bot.safe("editMessageReplyMarkup", {"chat_id": row["admin_id"], "message_id": row["message_id"],
+                                                    "reply_markup": _handled_kb(name)})
 
 
 # ═════════════════════════ 🎬 Kino so'rash ═════════════════════════
@@ -159,17 +220,22 @@ def send_request(ctx: Ctx, query: str) -> bool:
     if len(_last_request) > 5000:   # xotira cheksiz o'smasin
         _last_request.clear()
     _last_request[ctx.user_id] = (query, time.time())
+    if ctx.db.is_contact_banned(ctx.user_id):
+        ctx.send("⛔️ Hozircha so'rov yuborish imkoni cheklangan.")
+        return True
     ctx.db.add_request(ctx.user_id, query)  # kino qo'shilganda avtomatik xabar berish uchun
+    tid = ctx.db.create_ticket("req", ctx.user_id)
     uname = f" (@{esc(ctx.user['username'])})" if ctx.user.get("username") else ""
     text = (f"🎬 <b>Yangi kino so'rovi</b>\n\n"
             f"🔎 <b>«{esc(query)}»</b>\n\n"
             f"👤 {user_link(ctx.user_id, ctx.user.get('first_name'))}{uname}\n🆔 <code>{ctx.user_id}</code>\n\n"
             "💡 Qo'shgach, foydalanuvchiga javob yozib kodini yuboring.")
-    kb = ikb([btn("✍️ Javob berish", f"rep:{ctx.user_id}", style=PRIMARY)])
+    kb = ticket_kb(ctx.user_id, tid)
     delivered = 0
     for admin_id in app.admin_ids():
         try:
-            ctx.bot.send_message(admin_id, text, kb)
+            sent = ctx.bot.send_message(admin_id, text, kb)
+            ctx.db.add_ticket_msg(tid, admin_id, sent["message_id"])
             delivered += 1
         except TelegramError as exc:
             log.warning("Kino so'rovi adminga yetmadi (%s): %s", admin_id, exc.description)

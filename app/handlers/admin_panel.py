@@ -12,6 +12,7 @@ from ..keyboards import DANGER, PRIMARY, SUCCESS, admin_menu, btn, cancel_kb, ik
 from ..telegram import InputFile, TelegramError
 from ..texts import B
 from ..utils import day_start, esc, fmt_datetime, fmt_num, now, truncate
+from .audit import audit
 from .user import send_welcome
 
 log = logging.getLogger("admin")
@@ -36,17 +37,9 @@ ADMIN_COMMANDS = [
 
 
 def _channels_without_admin(ctx: Ctx) -> int:
-    bad = 0
-    for ch in ctx.db.list_channels():
-        if ch["kind"] == "link" or not ch["chat_id"]:
-            continue
-        try:
-            member = ctx.bot.get_chat_member(ch["chat_id"], ctx.app.me.get("id"))
-            ok = member.get("status") in ("administrator", "creator")
-        except TelegramError:
-            ok = False
-        bad += 0 if ok else 1
-    return bad
+    from .admin_channels import bot_is_admin
+    return sum(1 for ch in ctx.db.list_channels()
+               if ch["kind"] != "link" and ch["chat_id"] and not bot_is_admin(ctx.app, ch["chat_id"]))
 
 
 def panel_text(ctx: Ctx) -> str:
@@ -89,6 +82,7 @@ def stats_text(ctx: Ctx) -> str:
     zero = {"n": 0, "total": 0}
     prem_card = totals.get("premium:card", zero)
     prem_stars = totals.get("premium:stars", zero)
+    prem_prov = totals.get("premium:provider", zero)
     don_card = totals.get("donate:card", zero)
     don_stars = totals.get("donate:stars", zero)
     cats = db.count_by_category()
@@ -114,12 +108,17 @@ def stats_text(ctx: Ctx) -> str:
         f"└ 👁 Jami ko'rishlar: {fmt_num(db.total_views())}",
         "",
         f"💎 <b>Faol premiumlar:</b> {fmt_num(db.count_premium())}",
+        f"├ ⚡️ Click/Payme orqali: {fmt_num(prem_prov['n'])} ta — {fmt_num(prem_prov['total'])} so'm",
         f"├ 💳 Karta orqali: {fmt_num(prem_card['n'])} ta — {fmt_num(prem_card['total'])} so'm",
         f"└ ⭐ Stars orqali: {fmt_num(prem_stars['n'])} ta — {fmt_num(prem_stars['total'])} ⭐",
         f"💝 <b>Donatlar:</b> {fmt_num(don_card['n'])} ta karta, "
         f"{fmt_num(don_stars['n'])} ta Stars ({fmt_num(don_stars['total'])} ⭐)",
         f"🔎 <b>Bugungi qidiruvlar:</b> {fmt_num(db.count_searches_since(today))}",
     ]
+    r7, r30 = db.revenue_since(t - 7 * 86400), db.revenue_since(t - 30 * 86400)
+    som = lambda r: r.get("card", 0) + r.get("provider", 0)
+    lines += ["", f"💰 <b>Tushum (so'm):</b> 7 kun — {fmt_num(som(r7))} • 30 kun — {fmt_num(som(r30))}"
+                  f" • ⭐ 30 kun — {fmt_num(r30.get('stars', 0))}"]
     top = db.top_movies(5)
     if top:
         lines += ["", "🏆 <b>Top 5 kino:</b>"]
@@ -359,6 +358,12 @@ def _auto_backup(app) -> None:
                 pass
         db.set_setting("last_auto_backup", str(int(time.time())))
         if len(data) > 49 * 1024 * 1024:
+            for uid in app.config.owners:
+                app.bot.safe("sendMessage", {"chat_id": uid, "parse_mode": "HTML",
+                                             "text": "⚠️ <b>Avto-zaxira yuborilmadi:</b> baza hajmi 49 MB dan oshdi "
+                                                     f"({len(data) // 1048576} MB). Telegram bunday faylni qabul qilmaydi.\n\n"
+                                                     "Serverdagi <code>data/bot.db</code> faylidan nusxa oling yoki "
+                                                     "Railway Volume zaxirasini yoqing."})
             continue
         name = f"marvarid_avto_{fmt_datetime(now()).replace(' ', '_').replace(':', '-')}.db"
         for uid in app.config.owners:
@@ -417,6 +422,7 @@ def cb_admins(ctx: Ctx) -> None:
     elif action == "del" and len(parts) > 2 and parts[2].isdigit():
         uid = int(parts[2])
         ctx.db.remove_admin(uid)
+        audit(ctx.app, ctx.user_id, "admin_del", str(uid))
         ctx.app.invalidate_admins()
         ctx.bot.safe("deleteMyCommands", {"scope": {"type": "chat", "chat_id": uid}})
         ctx.answer("🗑 Admin o'chirildi")
@@ -451,6 +457,7 @@ def st_add_admin(ctx: Ctx) -> None:
         ctx.send("ℹ️ Bu foydalanuvchi allaqachon admin.")
     else:
         ctx.db.add_admin(uid, ctx.user_id)
+        audit(ctx.app, ctx.user_id, "admin_add", str(uid))
         ctx.app.invalidate_admins()
         ctx.bot.safe("setMyCommands", {"commands": ADMIN_COMMANDS, "scope": {"type": "chat", "chat_id": uid}})
         notified = True

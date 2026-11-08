@@ -96,5 +96,6 @@ def admin_menu() -> dict:
         [rbtn(B.STATS, PRIMARY), rbtn(B.CHANNELS, SUCCESS)],
         [rbtn(B.BROADCAST, DANGER), rbtn(B.ADMINS, PRIMARY)],
         [rbtn(B.PREMIUMS, SUCCESS), rbtn(B.TEXTS, DANGER)],
+        [rbtn(B.TOOLS, PRIMARY)],
         [rbtn(B.HOME, PRIMARY)],
     ], "👨‍💻 Admin panel")

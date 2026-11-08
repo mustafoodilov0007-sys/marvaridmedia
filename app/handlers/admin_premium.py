@@ -11,6 +11,7 @@ from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, nav_row
 from ..telegram import TelegramError
 from ..texts import B
 from ..utils import esc, fmt_date, fmt_datetime, fmt_num, plan_name
+from .audit import audit
 
 log = logging.getLogger("admin.premium")
 
@@ -115,6 +116,7 @@ def cb_premium_admin(ctx: Ctx) -> None:
         ctx.edit(text, kb)
     elif action == "tog" and arg in TOGGLES:
         app.set_setting(arg, "0" if app.setting_bool(arg) else "1")
+        audit(app, ctx.user_id, "toggle", f"{arg} → {'yoqildi' if app.setting_bool(arg) else 'o`chirildi'}", notify=True)
         ctx.answer("✅ Saqlandi")
         text, kb = premium_admin_view(ctx)
         ctx.edit(text, kb)
@@ -123,7 +125,21 @@ def cb_premium_admin(ctx: Ctx) -> None:
         text, kb = plans_view(ctx)
         ctx.edit(text, kb)
     elif action == "pdel" and arg.isdigit():
+        plan = db.get_plan(int(arg))
+        ctx.answer()
+        if not plan:
+            text, kb = plans_view(ctx)
+            ctx.edit(text, kb)
+            return
+        ctx.edit(f"⚠️ <b>{plan_name(plan['days'])}</b> ({plan['days']} kun) tarifi o'chirilsinmi?\n\n"
+                 "Sotuvdan olinadi; avval sotib olinganlar saqlanib qoladi.",
+                 ikb([btn("✅ Ha, o'chirilsin", f"pa:pdelok:{plan['id']}", style=DANGER)],
+                     [btn("⬅️ Yo'q", "pa:plans", style=PRIMARY)]))
+    elif action == "pdelok" and arg.isdigit():
+        plan = db.get_plan(int(arg))
         db.deactivate_plan(int(arg))
+        if plan:
+            audit(app, ctx.user_id, "plan_del", f"{plan['days']} kun, {plan['price']} so'm", notify=True)
         ctx.answer("🗑 Tarif o'chirildi")
         text, kb = plans_view(ctx)
         ctx.edit(text, kb)
@@ -162,6 +178,7 @@ def st_add_plan(ctx: Ctx) -> None:
                  cancel_kb())
         return
     ctx.db.add_plan(days, price, stars)
+    audit(ctx.app, ctx.user_id, "plan_add", f"{days} kun, {price} so'm, {stars} ⭐", notify=True)
     ctx.clear_state()
     ctx.send(f"✅ Tarif qo'shildi: 💎 <b>{plan_name(days)}</b> — {fmt_num(price)} so'm • {stars} ⭐")
     text, kb = plans_view(ctx)
@@ -175,7 +192,16 @@ def st_give(ctx: Ctx) -> None:
         ctx.send("❗️ Format: <code>ID kun</code>, masalan: <code>123456789 30</code>", cancel_kb())
         return
     uid, days = int(nums[0]), int(nums[1])
+    user = ctx.db.get_user(uid)
+    if not user:
+        ctx.send(f"❌ <code>{uid}</code> ID li foydalanuvchi botda yo'q (u hali /start bosmagan yoki ID xato).\n"
+                 "ID ni tekshirib qayta yuboring:", cancel_kb())
+        return
+    if days > 365 and not ctx.is_owner:
+        ctx.send("⛔️ 365 kundan ortiq Premium faqat bosh adminlar bera oladi. Kunni kamaytiring:", cancel_kb())
+        return
     until = ctx.db.grant_premium(uid, days)
+    audit(ctx.app, ctx.user_id, "premium_give", f"{user['first_name'] or ''} ({uid}) — {days} kun", notify=True)
     ctx.db.create_payment(uid, "premium", "gift", "approved", days=days, amount=0, currency="UZS",
                           note=f"Admin {ctx.user_id} sovg'asi")
     ctx.clear_state()
@@ -196,8 +222,12 @@ def st_take(ctx: Ctx) -> None:
         ctx.send("❗️ Faqat ID raqamni yuboring, masalan: <code>123456789</code>", cancel_kb())
         return
     uid = int(nums[0])
+    if not ctx.db.get_user(uid):
+        ctx.send(f"❌ <code>{uid}</code> ID li foydalanuvchi botda yo'q. ID ni tekshirib qayta yuboring:", cancel_kb())
+        return
     ctx.clear_state()
     if ctx.db.revoke_premium(uid):
+        audit(ctx.app, ctx.user_id, "premium_take", str(uid), notify=True)
         ctx.send(f"✅ <code>{uid}</code> dan Premium olib tashlandi.")
     else:
         ctx.send("ℹ️ Bu foydalanuvchida faol Premium yo'q.")

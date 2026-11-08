@@ -10,6 +10,7 @@ from ..core import App, Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb
 from ..telegram import BadRequest, Forbidden, TelegramError
 from ..texts import B
+from .audit import audit
 from ..utils import (count_custom_emoji, esc, fmt_duration, fmt_num, message_html, parse_url_buttons,
                      progress_bar)
 
@@ -17,6 +18,7 @@ log = logging.getLogger("admin.broadcast")
 
 AUDIENCE = {
     "all": "👥 Barcha foydalanuvchilar",
+    "active": "⚡️ Faol foydalanuvchilar (oxirgi 30 kun)",
     "free": "🆓 Oddiy foydalanuvchilar (premiumsiz)",
     "premium": "💎 Faqat premiumlar",
 }
@@ -49,6 +51,8 @@ class BroadcastJob:
         self.total = self.done = self.ok = self.blocked = self.failed = 0
         self.started = time.time()
         self.status_msg = None
+        self.bid = 0          # bazadagi yozuv (to'xtab qolsa — davom ettirish uchun)
+        self.last_uid = 0
 
 
 # ═════════════════════════ tayyorlash ═════════════════════════
@@ -150,12 +154,32 @@ def cb_broadcast(ctx: Ctx) -> None:
         else:
             ctx.answer("ℹ️ Faol yuborish yo'q")
         return
+    if action == "resume":
+        row = ctx.db.get_broadcast(int(ctx.data.split(":")[2])) if ctx.data.count(":") > 1 and ctx.data.split(":")[2].isdigit() else None
+        if not row or row["status"] != "interrupted":
+            ctx.answer("ℹ️ Davom ettirib bo'lmaydi (allaqachon tugagan).", alert=True)
+            return
+        if app.broadcast is not None:
+            ctx.answer("⏳ Boshqa xabar yuborilmoqda", alert=True)
+            return
+        import json
+        job = BroadcastJob(row["admin_chat"] or ctx.chat_id, row["src_chat"], row["src_msg"], row["mode"], row["audience"],
+                           json.loads(row["buttons"] or "[]"))
+        job.bid, job.total, job.done, job.ok = row["id"], row["total"], row["done"], row["ok"]
+        job.blocked, job.failed, job.last_uid = row["blocked"], row["failed"], row["last_uid"]
+        app.broadcast = job
+        ctx.db.update_broadcast(job.bid, status="running")
+        ctx.answer("▶️ Davom ettirilmoqda")
+        ctx.edit(progress_text(job), stop_kb())
+        job.status_msg = ctx.cb_message.get("message_id")
+        threading.Thread(target=run_job, args=(app, job), name="broadcast", daemon=True).start()
+        return
     if ctx.state not in ("bc:confirm", "bc:buttons"):
         ctx.answer("⚠️ Bu tugma eskirgan. Qaytadan boshlang.", alert=True)
         return
     d = ctx.sdata
     if action == "aud":
-        order = ["all", "free", "premium"] if app.setting_bool("premium_enabled") else ["all"]
+        order = ["all", "active", "free", "premium"] if app.setting_bool("premium_enabled") else ["all", "active"]
         cur = d["audience"] if d["audience"] in order else "all"
         ctx.goto("bc:confirm", audience=order[(order.index(cur) + 1) % len(order)])
         ctx.answer()
@@ -179,6 +203,9 @@ def cb_broadcast(ctx: Ctx) -> None:
         job = BroadcastJob(ctx.chat_id, d["src_chat"], d["src_msg"], d["mode"], d["audience"],
                            d["buttons"] if d["mode"] == "copy" else [])
         app.broadcast = job
+        job.bid = ctx.db.create_broadcast(ctx.user_id, ctx.chat_id, job.mode, job.audience, job.src_chat, job.src_msg,
+                                          job.buttons)
+        audit(app, ctx.user_id, "broadcast", f"{AUDIENCE[job.audience]} ({job.mode})", notify=True)
         ctx.clear_state()
         ctx.answer("🚀 Yuborish boshlandi!")
         ctx.edit(progress_text(job), stop_kb())
@@ -223,8 +250,9 @@ def _update_status(app: App, job: BroadcastJob, text: str, kb=None) -> None:
 
 def run_job(app: App, job: BroadcastJob) -> None:
     try:
-        ids = app.db.user_ids(job.audience)
-        job.total = len(ids)
+        ids = app.db.user_ids_after(job.audience, job.last_uid)
+        if not job.total:
+            job.total = len(ids)
         kb = {"inline_keyboard": job.buttons} if job.buttons else None
         last_update = time.time()
         for uid in ids:
@@ -248,11 +276,22 @@ def run_job(app: App, job: BroadcastJob) -> None:
             except TelegramError:
                 job.failed += 1
             job.done += 1
+            job.last_uid = uid
+            if job.done % 25 == 0 and job.bid:
+                app.db.update_broadcast(job.bid, done=job.done, ok=job.ok, blocked=job.blocked, failed=job.failed,
+                                        last_uid=job.last_uid, total=job.total)
             if time.time() - last_update > 3:
                 last_update = time.time()
                 _update_status(app, job, progress_text(job), stop_kb())
             time.sleep(0.04)  # ~25 ta xabar/soniya — Telegram cheklovidan oshmaslik uchun
-        _update_status(app, job, final_text(job))
+        interrupted = app.stopping.is_set() and not job.cancelled
+        status = "interrupted" if interrupted else ("cancelled" if job.cancelled else "done")
+        if job.bid:
+            app.db.update_broadcast(job.bid, done=job.done, ok=job.ok, blocked=job.blocked, failed=job.failed,
+                                    last_uid=job.last_uid, total=job.total, status=status,
+                                    finished_at=int(time.time()) if not interrupted else 0)
+        if not interrupted:
+            _update_status(app, job, final_text(job))
         log.info("Xabar yuborish yakunlandi: %s/%s yetkazildi", job.ok, job.total)
     except Exception:
         log.exception("Xabar yuborishda xatolik")
@@ -289,3 +328,22 @@ def st_emoji(ctx: Ctx) -> None:
         ctx.send(f"❌ Bot premium emojini yubora olmadi: <i>{esc(exc.description)}</i>")
     lines = [f'<tg-emoji emoji-id="{esc(i)}">⭐️</tg-emoji> <code>{esc(i)}</code>' for i in dict.fromkeys(ids)]
     ctx.send("🆔 <b>Premium emoji ID raqamlari:</b>\n\n" + "\n".join(lines[:50]))
+
+
+@router.task
+def _notify_interrupted(app: App) -> None:
+    """Server qayta ishga tushganda yarmida uzilgan xabar yuborishni topib, adminga «davom ettirish» tugmasini yuboradi."""
+    if app.stopping.wait(15):
+        return
+    row = app.db.interrupted_broadcast()
+    if not row:
+        return
+    app.db.update_broadcast(row["id"], status="interrupted")
+    target = row["admin_chat"] or row["admin_id"]
+    left = max(0, row["total"] - row["done"])
+    app.bot.safe("sendMessage", {
+        "chat_id": target, "parse_mode": "HTML",
+        "text": ("⚠️ <b>Xabar yuborish uzilib qoldi</b> (bot qayta ishga tushgan).\n\n"
+                 f"👥 {fmt_num(row['done'])} / {fmt_num(row['total'])} yuborilgan, qolgan: <b>{fmt_num(left)}</b>.\n"
+                 "Davom ettirsangiz, yuborilganlarga qayta bormaydi."),
+        "reply_markup": ikb([btn("▶️ Davom ettirish", f"bc:resume:{row['id']}", style=SUCCESS)])})

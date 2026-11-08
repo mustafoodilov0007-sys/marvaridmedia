@@ -546,7 +546,11 @@ def api_admin_delete(app: App, user: dict, body: dict) -> dict:
         return {"ok": False, "reason": "not_found"}
     if not app.db.get_movie(mid):
         return {"ok": False, "reason": "not_found"}
-    app.db.delete_movie(mid)
+    m = app.db.get_movie(mid)
+    app.db.trash_movie(mid, user["id"])      # 30 kun chiqindi qutisida saqlanadi
+    app.db.drop_announces(mid)
+    from .handlers.audit import audit
+    audit(app, user["id"], "movie_del", f"{m['title']} (kod {m['code']}) — saytdan")
     app.db.__dict__.pop("_memo", None)
     log.info("Admin %s sayt orqali #%s kinoni o'chirdi", user["id"], mid)
     return {"ok": True}

@@ -11,6 +11,7 @@ from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb
 from ..telegram import TelegramError
 from ..texts import B
 from ..utils import channel_ref, esc, is_private_invite, truncate
+from .audit import audit
 
 log = logging.getLogger("admin.channels")
 
@@ -33,12 +34,21 @@ ADD_PROMPT = (
 )
 
 
-def bot_is_admin(app: App, chat_id) -> bool:
+_ADMIN_CACHE: dict = {}      # chat_id -> (vaqt, natija): panel har ochilganda Telegramga yuklama tushmasin
+
+
+def bot_is_admin(app: App, chat_id, fresh: bool = False) -> bool:
+    import time
+    hit = _ADMIN_CACHE.get(str(chat_id))
+    if hit and not fresh and time.time() - hit[0] < 300:
+        return hit[1]
     try:
         member = app.bot.get_chat_member(chat_id, app.me.get("id"))
+        ok = member.get("status") in ("administrator", "creator")
     except TelegramError:
-        return False
-    return member.get("status") in ("administrator", "creator")
+        ok = False
+    _ADMIN_CACHE[str(chat_id)] = (time.time(), ok)
+    return ok
 
 
 def channels_view(ctx: Ctx):
@@ -110,7 +120,7 @@ def st_add_channel(ctx: Ctx) -> None:
     if ctx.db.channel_exists(chat_id):
         ctx.send("ℹ️ Bu kanal allaqachon ro'yxatda bor.", cancel_kb())
         return
-    if not bot_is_admin(app, chat_id):
+    if not bot_is_admin(app, chat_id, fresh=True):
         ctx.send(f"⚠️ Bot <b>{esc(title)}</b> kanalida admin emas!\n\n"
                  "Kanal sozlamalari → Administratorlar → Admin qo'shish → botni tanlang, so'ng qayta yuboring.",
                  cancel_kb())
@@ -159,7 +169,9 @@ def cb_channels(ctx: Ctx) -> None:
                  ikb([btn("✅ Ha, o'chirilsin", f"ch:delok:{ch['id']}", style=DANGER)],
                      [btn("⬅️ Orqaga", "ch:list", style=PRIMARY)]))
     elif action == "delok" and len(parts) > 2 and parts[2].isdigit():
+        _gone = db.get_channel(int(parts[2]))
         db.delete_channel(int(parts[2]))
+        audit(app, ctx.user_id, "channel", f"o'chirildi: {_gone['title'] if _gone else parts[2]}")
         ctx.answer("🗑 Kanal o'chirildi")
         text, kb = channels_view(ctx)
         ctx.edit(text, kb)
@@ -186,6 +198,7 @@ def cb_channels(ctx: Ctx) -> None:
             ctx.answer("⚠️ Noto'g'ri tanlov", alert=True)
             return
         db.add_channel(d["chat_id"], d["title"], url, kind)
+        audit(app, ctx.user_id, "channel", f"qo'shildi: {d['title']}")
         ctx.clear_state()
         ctx.answer("✅ Kanal qo'shildi!")
         ctx.edit(f"✅ <b>{esc(d['title'])}</b> majburiy obunaga qo'shildi!\n"

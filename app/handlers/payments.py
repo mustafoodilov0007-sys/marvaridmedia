@@ -540,6 +540,8 @@ def premium_watcher(app: App) -> None:
         t = now()
         if t - last_prune > 86400:
             app.db.prune_searches(t - 90 * 86400)
+            app.db.prune_trash(t - 30 * 86400)         # chiqindi qutisi — 30 kun
+            app.db.prune_admin_log(t - 180 * 86400)    # admin jurnali — 180 kun
             last_prune = t
         if app.stopping.wait(600):
             return

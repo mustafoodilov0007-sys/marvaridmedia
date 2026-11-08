@@ -219,6 +219,70 @@ CREATE TABLE IF NOT EXISTS payment_msgs (
     message_id INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_payment_msgs ON payment_msgs(payment_id);
+
+CREATE TABLE IF NOT EXISTS admin_log (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts       INTEGER NOT NULL,
+    admin_id INTEGER NOT NULL,
+    action   TEXT    NOT NULL,
+    detail   TEXT    NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_admin_log_ts ON admin_log(ts);
+
+CREATE TABLE IF NOT EXISTS trash (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    deleted_at INTEGER NOT NULL,
+    deleted_by INTEGER NOT NULL,
+    code       INTEGER NOT NULL DEFAULT 0,
+    title      TEXT    NOT NULL DEFAULT '',
+    movie      TEXT    NOT NULL,
+    parts      TEXT    NOT NULL DEFAULT '[]',
+    shorts     TEXT    NOT NULL DEFAULT '[]'
+);
+
+CREATE TABLE IF NOT EXISTS announces (
+    movie_id   INTEGER NOT NULL,
+    chat_id    TEXT    NOT NULL,
+    message_id INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_announces_movie ON announces(movie_id);
+
+CREATE TABLE IF NOT EXISTS broadcasts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at  INTEGER NOT NULL,
+    finished_at INTEGER NOT NULL DEFAULT 0,
+    admin_id    INTEGER NOT NULL,
+    admin_chat  INTEGER NOT NULL DEFAULT 0,
+    mode        TEXT    NOT NULL,
+    audience    TEXT    NOT NULL,
+    src_chat    INTEGER NOT NULL,
+    src_msg     INTEGER NOT NULL,
+    buttons     TEXT    NOT NULL DEFAULT '[]',
+    total       INTEGER NOT NULL DEFAULT 0,
+    done        INTEGER NOT NULL DEFAULT 0,
+    ok          INTEGER NOT NULL DEFAULT 0,
+    blocked     INTEGER NOT NULL DEFAULT 0,
+    failed      INTEGER NOT NULL DEFAULT 0,
+    last_uid    INTEGER NOT NULL DEFAULT 0,
+    status      TEXT    NOT NULL DEFAULT 'running'
+);
+
+CREATE TABLE IF NOT EXISTS tickets (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind       TEXT    NOT NULL,
+    user_id    INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    status     TEXT    NOT NULL DEFAULT 'open',
+    handled_by INTEGER NOT NULL DEFAULT 0,
+    handled_at INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS ticket_msgs (
+    ticket_id  INTEGER NOT NULL,
+    admin_id   INTEGER NOT NULL,
+    message_id INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ticket_msgs ON ticket_msgs(ticket_id);
 """
 
 CATEGORIES = ("movie", "serial", "cartoon", "music")
@@ -294,6 +358,8 @@ class Database:
             self.conn.execute("ALTER TABLE users ADD COLUMN src TEXT NOT NULL DEFAULT ''")
         if "ref_by" not in ucols:  # 🤝 kim taklif qilgan (referal)
             self.conn.execute("ALTER TABLE users ADD COLUMN ref_by INTEGER NOT NULL DEFAULT 0")
+        if "contact_banned" not in ucols:  # 🚫 admin murojaat/so'rov yuborishini cheklagan
+            self.conn.execute("ALTER TABLE users ADD COLUMN contact_banned INTEGER NOT NULL DEFAULT 0")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_users_ref ON users(ref_by)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_movies_category ON movies(category, created_at)")
         # musiqalar kodsiz: avval kod bilan qo'shilganlari ichki (manfiy) raqamga o'tkaziladi
@@ -464,6 +530,8 @@ class Database:
             return self.val("SELECT COUNT(*) FROM users WHERE is_blocked=0 AND premium_until>?", (t,))
         if audience == "free":
             return self.val("SELECT COUNT(*) FROM users WHERE is_blocked=0 AND premium_until<=?", (t,))
+        if audience == "active":
+            return self.val("SELECT COUNT(*) FROM users WHERE is_blocked=0 AND last_active>=?", (t - 30 * 86400,))
         return self.val("SELECT COUNT(*) FROM users WHERE is_blocked=0")
 
     def user_ids(self, audience: str = "all") -> List[int]:
@@ -472,6 +540,9 @@ class Database:
             rows = self.q("SELECT user_id FROM users WHERE is_blocked=0 AND premium_until>? ORDER BY user_id", (t,))
         elif audience == "free":
             rows = self.q("SELECT user_id FROM users WHERE is_blocked=0 AND premium_until<=? ORDER BY user_id", (t,))
+        elif audience == "active":
+            rows = self.q("SELECT user_id FROM users WHERE is_blocked=0 AND last_active>=? ORDER BY user_id",
+                          (t - 30 * 86400,))
         else:
             rows = self.q("SELECT user_id FROM users WHERE is_blocked=0 ORDER BY user_id")
         return [r[0] for r in rows]
@@ -984,6 +1055,175 @@ class Database:
 
     def has_join_request(self, uid: int, chat_id: str) -> bool:
         return self.q1("SELECT 1 FROM join_requests WHERE user_id=? AND chat_id=?", (uid, str(chat_id))) is not None
+
+    # ───────── 🧾 admin harakatlari jurnali ─────────
+
+    def log_action(self, admin_id: int, action: str, detail: str = "") -> None:
+        self.x("INSERT INTO admin_log(ts, admin_id, action, detail) VALUES (?,?,?,?)",
+               (now(), admin_id, action[:40], detail[:300]))
+
+    def recent_actions(self, limit: int = 30) -> List[sqlite3.Row]:
+        return self.q("SELECT l.*, u.first_name FROM admin_log l LEFT JOIN users u ON u.user_id=l.admin_id"
+                      " ORDER BY l.id DESC LIMIT ?", (limit,))
+
+    def prune_admin_log(self, before: int) -> None:
+        self.x("DELETE FROM admin_log WHERE ts<?", (before,))
+
+    # ───────── 🗑 chiqindi qutisi (o'chirilgan kinolar 30 kun saqlanadi) ─────────
+
+    def trash_movie(self, movie_id: int, admin_id: int) -> Optional[int]:
+        """Kinoni (qismlari va shorts bilan) chiqindi qutisiga ko'chirib, bazadan o'chiradi. Quti yozuvi ID sini qaytaradi."""
+        import json
+        with self.tx() as c:
+            m = c.execute("SELECT * FROM movies WHERE id=?", (movie_id,)).fetchone()
+            if not m:
+                return None
+            parts = [dict(r) for r in c.execute("SELECT * FROM parts WHERE movie_id=? ORDER BY part_no", (movie_id,))]
+            shorts = [dict(r) for r in c.execute("SELECT * FROM shorts WHERE movie_id=?", (movie_id,))]
+            tid = c.execute("INSERT INTO trash(deleted_at, deleted_by, code, title, movie, parts, shorts) VALUES (?,?,?,?,?,?,?)",
+                            (now(), admin_id, m["code"], m["title"], json.dumps(dict(m), ensure_ascii=False),
+                             json.dumps(parts, ensure_ascii=False), json.dumps(shorts, ensure_ascii=False))).lastrowid
+            for tbl in ("ratings", "collection_items", "history", "shorts", "parts"):
+                c.execute(f"DELETE FROM {tbl} WHERE movie_id=?", (movie_id,))
+            c.execute("DELETE FROM movies WHERE id=?", (movie_id,))
+            return tid
+
+    def list_trash(self, limit: int = 15) -> List[sqlite3.Row]:
+        return self.q("SELECT id, deleted_at, deleted_by, code, title FROM trash ORDER BY id DESC LIMIT ?", (limit,))
+
+    def get_trash(self, tid: int) -> Optional[sqlite3.Row]:
+        return self.q1("SELECT * FROM trash WHERE id=?", (tid,))
+
+    def restore_trash(self, tid: int) -> Optional[int]:
+        """Qutidagi kinoni qaytaradi. Kodi band bo'lsa — keyingi bo'sh kod beriladi. Kino ID sini qaytaradi."""
+        import json
+        with self.tx() as c:
+            row = c.execute("SELECT * FROM trash WHERE id=?", (tid,)).fetchone()
+            if not row:
+                return None
+            m = json.loads(row["movie"])
+            if m["code"] > 0 and c.execute("SELECT 1 FROM movies WHERE code=?", (m["code"],)).fetchone():
+                m["code"] = (c.execute("SELECT MAX(code) FROM movies WHERE code>0").fetchone()[0] or 0) + 1
+            if c.execute("SELECT 1 FROM movies WHERE id=?", (m["id"],)).fetchone():
+                m.pop("id")
+            cols = list(m.keys())
+            c.execute(f"INSERT INTO movies({','.join(cols)}) VALUES ({','.join('?' * len(cols))})", [m[k] for k in cols])
+            mid = m.get("id") or c.execute("SELECT last_insert_rowid()").fetchone()[0]
+            for tbl, items in (("parts", json.loads(row["parts"])), ("shorts", json.loads(row["shorts"]))):
+                for it in items:
+                    it["movie_id"] = mid
+                    it.pop("id", None)
+                    k = list(it.keys())
+                    c.execute(f"INSERT INTO {tbl}({','.join(k)}) VALUES ({','.join('?' * len(k))})", [it[x] for x in k])
+            c.execute("DELETE FROM trash WHERE id=?", (tid,))
+            return mid
+
+    def prune_trash(self, before: int) -> None:
+        self.x("DELETE FROM trash WHERE deleted_at<?", (before,))
+
+    # ───────── 📢 kanalga e'lon qilinganlar ─────────
+
+    def add_announce(self, movie_id: int, chat_id, message_id: int) -> None:
+        self.x("INSERT INTO announces(movie_id, chat_id, message_id, created_at) VALUES (?,?,?,?)",
+               (movie_id, str(chat_id), message_id, now()))
+
+    def get_announces(self, movie_id: int) -> List[sqlite3.Row]:
+        return self.q("SELECT * FROM announces WHERE movie_id=? ORDER BY created_at DESC", (movie_id,))
+
+    def drop_announces(self, movie_id: int) -> None:
+        self.x("DELETE FROM announces WHERE movie_id=?", (movie_id,))
+
+    # ───────── 🎞 qismlar: tartib va nom ─────────
+
+    def move_part(self, part_id: int, up: bool) -> bool:
+        with self.tx() as c:
+            p = c.execute("SELECT movie_id, part_no FROM parts WHERE id=?", (part_id,)).fetchone()
+            if not p:
+                return False
+            other = c.execute("SELECT id, part_no FROM parts WHERE movie_id=? AND part_no=?",
+                              (p["movie_id"], p["part_no"] + (-1 if up else 1))).fetchone()
+            if not other:
+                return False
+            c.execute("UPDATE parts SET part_no=-1 WHERE id=?", (part_id,))
+            c.execute("UPDATE parts SET part_no=? WHERE id=?", (p["part_no"], other["id"]))
+            c.execute("UPDATE parts SET part_no=? WHERE id=?", (other["part_no"], part_id))
+            return True
+
+    def set_part_title(self, part_id: int, title: str) -> None:
+        self.x("UPDATE parts SET title=? WHERE id=?", (title[:100], part_id))
+
+    def code_taken(self, code: int, except_id: int = 0) -> bool:
+        return self.q1("SELECT 1 FROM movies WHERE code=? AND id<>?", (code, except_id)) is not None
+
+    # ───────── ✉️ xabar yuborish tarixi (to'xtab qolsa — davom ettiriladi) ─────────
+
+    def create_broadcast(self, admin_id: int, admin_chat: int, mode: str, audience: str, src_chat: int, src_msg: int,
+                         buttons) -> int:
+        import json
+        return self.x("INSERT INTO broadcasts(created_at, admin_id, admin_chat, mode, audience, src_chat, src_msg, buttons)"
+                      " VALUES (?,?,?,?,?,?,?,?)",
+                      (now(), admin_id, admin_chat, mode, audience, src_chat, src_msg,
+                       json.dumps(buttons, ensure_ascii=False))).lastrowid
+
+    def update_broadcast(self, bid: int, **f) -> None:
+        if f:
+            self.x(f"UPDATE broadcasts SET {', '.join(k + '=?' for k in f)} WHERE id=?", [*f.values(), bid])
+
+    def get_broadcast(self, bid: int) -> Optional[sqlite3.Row]:
+        return self.q1("SELECT * FROM broadcasts WHERE id=?", (bid,))
+
+    def interrupted_broadcast(self) -> Optional[sqlite3.Row]:
+        return self.q1("SELECT * FROM broadcasts WHERE status='running' ORDER BY id DESC LIMIT 1")
+
+    def recent_broadcasts(self, limit: int = 10) -> List[sqlite3.Row]:
+        return self.q("SELECT * FROM broadcasts ORDER BY id DESC LIMIT ?", (limit,))
+
+    def user_ids_after(self, audience: str, last_uid: int) -> List[int]:
+        return [u for u in self.user_ids(audience) if u > last_uid]
+
+    # ───────── 📥 so'rovlar va murojaatlar ───────
+
+    def top_requests(self, limit: int = 15, since: int = 0) -> List[sqlite3.Row]:
+        return self.q("SELECT norm, MIN(query) AS query, COUNT(DISTINCT user_id) AS n, MAX(created_at) AS last"
+                      " FROM requests WHERE done_at=0 AND created_at>=? GROUP BY norm"
+                      " ORDER BY n DESC, last DESC LIMIT ?", (since, limit))
+
+    def dismiss_request_norm(self, norm: str) -> int:
+        return self.x("UPDATE requests SET done_at=?, movie_id=0 WHERE done_at=0 AND norm=?", (now(), norm)).rowcount
+
+    def create_ticket(self, kind: str, user_id: int) -> int:
+        return self.x("INSERT INTO tickets(kind, user_id, created_at) VALUES (?,?,?)", (kind, user_id, now())).lastrowid
+
+    def add_ticket_msg(self, ticket_id: int, admin_id: int, message_id: int) -> None:
+        self.x("INSERT INTO ticket_msgs(ticket_id, admin_id, message_id) VALUES (?,?,?)", (ticket_id, admin_id, message_id))
+
+    def ticket_msgs(self, ticket_id: int) -> List[sqlite3.Row]:
+        return self.q("SELECT admin_id, message_id FROM ticket_msgs WHERE ticket_id=?", (ticket_id,))
+
+    def get_ticket(self, ticket_id: int) -> Optional[sqlite3.Row]:
+        return self.q1("SELECT * FROM tickets WHERE id=?", (ticket_id,))
+
+    def close_ticket(self, ticket_id: int, admin_id: int) -> bool:
+        return self.x("UPDATE tickets SET status='done', handled_by=?, handled_at=? WHERE id=? AND status='open'",
+                      (admin_id, now(), ticket_id)).rowcount > 0
+
+    def open_tickets(self) -> int:
+        return self.val("SELECT COUNT(*) FROM tickets WHERE status='open' AND created_at>=?", (now() - 14 * 86400,))
+
+    def set_contact_banned(self, uid: int, banned: bool) -> None:
+        self.x("UPDATE users SET contact_banned=? WHERE user_id=?", (1 if banned else 0, uid))
+
+    def is_contact_banned(self, uid: int) -> bool:
+        return bool(self.val("SELECT contact_banned FROM users WHERE user_id=?", (uid,)))
+
+    def user_exists(self, uid: int) -> bool:
+        return self.q1("SELECT 1 FROM users WHERE user_id=?", (uid,)) is not None
+
+    def revenue_since(self, since: int) -> Dict[str, int]:
+        """So'nggi davr tushumi: so'm (karta + Click/Payme) va Stars."""
+        rows = self.q("SELECT method, COALESCE(SUM(amount),0) AS s FROM payments WHERE status='approved' AND created_at>=?"
+                      " AND amount>0 GROUP BY method", (since,))
+        return {r["method"]: r["s"] for r in rows}
 
     # ───────── adminlar ─────────
 
