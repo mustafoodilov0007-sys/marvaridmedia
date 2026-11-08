@@ -84,6 +84,73 @@ def st_file(ctx: Ctx) -> None:
     ask_category(ctx, prefill=media)
 
 
+def video_meta(msg: dict) -> dict:
+    """Videoning haqiqiy o'lchami (qisqa tomoni) va fayl nomi — sifatni aniqlash uchun."""
+    v = (msg or {}).get("video") or (msg or {}).get("document") or {}
+    w, h = int(v.get("width") or 0), int(v.get("height") or 0)
+    return {"vq_h": min(w, h) if w and h else 0, "vq_name": v.get("file_name") or ""}
+
+
+def nav_row(ctx: Ctx = None, back: bool = True) -> list:
+    """Har bir bosqichda: ⬅️ Orqaga (oldingi bosqichni qayta to'ldirish) va ❌ Bekor qilish."""
+    if back and (ctx is None or not _is_music(ctx)):
+        return [btn("⬅️ Orqaga", "am:back", style=PRIMARY), btn("❌ Bekor qilish", "cancel", style=DANGER)]
+    return [btn("❌ Bekor qilish", "cancel", style=DANGER)]
+
+
+def nav_kb(ctx: Ctx = None) -> dict:
+    return ikb(nav_row(ctx))
+
+
+FLOW = ["am:code", "am:title", "am:genre", "am:country", "am:year", "am:lang", "am:quality", "am:desc",
+        "am:link", "am:wlink", "am:poster", "am:confirm"]
+
+
+def _prev_state(ctx: Ctx):
+    """Joriy bosqichdan oldingisi (serial/multserial bo'lmasa «link» bosqichi o'tkazib yuboriladi)."""
+    st = ctx.state
+    if st not in FLOW:
+        return None
+    i = FLOW.index(st)
+    while i > 0:
+        i -= 1
+        if FLOW[i] == "am:link" and not _linked(ctx):
+            continue
+        return FLOW[i]
+    return None
+
+
+def ask_step(ctx: Ctx, step: str) -> None:
+    """Berilgan bosqichni (avval kiritilgan ma'lumotlar saqlangan holda) qayta so'raydi."""
+    d = ctx.sdata
+    if step == "am:code":
+        ctx.goto("am:code")
+        ask_code(ctx)
+    elif step == "am:title":
+        ctx.goto("am:title")
+        ask_title(ctx, d.get("code"))
+    elif step == "am:genre":
+        ctx.goto("am:genre")
+        ask_genre(ctx)
+    elif step == "am:country":
+        ask_country(ctx)
+    elif step == "am:year":
+        ask_year(ctx)
+    elif step == "am:lang":
+        ask_lang(ctx)
+    elif step == "am:quality":
+        ask_quality(ctx)
+    elif step == "am:desc":
+        ask_desc(ctx)
+    elif step == "am:link":
+        ask_link(ctx)
+    elif step == "am:wlink":
+        ask_wlink(ctx)
+    elif step == "am:poster":
+        ctx.goto("am:poster", poster_pre=None)
+        ask_poster(ctx, d.get("desc") or "", d.get("desc_html") or "")
+
+
 def category_rows(prefix: str) -> list:
     return [[btn("🎬 Kino", f"{prefix}:movie", style=SUCCESS), btn("📺 Serial", f"{prefix}:serial", style=PRIMARY),
              btn("🧸 Multfilm", f"{prefix}:cartoon", style=SUCCESS)],
@@ -96,7 +163,7 @@ def ask_category(ctx: Ctx, prefill=None) -> None:
     data = {}
     if prefill:
         data = {"file_id": prefill[0], "file_type": prefill[1], "caption": prefill[2],
-                "caption_html": _cap_html(ctx.message)}
+                "caption_html": _cap_html(ctx.message), **video_meta(ctx.message)}
     ctx.set_state("am:cat", **data)
     if prefill:
         head = "📹 <b>Fayl qabul qilindi!</b>"
@@ -112,7 +179,8 @@ def start_add(ctx: Ctx, prefill=None, category: str = "movie", ms: bool = False)
         data["ms"] = True
     if prefill:
         data.update({"file_id": prefill[0], "file_type": prefill[1], "caption": prefill[2],
-                     "caption_html": ctx.sdata.get("caption_html", "")})
+                     "caption_html": ctx.sdata.get("caption_html", ""),
+                     "vq_h": ctx.sdata.get("vq_h", 0), "vq_name": ctx.sdata.get("vq_name", "")})
     ctx.set_state("am:code", **data)
     icon, name = cat_icon(data["cat"]), ("Multserial" if data.get("ms") else cat_name(data["cat"]))
     noun = name.lower()
@@ -132,16 +200,42 @@ def start_add(ctx: Ctx, prefill=None, category: str = "movie", ms: bool = False)
                      f"💡 Ko'p musiqani birdaniga qo'shish uchun admin paneldagi «{B.ADD_MUSIC}» tugmasi qulay.",
                      cancel_kb())
         return
-    rows = [[btn(f"🆕 Avtomatik kod: {code}", "am:auto", style=SUCCESS)]]
+    ask_code(ctx)
+
+
+def ask_code(ctx: Ctx) -> None:
+    """1-bosqich: kod. Fayl izohida «Kod: N» bo'lsa — uchta tanlov: izohdagi kod / avtomatik / o'zim yozaman."""
+    d = ctx.sdata
+    code = ctx.db.next_code()
+    prefill = bool(d.get("file_id"))
+    cat = _cat(ctx)
+    name = _cname(ctx)
+    noun = name.lower()
+    if prefill:
+        head = "🎵 <b>Audio qabul qilindi!</b>" if d.get("file_type") == "audio" else "📹 <b>Video qabul qilindi!</b>"
+        head += f"  •  {cat_icon(cat)} {name}"
+    else:
+        head = f"{cat_icon(cat)} <b>Yangi {noun} qo'shish</b>"
+    cap_code = parse_caption(d.get("caption") or "")[0] if prefill else None
+    rows = []
+    if cap_code:
+        taken = ctx.db.get_movie_by_code(cap_code)
+        rows.append([btn(f"📄 Izohdagi kod: {cap_code}" + (" (band!)" if taken else ""), "am:capcode", style=PRIMARY)])
+    rows.append([btn(f"🆕 Avtomatik kod: {code}", "am:auto", style=SUCCESS)])
+    rows.append([btn("✏️ Kodni o'zim yozaman", "am:typecode", style=PRIMARY)])
     if not prefill:
         rows.append([btn("⚡️ Ommaviy qo'shish (forward)", "am:bulk", style=PRIMARY)])
     rows.append([btn("❌ Bekor qilish", "cancel", style=DANGER)])
-    ctx.send(f"{head}\n\n"
-             f"1️⃣ {name} uchun <b>kod</b> yuboring (faqat raqam).\n\n"
-             f"💡 Bo'sh kod: <code>{code}</code> — pastdagi tugma bilan avtomatik tanlang.\n"
-             f"ℹ️ Band kod yuborsangiz, o'sha {noun}ga yangi qism qo'shiladi."
-             + ("" if prefill else f"\n⚡️ Ko'p {noun}ni birdaniga ko'chirish uchun — «Ommaviy qo'shish»."),
-             ikb(*rows))
+    if cap_code:
+        ctx.goto("am:code", cap_code=cap_code)
+        text = (f"{head}\n\n1️⃣ Fayl izohida kod topildi: <b>{cap_code}</b>\n\n"
+                "Shu kodni olamizmi, avtomatik kod beramizmi yoki o'zingiz yozasizmi? 👇")
+    else:
+        text = (f"{head}\n\n1️⃣ {name} uchun <b>kod</b> yuboring (faqat raqam).\n\n"
+                f"💡 Bo'sh kod: <code>{code}</code> — pastdagi tugma bilan avtomatik tanlang.\n"
+                f"ℹ️ Band kod yuborsangiz, o'sha {noun}ga yangi qism qo'shiladi."
+                + ("" if prefill else f"\n⚡️ Ko'p {noun}ni birdaniga ko'chirish uchun — «Ommaviy qo'shish»."))
+    ctx.send(text, ikb(*rows))
 
 
 @router.button(B.ADD_MOVIE, admin=True)
@@ -214,7 +308,7 @@ def ask_title(ctx: Ctx, code: int) -> None:
     ready = f"✅ Kod: <b>{code}</b>, fayl tayyor." if code else "✅ Fayl tayyor."
     ctx.send(f"{ready}\n\n"
              f"3️⃣ {_cname(ctx)} <b>nomini</b> yuboring:\n💡 Masalan: <code>{esc(example)}</code>",
-             cancel_kb())
+             nav_kb(ctx))
 
 
 @router.state("am:code", admin=True)
@@ -236,7 +330,8 @@ def st_video(ctx: Ctx) -> None:
             ctx.send(f"❗️ Iltimos, {_noun(ctx)}ni <b>video</b> yoki <b>fayl</b> ko'rinishida yuboring.",
                      cancel_kb())
         return
-    ctx.goto("am:title", file_id=media[0], file_type=media[1], caption=media[2], caption_html=_cap_html(ctx.message))
+    ctx.goto("am:title", file_id=media[0], file_type=media[1], caption=media[2], caption_html=_cap_html(ctx.message),
+             **video_meta(ctx.message))
     ask_title(ctx, ctx.sdata["code"])
 
 
@@ -248,10 +343,10 @@ def st_title(ctx: Ctx) -> None:
                  "Qo'shimcha qismlarni kino saqlangandan so'ng «➕ Keyingi qismni qo'shish» orqali yuborasiz.")
         return
     if not title or title.startswith("/"):
-        ctx.send(f"❗️ {cat_name(_cat(ctx))} nomini matn ko'rinishida yuboring.", cancel_kb())
+        ctx.send(f"❗️ {cat_name(_cat(ctx))} nomini matn ko'rinishida yuboring.", nav_kb(ctx))
         return
     if len(title) > 150:
-        ctx.send("❗️ Nom juda uzun — 150 belgigacha qisqartiring.", cancel_kb())
+        ctx.send("❗️ Nom juda uzun — 150 belgigacha qisqartiring.", nav_kb(ctx))
         return
     if not _is_music(ctx) and ctx.sdata.get("dup_seen") != title:
         dup = ctx.db.q1("SELECT code, title, category FROM movies WHERE norm_title=? AND category<>'music' LIMIT 1",
@@ -262,7 +357,7 @@ def st_title(ctx: Ctx) -> None:
                      f" (kod <code>{dup['code']}</code>).\n\n"
                      "Boshqa nom yuboring, yoki xuddi shu nomni <b>yana bir marta</b> yuboring — shu nom bilan saqlanadi. "
                      "Agar bu o'sha kinoning keyingi qismi bo'lsa, bekor qilib, kino ro'yxatidan «➕ Qism qo'shish» ni tanlang.",
-                     cancel_kb())
+                     nav_kb(ctx))
             return
     ctx.goto("am:title", title=title)
     if _is_music(ctx):
@@ -277,7 +372,7 @@ def ask_desc(ctx: Ctx) -> None:
     if ctx.sdata.get("caption"):
         rows.append([btn("📄 Fayl izohidan olish", "am:usecap", style=PRIMARY)])
     rows.append([btn("⏭ O'tkazib yuborish", "am:skip", style=SUCCESS)])
-    rows.append([btn("❌ Bekor qilish", "cancel", style=DANGER)])
+    rows.append(nav_row(ctx))
     if _is_music(ctx):
         ctx.send(f"4️⃣ Musiqa haqida <b>qisqacha ma'lumot</b> yuboring:\n💡 Masalan: ijrochi, albom, yil.\n\n"
                  "Yoki bu bosqichni o'tkazib yuboring 👇", ikb(*rows))
@@ -312,7 +407,7 @@ def st_desc(ctx: Ctx) -> None:
 
 # ───── 🎭 janr va 📅 yil ─────
 
-def genre_rows(selected, toggle_prefix: str, done_cb: str, done_text: str = "✅ Tayyor — davom etish") -> list:
+def genre_rows(selected, toggle_prefix: str, done_cb: str, done_text: str = "✅ Tayyor — davom etish", extra=None) -> list:
     rows, row = [], []
     for k in genres.GENRES:
         on = k in selected
@@ -323,7 +418,7 @@ def genre_rows(selected, toggle_prefix: str, done_cb: str, done_text: str = "✅
     if row:
         rows.append(row)
     rows.append([btn(done_text, done_cb, style=PRIMARY)])
-    return rows
+    return rows + (extra or [])
 
 
 def genre_prompt(title: str, selected) -> str:
@@ -338,9 +433,16 @@ def begin_meta(ctx: Ctx) -> None:
     d = ctx.sdata
     title, cap = d.get("title") or "", d.get("caption") or ""
     found = genres.detect(title, cap)
+    auto_q = genres.detect_quality(f"{title} {cap} {d.get('vq_name') or ''}", d.get("vq_h") or 0)   # 360p…4K — izoh/fayl nomi/video o'lchamidan
     ctx.goto("am:genre", genres=found, year=genres.detect_year(title, cap),
-             country=genres.detect_country(cap), lang=genres.detect_lang(cap))
-    ctx.send(genre_prompt(title, found), {"inline_keyboard": genre_rows(found, "am:g:", "am:gok")})
+             country=genres.detect_country(cap), lang=genres.detect_lang(cap), quality=auto_q, quality_auto=bool(auto_q))
+    ask_genre(ctx)
+
+
+def ask_genre(ctx: Ctx) -> None:
+    d = ctx.sdata
+    sel = list(d.get("genres") or [])
+    ctx.send(genre_prompt(d.get("title") or "", sel), {"inline_keyboard": genre_rows(sel, "am:g:", "am:gok", extra=[nav_row(ctx)])})
 
 
 def country_rows(selected: str, prefix: str, extra=None) -> list:
@@ -387,7 +489,7 @@ def ask_country(ctx: Ctx) -> None:
     sel = ctx.sdata.get("country") or ""
     hint = f"\n💡 Fayl izohidan topildi: <b>{genres.country_label(sel)}</b> — to'g'ri bo'lsa shuni bosing." if sel else ""
     ctx.send(f"5️⃣ <b>Davlatini</b> tanlang 🌍{hint}",
-             {"inline_keyboard": country_rows(sel, "am:c:", _skip_row("am:c:-"))})
+             {"inline_keyboard": country_rows(sel, "am:c:", _skip_row("am:c:-") + [nav_row(ctx)])})
 
 
 def ask_year(ctx: Ctx) -> None:
@@ -396,31 +498,34 @@ def ask_year(ctx: Ctx) -> None:
     hint = f"\n💡 Topilgan yil: <b>{sel}</b>" if sel else ""
     ctx.send(f"6️⃣ <b>Chiqqan yilini</b> tanlang 📅{hint}\n\n"
              "Ro'yxatda yo'q bo'lsa — yilni yozib yuboring (masalan <code>1997</code>).",
-             {"inline_keyboard": year_rows(sel, "am:y:", _skip_row("am:y:0"))})
+             {"inline_keyboard": year_rows(sel, "am:y:", _skip_row("am:y:0") + [nav_row(ctx)])})
 
 
 def ask_lang(ctx: Ctx) -> None:
     ctx.goto("am:lang")
     sel = ctx.sdata.get("lang") or ""
-    ctx.send("7️⃣ <b>Tilini</b> tanlang 🗣", {"inline_keyboard": lang_rows(sel, "am:l:", _skip_row("am:l:-"))})
+    ctx.send("7️⃣ <b>Tilini</b> tanlang 🗣", {"inline_keyboard": lang_rows(sel, "am:l:", _skip_row("am:l:-") + [nav_row(ctx)])})
 
 
-def quality_rows(selected, prefix: str, done_cb: str, done_text: str = "✅ Tayyor — davom etish") -> list:
-    row = [btn(("✅ " if k in selected else "") + v, f"{prefix}{k}", style=SUCCESS if k in selected else None)
-           for k, v in genres.QUALITIES.items()]
-    return [row, [btn(done_text, done_cb, style=PRIMARY)]]
+def quality_rows(selected, prefix: str, done_cb: str, done_text: str = "✅ Tayyor — davom etish", extra=None) -> list:
+    btns = [btn(("✅ " if k in selected else "") + v, f"{prefix}{k}", style=SUCCESS if k in selected else None)
+            for k, v in genres.QUALITIES.items()]
+    rows = [btns[i:i + 3] for i in range(0, len(btns), 3)]
+    return rows + [[btn(done_text, done_cb, style=PRIMARY)]] + (extra or [])
 
 
-def quality_prompt(selected) -> str:
+def quality_prompt(selected, auto: bool = False) -> str:
     chosen = genres.quality_text(genres.quality_dump(selected)) or "—"
-    return (f"8️⃣ <b>Video sifatini</b> tanlang 🎞 (bir nechtasini tanlash mumkin)\n\n"
-            f"Tanlangan: <b>{chosen}</b>\n\n💡 Tanlab bo'lgach «✅ Tayyor» ni bosing.")
+    hint = ("\n🤖 <b>Bot videodan avtomatik aniqladi</b> — to'g'ri bo'lsa «✅ Tayyor» ni bosing, aks holda o'zgartiring." if auto and selected else "")
+    return (f"8️⃣ <b>Video sifatini</b> tanlang 🎞 (360p, 480p, 720p, 1080p, 2K, 4K — bir nechtasini tanlash mumkin)\n\n"
+            f"Tanlangan: <b>{chosen}</b>{hint}\n\n💡 Tanlab bo'lgach «✅ Tayyor» ni bosing.")
 
 
 def ask_quality(ctx: Ctx) -> None:
     ctx.goto("am:quality")
     sel = ctx.sdata.get("quality") or []
-    ctx.send(quality_prompt(sel), {"inline_keyboard": quality_rows(sel, "am:q:", "am:qok")})
+    ctx.send(quality_prompt(sel, bool(ctx.sdata.get("quality_auto"))),
+             {"inline_keyboard": quality_rows(sel, "am:q:", "am:qok", extra=[nav_row(ctx)])})
 
 
 LINK_RE = re.compile(r"(?:https?://)?(?:t\.me|telegram\.me)/\S+|https?://\S+", re.I)
@@ -437,14 +542,59 @@ def clean_link(text: str) -> str:
 def after_desc(ctx: Ctx, desc: str, desc_html: str = "") -> None:
     ctx.goto("am:desc", desc=desc, desc_html=desc_html)
     if _linked(ctx):
-        ctx.goto("am:link")
-        ctx.send("🔗 <b>Qolgan qismlar linki</b>\n\n"
-                 f"{_cname(ctx)}ning qolgan qismlari joylangan Telegram guruh yoki post havolasini yuboring.\n"
-                 "💡 Masalan: <code>https://t.me/MarvaridMediaderial/1170</code>\n\n"
-                 f"Bot {_noun(ctx)}ni yuborganda «qolgan qismlari bu yerda 👇» deb shu linkni qo'shadi.\n"
-                 "📢 Kanal e'loniga bu link <b>qo'yilmaydi</b>.",
-                 ikb([btn("⏭ O'tkazib yuborish", "am:lskip", style=DANGER)]))
+        ask_link(ctx)
         return
+    ask_wlink(ctx)
+
+
+def ask_link(ctx: Ctx) -> None:
+    ctx.goto("am:link")
+    ctx.send("🔗 <b>Qolgan qismlar linki</b>\n\n"
+             f"{_cname(ctx)}ning qolgan qismlari joylangan Telegram guruh yoki post havolasini yuboring.\n"
+             "💡 Masalan: <code>https://t.me/MarvaridMediaderial/1170</code>\n\n"
+             f"Bot {_noun(ctx)}ni yuborganda «qolgan qismlari bu yerda 👇» deb shu linkni qo'shadi.\n"
+             "📢 Kanal e'loniga bu link <b>qo'yilmaydi</b>.",
+             ikb([btn("⏭ O'tkazib yuborish", "am:lskip", style=DANGER)], nav_row(ctx)))
+
+
+WEB_RE = re.compile(r"(?:https?://|www\.)[^\s<>\"']+", re.I)
+
+
+def clean_web(text: str) -> str:
+    m = WEB_RE.search(text or "")
+    if not m:
+        return ""
+    url = m.group(0).rstrip(").,")
+    return url if url.lower().startswith("http") else "https://" + url
+
+
+def ask_wlink(ctx: Ctx) -> None:
+    ctx.goto("am:wlink")
+    ctx.send("🌐 <b>Saytdagi link (ixtiyoriy)</b>\n\n"
+             f"Bu {_noun(ctx)} joylangan boshqa saytning havolasini yuboring. Saytimizda poster bosilganda <b>ikkita tugma</b> chiqadi: "
+             "«🤖 Botda ko'rish» (sizning botingiz) va «🌐 Saytda ko'rish» (shu link).\n"
+             "💡 Masalan: <code>https://uzmovi.tv/kino/123</code>\n\n"
+             "Link kerak bo'lmasa — o'tkazib yuboring 👇",
+             ikb([btn("⏭ O'tkazib yuborish", "am:wskip", style=SUCCESS)], nav_row(ctx)))
+
+
+@router.state("am:wlink", admin=True)
+def st_wlink(ctx: Ctx) -> None:
+    if has_image(ctx.message):
+        poster = poster_from(ctx)
+        if not poster:
+            poster_error(ctx)
+            return
+        ctx.goto("am:wlink", poster_pre=poster)
+        ctx.send("🖼 Poster saqlandi! Endi linkni yuboring yoki «⏭ O'tkazib yuborish» ni bosing.")
+        return
+    link = clean_web(ctx.text)
+    if not link or len(link) > 400:
+        ctx.send("❗️ To'liq havolani yuboring (masalan <code>https://sayt.uz/kino/123</code>) yoki «⏭ O'tkazib yuborish» ni bosing.",
+                 ikb([btn("⏭ O'tkazib yuborish", "am:wskip", style=SUCCESS)], nav_row(ctx)))
+        return
+    ctx.goto("am:wlink", watch_url=link)
+    ctx.send(f"🌐 Sayt linki saqlandi ✅\n{esc(link)}", preview=False)
     to_poster(ctx)
 
 
@@ -470,11 +620,11 @@ def st_link(ctx: Ctx) -> None:
     link = clean_link(ctx.text)
     if not link or len(link) > 300:
         ctx.send("❗️ Havolani yuboring (masalan <code>https://t.me/guruh/123</code>) "
-                 "yoki «⏭ O'tkazib yuborish» ni bosing.", ikb([btn("⏭ O'tkazib yuborish", "am:lskip", style=DANGER)]))
+                 "yoki «⏭ O'tkazib yuborish» ni bosing.", ikb([btn("⏭ O'tkazib yuborish", "am:lskip", style=DANGER)], nav_row(ctx)))
         return
     ctx.goto("am:link", group_link=link)
     ctx.send(f"🔗 Link saqlandi ✅\n{esc(link)}", preview=False)
-    to_poster(ctx)
+    ask_wlink(ctx)
 
 
 @router.state("am:genre", "am:country", "am:year", "am:lang", "am:quality", admin=True)
@@ -549,7 +699,7 @@ def ask_poster(ctx: Ctx, desc: str, desc_html: str = "") -> None:
     step = "5️⃣" if _is_music(ctx) else "🔟"
     ctx.send(f"{step} {cat_name(_cat(ctx))} <b>{what}</b> (rasm) yuboring 🖼\n"
              "Rasm saytda, kanal e'lonida va qismlar ro'yxatida chiroyli ko'rinadi.\n\nYoki o'tkazib yuboring 👇",
-             ikb([btn("⏭ O'tkazib yuborish", "am:skip", style=SUCCESS)], [btn("❌ Bekor qilish", "cancel", style=DANGER)]))
+             ikb([btn("⏭ O'tkazib yuborish", "am:skip", style=SUCCESS)], nav_row(ctx)))
 
 
 @router.state("am:poster", admin=True)
@@ -579,13 +729,14 @@ def show_confirm(ctx: Ctx, poster) -> None:
                f"🗣 Til: {genres.lang_label(d.get('lang')) or '—'}\n"
                f"🎞 Sifat: {genres.quality_text(genres.quality_dump(d.get('quality') or [])) or '—'}\n") +
             (f"🔗 Qismlar linki: {esc(d.get('group_link') or '—')}\n" if _linked(ctx) else "") +
+            ("" if cat == "music" else f"🌐 Sayt linki: {esc(truncate(d.get('watch_url') or '—', 80))}\n") +
             f"📹 Fayl: {file_txt}\n"
             f"🖼 Poster: {poster_txt}\n\n"
             "Qanday saqlaymiz? 👇")
     rows = [[btn("✅ Saqlash", "am:save:0", style=SUCCESS)]]
     if ctx.app.setting_bool("premium_enabled"):
         rows.append([btn("💎 Premium sifatida saqlash", "am:save:1", style=PRIMARY)])
-    rows.append([btn("❌ Bekor qilish", "cancel", style=DANGER)])
+    rows.append(nav_row(ctx))
     ctx.send(text, ikb(*rows))
 
 
@@ -608,7 +759,8 @@ def save_movie(ctx: Ctx, premium: bool) -> None:
                             genre_keys=d.get("genres"), year=d.get("year"),
                             country=d.get("country"), lang=d.get("lang"),
                             quality=genres.quality_dump(d.get("quality") or []),
-                            group_link=(d.get("group_link") or "") if _linked(ctx) else "")
+                            group_link=(d.get("group_link") or "") if _linked(ctx) else "",
+                            watch_url=(d.get("watch_url") or "") if cat != "music" else "")
     ctx.clear_state()
     ctx.answer("✅ Saqlandi!")
     code = db.get_movie(movie_id)["code"]
@@ -850,6 +1002,25 @@ def cb_add_movie(ctx: Ctx) -> None:
             start_add(ctx, prefill, _cat(ctx))
         else:
             ask_file(ctx)
+    elif action == "back":
+        prev = _prev_state(ctx)
+        if not prev:
+            _stale(ctx)
+            return
+        ctx.answer("⬅️ Orqaga")
+        ask_step(ctx, prev)
+    elif action == "capcode":
+        if state != "am:code" or not ctx.sdata.get("cap_code"):
+            _stale(ctx)
+            return
+        ctx.answer()
+        choose_code(ctx, int(ctx.sdata["cap_code"]))
+    elif action == "typecode":
+        if state != "am:code":
+            _stale(ctx)
+            return
+        ctx.answer()
+        ctx.send("✏️ Kodni <b>raqam</b> bilan yozing (masalan <code>245</code>):", ikb([btn("❌ Bekor qilish", "cancel", style=DANGER)]))
     elif action == "auto":
         if state != "am:code":
             _stale(ctx)
@@ -896,7 +1067,7 @@ def cb_add_movie(ctx: Ctx) -> None:
         ctx.goto("am:genre", genres=sel)
         ctx.answer(genres.label(key))
         d = ctx.sdata
-        ctx.edit(genre_prompt(d.get("title") or "", sel), {"inline_keyboard": genre_rows(sel, "am:g:", "am:gok")})
+        ctx.edit(genre_prompt(d.get("title") or "", sel), {"inline_keyboard": genre_rows(sel, "am:g:", "am:gok", extra=[nav_row(ctx)])})
     elif action == "gok":
         if state != "am:genre":
             _stale(ctx)
@@ -937,9 +1108,9 @@ def cb_add_movie(ctx: Ctx) -> None:
             return
         sel = list(ctx.sdata.get("quality") or [])
         sel.remove(parts[2]) if parts[2] in sel else sel.append(parts[2])
-        ctx.goto("am:quality", quality=sel)
+        ctx.goto("am:quality", quality=sel, quality_auto=False)
         ctx.answer(genres.QUALITIES[parts[2]])
-        ctx.edit(quality_prompt(sel), {"inline_keyboard": quality_rows(sel, "am:q:", "am:qok")})
+        ctx.edit(quality_prompt(sel), {"inline_keyboard": quality_rows(sel, "am:q:", "am:qok", extra=[nav_row(ctx)])})
     elif action == "qok":
         if state != "am:quality":
             _stale(ctx)
@@ -953,6 +1124,13 @@ def cb_add_movie(ctx: Ctx) -> None:
             return
         ctx.answer()
         ctx.goto("am:link", group_link="")
+        ask_wlink(ctx)
+    elif action == "wskip":
+        if state != "am:wlink":
+            _stale(ctx)
+            return
+        ctx.answer()
+        ctx.goto("am:wlink", watch_url="")
         to_poster(ctx)
     elif action == "save":
         if state != "am:confirm":
@@ -1139,6 +1317,7 @@ def manage_view(ctx: Ctx, movie):
                f"🗣 Til: <b>{genres.lang_label(movie['lang']) or '—'}</b>\n"
                f"🎞 Sifat: <b>{genres.quality_text(movie['quality']) or '—'}</b>\n") +
             (f"🔗 Qismlar linki: {esc(movie['group_link'] or '—')}\n" if (cat == "serial" or movie["group_link"]) else "") +
+            ("" if cat == "music" else f"🌐 Sayt linki: {esc(truncate(movie['watch_url'] or '—', 80))}\n") +
             f"👁 Ko'rishlar: <b>{fmt_num(movie['views'])}</b>\n"
             f"💎 Premium: <b>{premium_txt}</b>\n"
             f"🖼 Poster: <b>{poster_txt}</b>\n"
@@ -1155,6 +1334,8 @@ def manage_view(ctx: Ctx, movie):
         rows.append([btn("🔢 Kodni o'zgartirish", f"dm:cd:{mid}", style=PRIMARY)])
     if cat in ("serial", "cartoon"):
         rows.append([btn("🔗 Qolgan qismlar linki", f"dm:el:{mid}", style=PRIMARY)])
+    if cat != "music":
+        rows.append([btn("🌐 Sayt linki (Saytda ko'rish)", f"dm:ew:{mid}", style=PRIMARY)])
     rows.append([btn(f"🏷 Turini o'zgartirish ({cat_icon(cat)} {cat_name(cat)})", f"dm:cat:{mid}",
                      style=SUCCESS)])
     if ctx.app.setting_bool("premium_enabled") or movie["is_premium"]:
@@ -1454,6 +1635,11 @@ def cb_manage(ctx: Ctx) -> None:
         db.update_movie(mid, is_premium=not movie["is_premium"])
         ctx.answer("💎 Premium qilindi" if not movie["is_premium"] else "🆓 Oddiy qilindi")
         send_manage(ctx, db.get_movie(mid), edit=True)
+    elif action == "ew":
+        ctx.answer()
+        ctx.set_state("dm:wlink", movie_id=mid)
+        ctx.send(f"🌐 <b>{esc(movie['title'])}</b>\n\nHozirgi sayt linki: {esc(movie['watch_url'] or '—')}\n\n"
+                 "Yangi <b>linkni</b> yuboring (olib tashlash uchun <code>-</code>):", cancel_kb(), preview=False)
     elif action == "el":
         ctx.answer()
         ctx.set_state("dm:link", movie_id=mid)
@@ -1643,6 +1829,22 @@ def st_edit_link(ctx: Ctx) -> None:
     ctx.db.update_movie(movie["id"], group_link=link)
     ctx.clear_state()
     ctx.send("✅ Link yangilandi!" if link else "🗑 Link olib tashlandi.")
+    send_manage(ctx, ctx.db.get_movie(movie["id"]))
+
+
+@router.state("dm:wlink", admin=True)
+def st_edit_wlink(ctx: Ctx) -> None:
+    movie = _edit_target(ctx)
+    if not movie:
+        return
+    text = ctx.text.strip()
+    link = "" if text == "-" else clean_web(text)
+    if text != "-" and (not link or len(link) > 400):
+        ctx.send("❗️ To'liq havolani yuboring (masalan <code>https://sayt.uz/kino/1</code>) yoki <code>-</code>.", cancel_kb())
+        return
+    ctx.db.update_movie(movie["id"], watch_url=link)
+    ctx.clear_state()
+    ctx.send("✅ Sayt linki yangilandi!" if link else "🗑 Sayt linki olib tashlandi.")
     send_manage(ctx, ctx.db.get_movie(movie["id"]))
 
 

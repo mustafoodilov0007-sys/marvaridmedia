@@ -493,6 +493,7 @@ def _item(r, premium_on: bool, vip: bool) -> dict:
         "locked": bool(r["is_premium"]) and premium_on and not vip,
         "poster": _poster_key(r["poster_id"]),
         "glink": (r["group_link"] if "group_link" in keys else "") if r["category"] in ("serial", "cartoon") else "",
+        "wurl": (r["watch_url"] if "watch_url" in keys else "") or "",
     }
 
 
@@ -622,7 +623,7 @@ def api_admin_movie(app: App, user: dict, qs: dict) -> dict:
             "id": m["id"], "code": m["code"], "title": m["title"], "description": m["description"] or "",
             "category": m["category"], "genres": genres.parse(m["genres"]), "year": m["year"] or 0,
             "country": m["country"], "lang": m["lang"], "quality": genres.quality_parse(m["quality"]),
-            "premium": bool(m["is_premium"]), "group_link": m["group_link"] or "",
+            "premium": bool(m["is_premium"]), "group_link": m["group_link"] or "", "watch_url": m["watch_url"] or "",
             "duration_min": round((m["duration"] or 0) / 60), "age": m["age"] or 0, "imdb": m["imdb"] or "",
         },
         "meta": {
@@ -717,6 +718,11 @@ def api_admin_save(app: App, user: dict, body: dict) -> dict:
                     return {"ok": False, "reason": "imdb"}
                 raw = f"{val:.1f}"
             f["imdb"] = raw
+        if "watch_url" in body:
+            wu = str(body["watch_url"]).strip()[:400]
+            if wu and not re.match(r"https?://", wu):
+                return {"ok": False, "reason": "wlink"}
+            f["watch_url"] = wu
         if "group_link" in body:
             link = str(body["group_link"]).strip()[:300]
             if link and not re.match(r"https?://", link):

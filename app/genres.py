@@ -111,7 +111,23 @@ LANGS = {
 YEAR_MIN, YEAR_MAX = 1920, 2049
 
 # 🎞 video sifati (bir nechtasi tanlanadi) — kalit → yozuv; tartib: pastdan yuqoriga
-QUALITIES = {"480": "480p", "720": "720p", "1080": "1080p", "2k": "2K"}
+QUALITIES = {"360": "360p", "480": "480p", "720": "720p", "1080": "1080p", "2k": "2K", "4k": "4K"}
+
+_Q_RE = re.compile(r"(?<![\d.])(?:(360|480|720|1080|1440|2160)\s*[pр]\b|(2k|4k|uhd)(?![a-z0-9]))", re.I)
+
+
+def detect_quality(text: str = "", height: int = 0) -> list:
+    """Fayl izohi/nomidan (360p, 720p, 1080p, 2K, 4K ...) yoki video balandligidan sifatni aniqlaydi (kalitlar ro'yxati)."""
+    found = []
+    for m in _Q_RE.finditer(text or ""):
+        k = (m.group(1) or m.group(2) or "").lower()
+        k = {"1440": "2k", "2160": "4k", "uhd": "4k"}.get(k, k)
+        if k in QUALITIES and k not in found:
+            found.append(k)
+    if not found and height:
+        h = int(height)
+        found = ["4k" if h >= 2000 else "2k" if h >= 1300 else "1080" if h >= 1000 else "720" if h >= 700 else "480" if h >= 440 else "360"]
+    return [k for k in QUALITIES if k in found]
 
 
 def quality_text(stored: Optional[str]) -> str:

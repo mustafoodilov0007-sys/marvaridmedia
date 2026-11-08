@@ -220,3 +220,82 @@ class Channels(AdminCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AddFlow(AdminCase):
+    def video(self, caption="", w=1920, h=1080, name=""):
+        m = message(1, "")
+        m["message"].pop("text")
+        m["message"]["video"] = {"file_id": "V1", "duration": 60, "width": w, "height": h, "file_name": name}
+        if caption:
+            m["message"]["caption"] = caption
+        self.run_update(self.app, m)
+
+    def buttons(self, uid=1):
+        for n, a, k in reversed(self.app.bot.sent):
+            kb = (k.get("reply_markup") if k else None) or (a[2] if len(a) > 2 and isinstance(a[2], dict) else None)
+            if isinstance(kb, dict) and "inline_keyboard" in kb:
+                return [b.get("callback_data") for r in kb["inline_keyboard"] for b in r if b.get("callback_data")]
+        return []
+
+    def test_code_choice_from_caption_and_quality_autodetect(self):
+        self.video("Avatar 2 1080p o'zbek tilida\nKod: 77")
+        self.press(1, "am:cat:movie")
+        txt = self.last(1)
+        self.assertIn("Fayl izohida kod topildi: <b>77</b>", txt)
+        btns = self.buttons()
+        self.assertIn("am:capcode", btns)
+        self.assertIn("am:auto", btns)
+        self.assertIn("am:typecode", btns)
+        self.press(1, "am:capcode")
+        self.msg(1, "Avatar 2")
+        self.assertIn("am:back", self.buttons())                      # har bir bosqichda «Orqaga» bor
+
+    def test_quality_from_video_dimensions(self):
+        from app import genres
+        self.assertEqual(genres.detect_quality("", 1080), ["1080"])
+        self.assertEqual(genres.detect_quality("film 720p va 1080p"), ["720", "1080"])
+        self.assertEqual(genres.detect_quality("4K UHD"), ["4k"])
+        self.assertIn("4k", genres.QUALITIES)
+        self.assertIn("360", genres.QUALITIES)
+
+    def test_back_returns_to_previous_step_and_keeps_data(self):
+        self.video("kino 480p")
+        self.press(1, "am:cat:movie")
+        self.press(1, "am:auto")
+        self.msg(1, "Test kino")
+        self.assertIn("janrini", self.last(1))
+        self.press(1, "am:back")                                     # janrdan — nomga qaytadi
+        self.assertIn("nomini", self.last(1))
+        self.msg(1, "Yangi nom")
+        self.press(1, "am:gok")
+        self.press(1, "am:c:-")
+        self.press(1, "am:back")                                     # yildan — davlatga
+        self.assertIn("Davlatini", self.last(1))
+
+    def test_full_flow_saves_site_link_and_skip(self):
+        self.video("Matritsa 720p")
+        self.press(1, "am:cat:movie")
+        self.press(1, "am:auto")
+        self.msg(1, "Matritsa")
+        for cb in ("am:gok", "am:c:-", "am:y:0", "am:l:-", "am:qok", "am:skip"):
+            self.press(1, cb)
+        self.assertIn("Saytdagi link", self.last(1))
+        self.msg(1, "https://uzmovi.tv/kino/55")
+        self.assertIn("poster", self.last(1).lower())
+        self.press(1, "am:skip")                                     # poster o'tkazildi → tasdiq
+        self.assertIn("Sayt linki", self.last(1))
+        self.press(1, "am:save:0")
+        m = self.app.db.get_movie_by_code(1)
+        self.assertEqual(m["watch_url"], "https://uzmovi.tv/kino/55")
+        self.assertEqual(m["quality"], ",720,")
+
+    def test_site_link_optional(self):
+        self.video("")
+        self.press(1, "am:cat:movie")
+        self.press(1, "am:auto")
+        self.msg(1, "Kinochalar")
+        for cb in ("am:gok", "am:c:-", "am:y:0", "am:l:-", "am:qok", "am:skip", "am:wskip", "am:skip"):
+            self.press(1, cb)
+        self.press(1, "am:save:0")
+        self.assertEqual(self.app.db.get_movie_by_code(1)["watch_url"], "")
