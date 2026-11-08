@@ -167,6 +167,15 @@ top-5 kino va **❓ topilmagan so'rovlar** (qaysi kinoni qo'shish kerakligini ko
 
 ---
 
+### 💬 Saytdagi izohlar
+Kino oynasida (Telegram orqali ochilganda) izoh qoldirish, javob berish, yoqtirish va shikoyat qilish mumkin. Brauzerdagi mehmonlar izohlarni o'qiydi.
+Himoya: havola/@user taqiqlanadi (adminlarga mumkin), 20 soniyada 1 ta va soatiga 12 ta chegara, takror izoh rad etiladi, 3 ta shikoyatda izoh
+avtomatik yashiriladi va bosh adminlarga xabar boradi. Moderatsiya: saytda (⋯ → o'chirish/cheklash) yoki botda «🧰 Qo'shimcha → 💬 Izohlar».
+
+### 🖼 Poster kichik nusxalari
+`requirements.txt` dagi **Pillow** o'rnatilsa (Dockerfile o'zi o'rnatadi), saytdagi posterlar 360/720 px nusxalarda beriladi — sekin internetda tez ochiladi.
+O'rnatilmasa ham hamma narsa ishlaydi (asl rasm beriladi).
+
 ## 🚂 Railway'ga joylash (24/7)
 
 Railway uchun `marvarid_kino_bot_railway` papkasidan foydalaning — unda `.env` yo'q (token GitHub'ga

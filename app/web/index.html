@@ -848,6 +848,19 @@
   .cm-note { color: var(--muted); font-size: 14px; padding: 10px 2px 14px; }
   .cm-skel i { display: block; height: 58px; border-radius: 14px; margin: 10px 0; background: linear-gradient(100deg, var(--surface) 30%, var(--surface-2) 50%, var(--surface) 70%);
     background-size: 250% 100%; animation: sh 1.3s linear infinite; }
+  .sbar { position: sticky; bottom: 0; z-index: 4; display: flex; align-items: center; gap: 12px; margin: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 -1px 0 var(--line); transform: translateY(110%); opacity: 0; pointer-events: none; transition: transform .35s cubic-bezier(.2,.8,.2,1), opacity .25s; }
+  .sbar.on { transform: none; opacity: 1; pointer-events: auto; }
+  .sbar-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .sbar-t b { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sbar-t span { font-size: 12.5px; color: var(--muted); }
+  .sbar .btn { height: 46px; padding: 0 22px; flex: none; }
+  @media (min-width: 600px) and (max-width: 899px) { .hero { height: min(70svh, 640px); min-height: 480px; } }
+  :root[data-theme="light"] .hero .btn.soft, :root[data-theme="light"] .hero .btn.sq { background: rgba(255,255,255,.82); color: var(--text);
+    border: 1px solid rgba(60,40,10,.14); box-shadow: 0 6px 18px rgba(60,40,10,.12); }
+  :root[data-theme="light"] .hero .btn.sq.on { color: #8a6220; }
+  :root[data-theme="light"] .dot { background: rgba(60,40,10,.22); } :root[data-theme="light"] .dot.on { background: rgba(60,40,10,.14); }
   /*/REDESIGN*/
 
   /* kichikroq noutbuk / keng bo'lmagan oynalar: sarlavha sig'sin */
@@ -3307,6 +3320,18 @@
     } else start();
     return box;
   }
+  // 🎬 pastdagi «yopishqoq» tugma: asosiy tugma ko'rinishdan chiqqach (izohlarni o'qiyotganda ham) kinoni ko'rish doim qo'l ostida
+  function stickyBar(it, acts) {
+    var b = h("button", "btn primary" + (it.locked ? " lock" : ""), [icon(it.locked ? "lock" : "play"), it.locked ? "Premium" : "Kinoni ko'rish"]);
+    b.onclick = function () { watch(it, b); };
+    var bar = h("div", "sbar", [h("div", "sbar-t", [h("b", null, it.title), h("span", null, [it.year ? String(it.year) : "", NAMES[it.cat] || ""].filter(Boolean).join(" · "))]), b]);
+    if ("IntersectionObserver" in window) {
+      var io = new IntersectionObserver(function (e) { bar.classList.toggle("on", !e[e.length - 1].isIntersecting); },
+        { root: $("sheet"), threshold: 0 });
+      io.observe(acts);
+    }
+    return bar;
+  }
   function openSheet(it, fromPop) {
     haptic();
     if (!fromPop) pushSheet(it);
@@ -3347,11 +3372,12 @@
     s.classList.toggle("hasmain", hasMain);
     var similar = it.cat === "music" ? null : h("div", "similar");
     s.setAttribute("aria-label", it.title);
-    s.replaceChildren(
+    var acts = actionRow(it, false);
+    var parts = [
       h("div", "sheet-top", [bg, h("div", "grip"), closeBtn]),
       h("div", "sheet-main", [posterNode(it, 720), h("div", "info", [h("h3", null, it.title), ratingBadges(it), chips, stats.childNodes.length ? stats : null])]),
       desc,
-      actionRow(it, false),
+      acts,
       it.glink ? glinkRow(it) : null,
       it.cat === "music" ? null : rateRow(it),
       me.admin ? adminBar(it) : null,
@@ -3361,7 +3387,10 @@
         : "«Kinoni ko'rish» bosilsa, bot kinoni chatga yuboradi."),
       it.cat === "music" ? null : commentsSection(it),
       similar
-    );
+    ];
+    var bar = (hasMain || it.cat === "music") ? null : stickyBar(it, acts);
+    if (bar) parts.push(bar);
+    s.replaceChildren.apply(s, parts.filter(Boolean));          // null qiymatlar «null» matni bo'lib chiqmasin
     if (similar) {
       var myS = ++sheetReq;
       api("/api/similar?id=" + it.id).then(function (d) {
