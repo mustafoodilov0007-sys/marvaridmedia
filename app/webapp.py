@@ -104,6 +104,7 @@ def smart_query(query: str):
 
 
 def api_catalog(app: App, user: dict, qs: dict) -> dict:
+    fuzzy = False
     cat = qs.get("cat", "movie")
     if cat not in CATEGORIES and cat != "video":
         cat = "movie"
@@ -151,9 +152,18 @@ def api_catalog(app: App, user: dict, qs: dict) -> dict:
                                   lang=lang)
         more = len(rows) > PAGE_SIZE
         rows = rows[:PAGE_SIZE]
+        if not rows and offset == 0 and len(query) >= 3 and not (genre or country or year or lang):
+            # 🔎 xato yozilgan nom (botdagi kabi): eng o'xshash kinolar
+            from .handlers.user import search_ids
+            ids, approx = search_ids(app, normalize(query), scope="music" if cat == "music" else "video")
+            for mid in (ids if approx else [])[:12]:
+                rows += list(app.db.catalog(cat, movie_id=mid, limit=1))
+            fuzzy = bool(rows)
 
     items = [_item(r, premium_on, vip) for r in rows]
     out = {"ok": True, "items": items, "more": more, "counts": app.db.count_by_category()}
+    if fuzzy:
+        out["fuzzy"] = True
     if offset == 0 and not query and cat != "music" and not link:
         out["genres"] = [{"key": k, "label": genres.label(k), "n": n} for k, n in app.db.genre_counts(cat).items()]
         f = app.db.facets(cat)
@@ -304,6 +314,7 @@ def _item(r, premium_on: bool, vip: bool) -> dict:
         "premium": bool(r["is_premium"]),
         "locked": bool(r["is_premium"]) and premium_on and not vip,
         "poster": _poster_key(r["poster_id"]),
+        "glink": (r["group_link"] if "group_link" in keys else "") if r["category"] in ("serial", "cartoon") else "",
     }
 
 
@@ -651,18 +662,57 @@ def api_request(app: App, user: dict, body: dict) -> dict:
     return {"ok": True}
 
 
-def poster_bytes(app: App, movie_id: int, cache_dir: Path) -> Optional[bytes]:
+try:                                # Pillow bo'lsa — kichik nusxalar (tez yuklanadi); bo'lmasa — asl rasm
+    from PIL import Image as _PIL
+except Exception:                   # noqa: BLE001
+    _PIL = None
+_poster_fail: dict = {}             # yuklanmagan posterni 60 soniya qayta so'ramaymiz (Telegramga yuklama tushmasin)
+
+
+def _thumb(data: bytes, width: int) -> bytes:
+    import io
+    try:
+        im = _PIL.open(io.BytesIO(data))
+        if im.width <= width:
+            return data
+        im = im.convert("RGB")
+        im.thumbnail((width, width * 2))
+        out = io.BytesIO()
+        im.save(out, "JPEG", quality=80, optimize=True, progressive=True)
+        return out.getvalue()
+    except Exception:               # noqa: BLE001 — buzuq rasm: asl nusxa qaytadi
+        return data
+
+
+def poster_bytes(app: App, movie_id: int, cache_dir: Path, width: int = 0) -> Optional[bytes]:
     movie = app.db.get_movie(movie_id)
     if not movie or not movie["poster_id"]:
         return None
-    path = cache_dir / f"{movie_id}_{_poster_key(movie['poster_id'])}.jpg"
+    key = _poster_key(movie["poster_id"])
+    path = cache_dir / f"{movie_id}_{key}.jpg"
+    if width and _PIL is not None:
+        small = cache_dir / f"{movie_id}_{key}_{width}.jpg"
+        if small.exists():
+            return small.read_bytes()
+        full = poster_bytes(app, movie_id, cache_dir, 0)
+        if full is None:
+            return None
+        data = _thumb(full, width)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        tmp = small.with_suffix(f".{threading.get_ident()}.tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, small)
+        return data
     if path.exists():
         return path.read_bytes()
+    if time.time() - _poster_fail.get(movie_id, 0) < 60:
+        return None
     try:
         info = app.bot.call("getFile", {"file_id": movie["poster_id"]})
         data = app.bot.download_file(info["file_path"])
     except (TelegramError, KeyError) as exc:
         log.debug("Poster yuklanmadi (%s): %s", movie_id, exc)
+        _poster_fail[movie_id] = time.time()
         return None
     cache_dir.mkdir(parents=True, exist_ok=True)
     for old in cache_dir.glob(f"{movie_id}_*.jpg"):
@@ -880,13 +930,19 @@ def _kids_filter(o):
 
 # ───── 🌐 PWA va boy havola ko'rinishi (Open Graph) ─────
 
+# Telegram oynasi (web.telegram.org va ilovalar) ichida ochilishi uchun frame-ancestors ruxsat etilgan
+CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; "
+       "img-src 'self' data: blob: https://image.tmdb.org; font-src 'self'; media-src 'self' blob:; connect-src 'self'; "
+       "object-src 'none'; base-uri 'self'; form-action 'self'; "
+       "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org https://telegram.org")
+
 STATIC_FILES = {
     "/og.png": "image/png", "/icon-192.png": "image/png", "/icon-512.png": "image/png",
     "/icon-maskable-512.png": "image/png", "/apple-touch-icon.png": "image/png",
 }
 
 SERVICE_WORKER = r"""// Marvarid Media — xizmat ishchisi: sahifa tezroq ochiladi, internet uzilsa ham ilova qobig'i chiqadi
-const V = "mm-v1", IMG = "mm-img-v1";
+const V = "mm-v2", IMG = "mm-img-v1";
 self.addEventListener("install", (e) => { self.skipWaiting(); e.waitUntil(caches.open(V).then((c) => c.add("/"))); });
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V && k !== IMG).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
@@ -900,7 +956,7 @@ self.addEventListener("fetch", (e) => {
       .catch(() => caches.match("/")));
     return;
   }
-  if (/^\/(api\/poster\/|icon-|og\.png|apple-touch)/.test(u.pathname)) {   // posterlar va ikonkalar: avval saqlangan
+  if (/^\/(api\/poster\/|icon-|og\.png|apple-touch|fonts\/)/.test(u.pathname)) {   // posterlar va ikonkalar: avval saqlangan
     e.respondWith(caches.open(IMG).then((c) => c.match(r).then((hit) => hit || fetch(r).then((res) => { if (res.ok) { c.put(r, res.clone()); trim(IMG, 250); } return res; }))));
   }
 });
@@ -998,6 +1054,7 @@ def make_handler(app: App):
 
     # Telegram foydalanuvchisi (initData bilan tasdiqlangan) — o'z ID si bo'yicha; mehmon/noma'lum — IP bo'yicha.
     # IP chegarasi kattaroq: mobil operatorlarda yuzlab odam bitta IP dan kiradi.
+    _hit_seen: dict = {}
     api_user, api_ip = RateLimiter(300), RateLimiter(900)
     write_user, write_ip = RateLimiter(60), RateLimiter(240)
 
@@ -1029,7 +1086,7 @@ def make_handler(app: App):
         def _send(self, status: int, body: bytes, ctype: str, cache: str = "no-store", extra: Optional[dict] = None) -> None:
             self.send_response(status)
             self.send_header("Content-Type", ctype)
-            if len(body) > 800 and ctype.startswith(("text/html", "application/json", "text/javascript")):
+            if len(body) > 800 and ctype.startswith(("text/html", "application/json", "text/javascript", "application/xml")):
                 self.send_header("Vary", "Accept-Encoding")
                 if "gzip" in self.headers.get("Accept-Encoding", ""):
                     body = _gzip_cached(body)  # 4 baravar kichik: tezroq ochiladi, trafik tejaladi
@@ -1037,6 +1094,10 @@ def make_handler(app: App):
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", cache)
             self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+            self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+            if ctype.startswith("text/html"):
+                self.send_header("Content-Security-Policy", CSP)
             for k, v in (extra or {}).items():
                 self.send_header(k, v)
             self.end_headers()
@@ -1056,7 +1117,15 @@ def make_handler(app: App):
             else:
                 html_text = re.sub(r"<!--OG-->.*?<!--/OG-->", lambda m: "<!--OG-->\n" + _og_block(app, base, qs.get("k", "")) + "\n<!--/OG-->",
                                    html_text, count=1, flags=re.S)
-            self._send(status, html_text.encode("utf-8"), "text/html; charset=utf-8", "no-cache")
+            body = html_text.encode("utf-8")
+            etag = '"' + hashlib.sha1(body).hexdigest()[:20] + '"'
+            if status == 200 and self.headers.get("If-None-Match") == etag:      # o'zgarmagan — qayta yuklanmaydi
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                return
+            self._send(status, body, "text/html; charset=utf-8", "no-cache", {"ETag": etag})
 
         def _json(self, obj: dict, status: int = 200) -> None:
             if self._kids and isinstance(obj, dict):
@@ -1135,13 +1204,20 @@ def make_handler(app: App):
                 if path == "/sw.js":
                     return self._send(200, SERVICE_WORKER.encode("utf-8"), "text/javascript; charset=utf-8", "no-cache",
                                       {"Service-Worker-Allowed": "/"})
+                m = re.fullmatch(r"/fonts/([a-z0-9-]+\.woff2)", path)
+                if m and (WEB_DIR / "fonts" / m.group(1)).is_file():
+                    return self._send(200, (WEB_DIR / "fonts" / m.group(1)).read_bytes(), "font/woff2",
+                                      "public, max-age=31536000, immutable")
                 if path in STATIC_FILES:
                     return self._send(200, (WEB_DIR / path.lstrip("/")).read_bytes(), STATIC_FILES[path], "public, max-age=604800")
                 if path == "/healthz":
                     return self._send(200, b"ok", "text/plain")
                 m = re.fullmatch(r"/api/poster/(\d+)", path)
                 if m:
-                    data = poster_bytes(app, int(m.group(1)), cache_dir)
+                    if self._limited(api_user, api_ip):
+                        return
+                    width = int(qs["w"]) if qs.get("w") in ("360", "720") else 0
+                    data = poster_bytes(app, int(m.group(1)), cache_dir, width)
                     if data is None:
                         return self._send(404, b"", "text/plain")
                     return self._send(200, data, "image/jpeg", "public, max-age=604800, immutable")
@@ -1243,7 +1319,13 @@ def make_handler(app: App):
                         return self._json(api_play(app, GUEST, body, guest=True))
                     if path == "/pub/hit":        # tahlil: mehmon sayt ochdi (manba bo'yicha sanaladi, shaxsiy ma'lumotsiz)
                         src = re.sub(r"[^a-z0-9_-]", "", str(body.get("src") or "direct").lower())[:20] or "direct"
-                        app.db.hit(src)
+                        ip = self._ip()
+                        t = time.time()
+                        if t - _hit_seen.get(ip, 0) > 600:        # bir IP dan 10 daqiqada bir marta (statistika buzilmasin)
+                            if len(_hit_seen) > 20000:
+                                _hit_seen.clear()
+                            _hit_seen[ip] = t
+                            app.db.hit(src)
                         return self._json({"ok": True})
                     return self._json(api_searched(app, GUEST, body))
                 user = self._user()

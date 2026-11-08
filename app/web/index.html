@@ -13,9 +13,16 @@
 <!--OG--><meta name="description" content="Eng sara kinolar, seriallar va multfilmlar bir joyda."><!--/OG-->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E %3Cdefs%3E %3ClinearGradient id='lgG' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23fff2c6'/%3E%3Cstop offset='.35' stop-color='%23e8c165'/%3E%3Cstop offset='.65' stop-color='%23a87a2a'/%3E%3Cstop offset='1' stop-color='%23f3d785'/%3E%3C/linearGradient%3E %3CradialGradient id='lgP' cx='.35' cy='.3' r='.75'%3E%3Cstop offset='0' stop-color='%23fff'/%3E%3Cstop offset='.5' stop-color='%23ece7e0'/%3E%3Cstop offset='1' stop-color='%23a59c92'/%3E%3C/radialGradient%3E %3CradialGradient id='lgB' cx='.5' cy='.4' r='.7'%3E%3Cstop offset='0' stop-color='%2322201c'/%3E%3Cstop offset='1' stop-color='%2307070a'/%3E%3C/radialGradient%3E %3C/defs%3E %3Ccircle cx='50' cy='50' r='47' fill='url(%23lgB)' stroke='url(%23lgG)' stroke-width='3'/%3E %3Cpath d='M22 80 A37 37 0 0 1 80 22' fill='none' stroke='url(%23lgG)' stroke-width='1.3' opacity='.6'/%3E %3Cpath d='M12 76 C 30 66, 60 86, 90 68' fill='none' stroke='url(%23lgG)' stroke-width='8.5' stroke-linecap='round'/%3E %3Cpath d='M12 76 C 30 66, 60 86, 90 68' fill='none' stroke='%23111015' stroke-width='6.5' stroke-linecap='round'/%3E %3Cpath d='M12 76 C 30 66, 60 86, 90 68' fill='none' stroke='url(%23lgG)' stroke-width='4.6' stroke-dasharray='2.6 2.6' opacity='.85'/%3E %3Cpath d='M12 76 C 30 66, 60 86, 90 68' fill='none' stroke='%23111015' stroke-width='2.6'/%3E %3Ctext x='50' y='80' text-anchor='middle' font-family='Cinzel, Georgia, serif' font-weight='700' font-size='58' fill='url(%23lgG)' stroke='%232a1d08' stroke-width='.6'%3EM%3C/text%3E %3Cpath d='M37 33 A13 13 0 0 1 63 33 Z' fill='url(%23lgG)' stroke='%235e4212' stroke-width='.6'/%3E %3Cpath d='M50 33 L50 21 M50 33 L44 22.5 M50 33 L56 22.5 M50 33 L40 25.5 M50 33 L60 25.5 M50 33 L38 29.5 M50 33 L62 29.5' stroke='%236e4e16' stroke-width='1' opacity='.8'/%3E %3Cpath d='M38 33.5 Q50 39 62 33.5 Q50 36 38 33.5 Z' fill='url(%23lgG)'/%3E %3Ccircle cx='50' cy='31.5' r='5.2' fill='url(%23lgP)'/%3E %3C/svg%3E">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
+<link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/cinzel-latin.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+/* Cinzel latin-ext */ @font-face { font-family: 'Cinzel'; font-style: normal; font-weight: 600 700; font-display: swap; src: url(/fonts/cinzel-latin-ext.woff2) format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }  
+/* Cinzel latin */ @font-face { font-family: 'Cinzel'; font-style: normal; font-weight: 600 700; font-display: swap; src: url(/fonts/cinzel-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }  
+/* Inter cyrillic-ext */ @font-face { font-family: 'Inter'; font-style: normal; font-weight: 400 800; font-display: swap; src: url(/fonts/inter-cyrillic-ext.woff2) format('woff2'); unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F; }  
+/* Inter cyrillic */ @font-face { font-family: 'Inter'; font-style: normal; font-weight: 400 800; font-display: swap; src: url(/fonts/inter-cyrillic.woff2) format('woff2'); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }  
+/* Inter latin-ext */ @font-face { font-family: 'Inter'; font-style: normal; font-weight: 400 800; font-display: swap; src: url(/fonts/inter-latin-ext.woff2) format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }  
+/* Inter latin */ @font-face { font-family: 'Inter'; font-style: normal; font-weight: 400 800; font-display: swap; src: url(/fonts/inter-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+</style>
 <style>
   :root {
     --bg: #0b0a0d;
@@ -791,6 +798,8 @@
     .top.adm #bChannel { display: none; }
   }
   @media (max-width: 380px) { .top.adm #bStats { display: none; } .top .word .w2 { display: none; } }
+  .fuzzy-note { margin: 4px 2px 14px; color: var(--muted); font-size: 15px; }
+  .btn.glink { width: 100%; }
   /*/REDESIGN*/
 
   /* kichikroq noutbuk / keng bo'lmagan oynalar: sarlavha sig'sin */
@@ -1141,7 +1150,7 @@
     });
   }
   function hue(str) { var x = 0; for (var i = 0; i < str.length; i++) x = (x * 31 + str.charCodeAt(i)) % 360; return x; }
-  function posterUrl(it) { return it.poster ? "/api/poster/" + it.id + "?v=" + it.poster : null; }
+  function posterUrl(it, w) { return it.poster ? "/api/poster/" + it.id + "?v=" + it.poster + (w ? "&w=" + w : "") : null; }
 
   // ───── mavzu (yorug' / qorong'i) ─────
   var store = {
@@ -1270,14 +1279,14 @@
   }
 
   // ───── kartochkalar ─────
-  function posterNode(it) {
+  function posterNode(it, w) {
     var box = h("div", "poster");
     var ph = h("div", "ph", [icon(CAT_ICON[it.cat] || "film"), h("span", null, it.title)]);
     var x = hue(it.title || "");
     ph.style.setProperty("--c1", "hsl(" + (24 + x % 22) + "," + (42 + x % 20) + "%," + (30 + x % 12) + "%)");
     ph.style.setProperty("--c2", "hsl(" + (20 + x % 15) + ",25%,8%)");
     box.appendChild(ph);
-    var url = posterUrl(it);
+    var url = posterUrl(it, w || 360);
     if (url) {
       var img = new Image();
       img.alt = ""; img.loading = "lazy"; img.decoding = "async";
@@ -1367,13 +1376,13 @@
     }
     items.forEach(function (it, i) {
       var bg = h("div", "bg" + (it.poster ? "" : " ph"));
-      if (it.poster) bg.style.backgroundImage = "url('" + posterUrl(it) + "')";
+      if (it.poster) bg.style.backgroundImage = "url('" + posterUrl(it, 720) + "')";
       var s = h("div", "slide" + (i === 0 ? " on" : ""), [bg]);
       s.setAttribute("aria-hidden", i === 0 ? "false" : "true");
       if (i !== 0) s.inert = true;
       if (it.poster) {   // keng ekranda — o'tkir poster kartasi (orqa fon xira)
         var hp = h("div", "hp");
-        var im = new Image(); im.alt = ""; im.decoding = "async"; im.src = posterUrl(it);
+        var im = new Image(); im.alt = ""; im.decoding = "async"; im.src = posterUrl(it, 720);
         hp.appendChild(im);
         s.appendChild(hp);
       } else {
@@ -1494,8 +1503,19 @@
     return row;
   }
 
+  function glinkRow(it) {
+    var b = h("button", "btn soft glink", [icon("tv"), "Qolgan qismlar — guruhda"]);
+    b.onclick = function () { haptic(); openLink(it.glink); };
+    return h("div", "actions", [b]);
+  }
   function openLink(url) {
     if (!PUB && tg && tg.openTelegramLink && /^https:\/\/t\.me\//.test(url)) { try { tg.openTelegramLink(url); return; } catch (e) {} }
+    if (PUB && !APP) {            // brauzerda: sayt ochiq qolsin — havola yangi varaqda
+      var a = document.createElement("a");
+      a.href = url; a.target = "_blank"; a.rel = "noopener";
+      document.body.appendChild(a); a.click(); a.remove();
+      return;
+    }
     window.location.href = url;  // ilovada Telegram ilovasida ochiladi
   }
   function botLink(it) { return "https://t.me/" + me.bot + "?start=" + (it.code < 0 ? "m" + (-it.code) : it.code); }
@@ -1668,7 +1688,7 @@
     }
     for (var k = 0; k < COPIES; k++) {
       items.forEach(function (it, i) {
-        var c = h("button", "cfc", [posterNode(it), h("span", "rkb", String(i + 1)), h("span", "cfhint", [icon("chev")])]);
+        var c = h("button", "cfc", [posterNode(it, 720), h("span", "rkb", String(i + 1)), h("span", "cfhint", [icon("chev")])]);
         c.type = "button"; c._i = i;
         c.setAttribute("aria-label", (i + 1) + ". " + it.title);
         c.setAttribute("aria-expanded", "false");
@@ -1863,8 +1883,48 @@
   // splash animatsiyasi paytida bosh sahifa chizilmaydi (qotib qolmasin): ma'lumot oldindan olinadi, chizish animatsiya tugagach
   var splashGate = null, homePre = null;
   function navKey(name) { return name === "video" ? "movie" : name; }
+  // ───── 🧭 brauzer tarixi (oddiy brauzer / o'rnatilgan ilova): «orqaga» tugmasi oynani yopadi, URL kino manzili bo'ladi ─────
+  // Telegram ichida o'zining «Orqaga» tugmasi bor — u yerda tarix yozuvlari qo'shilmaydi.
+  var HIST = PUB, histFirst = true, skipPop = 0;
+  var VIEW_PATH = { home: "/", movie: "/kinolar", serial: "/seriallar", cartoon: "/multfilmlar" };
+  function kOf(it) { return it.code > 0 ? String(it.code) : "m" + (-it.code); }
+  function pushView(name, opts) {
+    if (!HIST) return;
+    try {
+      var o = {};
+      if (opts) { if (opts.id != null) o.id = opts.id; if (opts.sort) o.sort = opts.sort; if (opts.f) o.f = opts.f; if (opts.start != null) o.start = opts.start; }
+      var st = { v: name, o: o };
+      if (histFirst) { histFirst = false; history.replaceState(st, "", undefined); return; }   // birinchi ko'rinish: yangi yozuv yo'q
+      var cur = history.state;
+      if (cur && !cur.sheet && cur.v === name && JSON.stringify(cur.o || {}) === JSON.stringify(o)) return;
+      history.pushState(st, "", VIEW_PATH[name] || ("/?v=" + name));
+    } catch (e) {}
+  }
+  function pushSheet(it) {
+    if (!HIST) return;
+    try {
+      var st = { sheet: kOf(it) };
+      if (sheetOpen) history.replaceState(st, "", moviePath(it)); else history.pushState(st, "", moviePath(it));
+    } catch (e) {}
+  }
+  window.addEventListener("popstate", function (e) {
+    if (!HIST) return;
+    if (skipPop > 0) { skipPop--; return; }
+    var st = e.state || {};
+    if (trailerOpen) closeTrailer(true);
+    if (st.sheet) {
+      if (sheetOpen) return;
+      api("/api/catalog?k=" + st.sheet).then(function (d) { if (d.ok && d.items && d.items.length) openSheet(d.items[0], true); }).catch(function () {});
+      return;
+    }
+    if (sheetOpen) closeSheet(true);
+    if (st.v && st.v !== current) show(st.v, Object.assign({ nopush: true }, st.o || {}));
+    else if (!st.v && current !== "home") show("home", { nopush: true });
+  });
+
   function show(name, opts) {
     opts = opts || {};
+    if (!opts.nopush) pushView(name, opts);
     current = name;
     stopHero();
     leaveShorts();
@@ -2570,7 +2630,7 @@
       el.dataset.idx = idx;
       var isVideo = it.short.kind === "video";
       // 1) orqa fon: shu kadrning o'zi (yoki poster) xira holda
-      var bgSrc = isVideo ? (it.poster ? posterUrl(it) : "") : "/media/short/" + it.short.id;
+      var bgSrc = isVideo ? (it.poster ? posterUrl(it, 720) : "") : "/media/short/" + it.short.id;
       var sbg = h("div", "sbg" + (bgSrc ? "" : " none"));
       if (bgSrc) sbg.style.backgroundImage = "url('" + bgSrc + "')";
       el.appendChild(sbg);
@@ -2582,7 +2642,7 @@
         media = document.createElement("video");
         media.setAttribute("playsinline", ""); media.setAttribute("webkit-playsinline", "");
         media.muted = shortsMuted; media.loop = true; media.preload = "metadata";
-        if (it.poster) media.poster = posterUrl(it);
+        if (it.poster) media.poster = posterUrl(it, 720);
         media.dataset.src = "/media/short/" + it.short.id;
         media._toggle = function () {
           if (media.paused) { media.play(); el.classList.remove("is-paused"); }
@@ -2722,13 +2782,13 @@
       if (it.poster) {
         var img = new Image(); img.alt = "";
         img.onload = function () { cover.replaceChildren(img); };
-        img.src = posterUrl(it);
+        img.src = posterUrl(it, 360);
       }
       document.body.classList.add("has-player");
       if ("mediaSession" in navigator) {
         try {
           navigator.mediaSession.metadata = new MediaMetadata({ title: nm.song, artist: nm.artist, album: me.brand,
-            artwork: it.poster ? [{ src: location.origin + posterUrl(it), sizes: "320x320", type: "image/jpeg" }] : [] });
+            artwork: it.poster ? [{ src: location.origin + posterUrl(it, 360), sizes: "320x320", type: "image/jpeg" }] : [] });
         } catch (e) {}
       }
     }
@@ -2963,6 +3023,7 @@
         res.forEach(function (d, i) {
           if (!d.ok || !d.items.length) return;
           total += d.items.length;
+          if (d.fuzzy && !results.querySelector(".fuzzy-note")) results.appendChild(h("div", "fuzzy-note", "🤔 Aniq mos kelmadi — o'xshash nomlar:"));
           var cat = d.items[0].cat || cats[i];
           results.appendChild(h("div", "group-title", PLURAL[cat] + " · " + d.items.length + (d.more ? "+" : "")));
           var g = h("div", "grid" + (cat === "music" ? " music" : ""));
@@ -3025,15 +3086,16 @@
       if (tg && tg.MainButton) { if (mainHandler) tg.MainButton.offClick(mainHandler); mainHandler = null; tg.MainButton.hide(); }
     } catch (e) {}
   }
-  function openSheet(it) {
+  function openSheet(it, fromPop) {
     haptic();
+    if (!fromPop) pushSheet(it);
     var s = $("sheet");
     if (!sheetOpen) lastFocus = document.activeElement;
     var bg = h("div", "bg" + (it.poster ? "" : " ph"));
-    if (it.poster) bg.style.backgroundImage = "url('" + posterUrl(it) + "')";
+    if (it.poster) bg.style.backgroundImage = "url('" + posterUrl(it, 360) + "')";
     var closeBtn = h("button", "ibtn close", [icon("x")]);
     closeBtn.setAttribute("aria-label", "Yopish");
-    closeBtn.onclick = closeSheet;
+    closeBtn.onclick = function () { closeSheet(); };
     var chips = h("div", "chips", [h("span", "chip", NAMES[it.cat] || "Kino"), it.code > 0 ? h("span", "chip", "Kod: " + it.code) : null]);
     if (it.year) chips.appendChild(h("span", "chip", String(it.year)));
     if (it.age) chips.appendChild(h("span", "chip", it.age + "+"));
@@ -3066,9 +3128,10 @@
     s.setAttribute("aria-label", it.title);
     s.replaceChildren(
       h("div", "sheet-top", [bg, h("div", "grip"), closeBtn]),
-      h("div", "sheet-main", [posterNode(it), h("div", "info", [h("h3", null, it.title), ratingBadges(it), chips, stats.childNodes.length ? stats : null])]),
+      h("div", "sheet-main", [posterNode(it, 720), h("div", "info", [h("h3", null, it.title), ratingBadges(it), chips, stats.childNodes.length ? stats : null])]),
       desc,
       actionRow(it, false),
+      it.glink ? glinkRow(it) : null,
       it.cat === "music" ? null : rateRow(it),
       me.admin ? adminBar(it) : null,
       h("div", "note", it.locked ? "Bu kontent Premium a'zolar uchun. Bot chatida Premium olish tugmasi chiqadi."
@@ -3095,17 +3158,20 @@
     updateBack();
     setTimeout(function () { try { closeBtn.focus({ preventScroll: true }); } catch (e) {} }, 60);
   }
-  function closeSheet() {
+  function closeSheet(fromPop) {
     closeTrailer(true);
     $("veil").classList.remove("on");
     $("sheet").classList.remove("on");
     sheetOpen = false;
     hideMain();
+    if (HIST && fromPop !== true) {
+      try { if (history.state && history.state.sheet) { skipPop++; history.back(); } } catch (e) {}
+    }
     if (current === "home") restartHero();
     updateBack();
     if (lastFocus && lastFocus.focus && document.body.contains(lastFocus)) { try { lastFocus.focus({ preventScroll: true }); } catch (e) {} }
   }
-  $("veil").onclick = closeSheet;
+  $("veil").onclick = function () { closeSheet(); };
 
   // ───── ✏️ admin: kinoni shu yerning o'zida tahrirlash ─────
   function adminBar(it) {
@@ -3242,7 +3308,7 @@
     var v = document.createElement("video");
     v.controls = true; v.autoplay = true; v.playsInline = true; v.setAttribute("playsinline", "");
     v.preload = "metadata";
-    if (it.poster) v.poster = posterUrl(it);
+    if (it.poster) v.poster = posterUrl(it, 720);
     v.src = "/media/short/" + it.trailer;
     var close = h("button", "ibtn tclose", [icon("x")]);
     close.setAttribute("aria-label", "Yopish");
@@ -3415,7 +3481,9 @@
     var link = "";
     try { var qp = new URLSearchParams(location.search); link = qp.get("k") || qp.get("v") || pathInfo().k || (pathInfo().view ? "v" : ""); } catch (e) {}
     var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (link || reduce) { el.remove(); return; }   // kanal postidagi havola — kino darhol ochilsin
+    var seen = +store.get("wt") || 0;
+    if (link || reduce || Date.now() - seen < 6 * 3600e3) { el.remove(); return; }   // havola yoki yaqinda ko'rsatilgan — to'g'ri saytga
+    store.set("wt", String(Date.now()));
     var user = !PUB && tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
     var first = user && user.first_name ? String(user.first_name).trim().slice(0, 18) : "";
     var openGate;
@@ -3467,7 +3535,7 @@
       if (d.ok && d.items && d.items.length) openSheet(d.items[0]);
       else toast("😔 Bu kino topilmadi yoki o'chirilgan");
     }).catch(function () {});
-    try { history.replaceState(null, "", "/"); } catch (e) {}
+    try { if (HIST) history.replaceState({ v: current, o: {} }, "", "/"); else history.replaceState(null, "", "/"); histFirst = false; } catch (e) {}
   })();
 })();
 </script>

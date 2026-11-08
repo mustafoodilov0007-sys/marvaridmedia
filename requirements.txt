@@ -1,2 +1,4 @@
-# Bot faqat Python'ning standart kutubxonalari bilan ishlaydi —
-# qo'shimcha paket o'rnatish shart emas (Python 3.8+).
+# Bot Python'ning standart kutubxonalari bilan ishlaydi.
+# Pillow — ixtiyoriy: bo'lsa, saytdagi posterlarning kichik nusxalari yaratiladi (sekin internetda 3–5 baravar tez).
+# Bo'lmasa ham hamma narsa ishlayveradi (asl rasm beriladi).
+pillow>=10.0

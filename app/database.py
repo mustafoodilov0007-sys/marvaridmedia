@@ -289,7 +289,7 @@ CATEGORIES = ("movie", "serial", "cartoon", "music")
 
 _CATALOG_ROW = """
 SELECT m.id, m.code, m.title, m.description, m.is_premium, m.views, m.created_at, m.category, m.poster_id,
-       m.genres, m.year, m.country, m.lang, m.quality, m.duration, m.age, m.imdb,
+       m.genres, m.year, m.country, m.lang, m.quality, m.duration, m.age, m.imdb, m.group_link,
        (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = 1) AS likes,
        (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = -1) AS dislikes,
        (SELECT s.id FROM shorts s WHERE s.movie_id = m.id AND s.kind = 'video' ORDER BY s.id LIMIT 1) AS trailer,
