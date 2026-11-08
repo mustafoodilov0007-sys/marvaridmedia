@@ -797,7 +797,7 @@
     .top .ibtn, .top .avatar { width: 36px; height: 36px; border-radius: 11px; } .top .ibtn svg { width: 18px; height: 18px; }
     .top.adm #bChannel { display: none; }
   }
-  @media (max-width: 380px) { .top.adm #bStats { display: none; } .top .word .w2 { display: none; } }
+  @media (max-width: 380px) { .top .word .w2 { display: none; } }
   .fuzzy-note { margin: 4px 2px 14px; color: var(--muted); font-size: 15px; }
   .btn.glink { width: 100%; }
 
@@ -863,16 +863,20 @@
   :root[data-theme="light"] .dot { background: rgba(60,40,10,.22); } :root[data-theme="light"] .dot.on { background: rgba(60,40,10,.14); }
 
   /* ═══════════════ 🆕 v2: yangi vizual tizim — toza, tinch, kontent birinchi ═══════════════ */
-  :root { --bg: #0a0c10; --bg-soft: #0f1218; --surface: #141820; --surface-2: #1c212b; --line: rgba(255,255,255,.07);
-    --text: #f3f5f8; --muted: #8b93a1; --accent: #f2b544; --accent-2: #f2b544; --on-grad: #1a1204; --glow: rgba(242,181,68,.2);
-    --grad: #f2b544; --gold: #f2b544; --shadow: 0 8px 24px rgba(0,0,0,.4); --nav-h: 62px; --r: 14px; }
-  :root[data-theme="light"] { --bg: #f4f5f8; --bg-soft: #eceef3; --surface: #ffffff; --surface-2: #eef0f5; --line: rgba(15,20,35,.09);
-    --text: #12151c; --muted: #5d6676; --accent: #c98a14; --accent-2: #8a5a05; --gold: #8a5a05; --shadow: 0 8px 24px rgba(20,28,50,.1); }
-  .amb { display: none !important; }
+  :root { --bg: #0c0a08; --bg-soft: #120e0b; --surface: #18130f; --surface-2: #221b15; --line: rgba(255,226,180,.09);
+    --text: #f8f2e9; --muted: #a69d90; --accent: #f6b73c; --accent-2: #f6b73c; --on-grad: #1d1405; --glow: rgba(246,183,60,.22);
+    --grad: #f6b73c; --gold: #f6b73c; --shadow: 0 8px 24px rgba(0,0,0,.45); --nav-h: 62px; --r: 14px; }
+  :root[data-theme="light"] { --bg: #f7f3ec; --bg-soft: #efe9de; --surface: #ffffff; --surface-2: #f0e9dc; --line: rgba(70,45,10,.1);
+    --text: #1c150c; --muted: #6b5f4e; --accent: #c98a14; --accent-2: #8a5a05; --gold: #8a5a05; --shadow: 0 8px 24px rgba(40,28,10,.12); }
   /* sarlavha: faqat logotip, qidiruv va profil. Qolganlari «Men» sahifasida */
-  .top #bSupport, .top #bStats, .top #bTheme, .top #bChannel { display: none !important; }
+  .top #bTheme, .top #bChannel { display: none !important; }
+  /* qo'llab-quvvatlash (hamma ko'radi) va statistika (faqat admin) — doim tepada */
+  :root .top .ibtn#bSupport { background: linear-gradient(145deg, #ff6b95, #ff2d6f); color: #fff; border: 0; box-shadow: 0 6px 18px rgba(255,45,111,.38); }
+  :root .top.solid .ibtn#bSupport { background: linear-gradient(145deg, #ff6b95, #ff2d6f); color: #fff; }
+  :root .top .ibtn#bStats, :root .top.solid .ibtn#bStats { background: var(--accent); color: var(--on-grad); }
   .top { gap: 10px; }
-  .top .ibtn, .top .avatar { border-radius: 50%; }
+  .top .ibtn, .top .avatar { border-radius: 14px; }
+  @media (max-width: 520px) { .word .w2 { display: none; } }
   .ibtn { background: rgba(10,12,16,.45); border: 0; }
   .top.solid .ibtn { background: var(--surface); border: 0; }
   .emblem { width: 34px; height: 34px; filter: none; }
@@ -922,6 +926,48 @@
   .ctab.on { background: var(--text); color: var(--bg); border-color: var(--text); }
   .chip.gold, .badge.gold, .cm-badge.pre { color: #f2b544; }   /* qora fonli belgilar: har ikki mavzuda oltin matn */
   @media (min-width: 900px) { .ctabs { margin-left: 0; margin-right: 0; padding: 0; } }
+
+  /* qidiruv qatori va dumaloq ikonkalar */
+  .htools { padding: 4px 16px 0; }
+  .hsearch { display: flex; align-items: center; gap: 10px; width: 100%; height: 52px; padding: 0 8px 0 16px; border-radius: 16px; background: var(--surface);
+    border: 1px solid var(--line); color: var(--muted); font-size: 15px; font-weight: 500; text-align: left; }
+  .hsearch > svg { width: 20px; height: 20px; flex: none; } .hsearch span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hsearch i { width: 38px; height: 38px; border-radius: 12px; background: var(--accent); color: var(--on-grad); display: grid; place-items: center; flex: none; }
+  .hsearch i svg { width: 20px; height: 20px; }
+  .scs { display: flex; gap: 14px; overflow-x: auto; padding: 16px 2px 4px; margin: 0 -16px; padding-left: 18px; padding-right: 18px; scrollbar-width: none; }
+  .scs::-webkit-scrollbar { display: none; }
+  .sc { flex: none; width: 66px; display: flex; flex-direction: column; align-items: center; gap: 7px; }
+  .scico { width: 58px; height: 58px; border-radius: 20px; display: grid; place-items: center; font-size: 28px; box-shadow: 0 8px 18px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.35);
+    transition: transform .2s; }
+  .sc:active .scico { transform: scale(.92); }
+  .sclab { font-size: 11.5px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  @media (min-width: 900px) { .htools { padding: 8px var(--pad) 0; max-width: 760px; } .scs { margin: 0; padding-left: 2px; } }
+  /* 🏆 Haftaning TOP-5 banneri */
+  .tb { padding: 0 16px; }
+  .tb-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); margin-bottom: 12px; }
+  .tb-tab { flex: 1; padding: 10px 0; border-radius: 12px; font-size: 14px; font-weight: 600; color: var(--muted); transition: background .25s, color .25s; }
+  .tb-tab.on { background: var(--text); color: var(--bg); }
+  .tb-view { overflow: hidden; border-radius: 24px; background: linear-gradient(135deg, var(--surface-2), var(--surface)); border: 1px solid var(--line); touch-action: pan-y; }
+  .tb-track { display: flex; will-change: transform; }
+  .tb-slide { flex: 0 0 100%; min-width: 0; display: flex; align-items: stretch; gap: 14px; padding: 18px; cursor: pointer; opacity: .45; transform: scale(.97); transition: opacity .5s, transform .5s; }
+  .tb-slide.on { opacity: 1; transform: none; }
+  .tb-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+  .tb-kick { font-size: 12.5px; font-weight: 700; color: var(--accent-2); letter-spacing: .02em; }
+  .tb-txt h3 { margin: 0; font-size: 23px; line-height: 1.12; font-weight: 800; letter-spacing: -.02em; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .tb-meta { font-size: 13px; color: var(--muted); font-weight: 500; } .tb-type { font-size: 13px; color: var(--muted); margin-top: -4px; }
+  .tb-go { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; height: 40px; padding: 0 16px; border-radius: 13px; background: var(--accent); color: var(--on-grad);
+    font-weight: 700; font-size: 14px; } .tb-go svg { width: 16px; height: 16px; }
+  .tb-poster { width: 118px; flex: none; align-self: center; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 26px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.1); }
+  .tb-poster .poster { border-radius: 0; }
+  .tb-slide.on .tb-txt > * { animation: rise .6s cubic-bezier(.2,.75,.2,1) both; }
+  .tb-slide.on .tb-txt > :nth-child(2) { animation-delay: .06s; } .tb-slide.on .tb-txt > :nth-child(3) { animation-delay: .12s; }
+  .tb-slide.on .tb-txt > :nth-child(4) { animation-delay: .16s; } .tb-slide.on .tb-txt > :nth-child(5) { animation-delay: .2s; }
+  .tb-slide.on .tb-poster { animation: tbpop .6s cubic-bezier(.2,.9,.25,1.1) both; }
+  @keyframes tbpop { from { opacity: 0; transform: translateX(26px) scale(.92) rotate(3deg); } to { opacity: 1; transform: none; } }
+  .tb-dots { display: flex; justify-content: center; gap: 6px; margin-top: 12px; }
+  .tb-dots i { width: 6px; height: 6px; border-radius: 3px; background: var(--line); background: color-mix(in srgb, var(--muted) 45%, transparent); transition: width .3s, background .3s; cursor: pointer; }
+  .tb-dots i.on { width: 22px; background: var(--accent); }
+  @media (min-width: 900px) { .tb { padding: 0 var(--pad); } .tb-view, .tb-tabs { max-width: 860px; } .tb-poster { width: 150px; } .tb-txt h3 { font-size: 30px; } }
   /*/REDESIGN*/
 
   /* kichikroq noutbuk / keng bo'lmagan oynalar: sarlavha sig'sin */
@@ -1973,11 +2019,97 @@
     row.appendChild(rnd);
     return h("div", "qwrap", [row]);
   }
+  // 🔎 qidiruv qatori va dumaloq tezkor ikonkalar (Ommabop, Yangi, ...)
+  function homeTools() {
+    var sb = h("button", "hsearch", [icon("search"), h("span", null, "Kino nomi yoki kodi..."), h("i", null, [icon("dice")])]);
+    sb.setAttribute("aria-label", "Qidirish");
+    sb.onclick = function (e) {
+      haptic();
+      if (e.target.closest("i")) randomMovie(); else show("search");
+    };
+    var row = h("div", "scs");
+    [["🔥", "Ommabop", "linear-gradient(145deg,#ff8a3d,#e0481b)", function () { show("video", { sort: "top" }); }],
+     ["🆕", "Yangi", "linear-gradient(145deg,#4cc9ff,#2a7de1)", function () { show("video", { sort: "new" }); }],
+     ["📺", "Seriallar", "linear-gradient(145deg,#b58cff,#6a45d6)", function () { show("serial"); }],
+     ["🧸", "Multfilm", "linear-gradient(145deg,#ffcf5c,#e8962b)", function () { show("cartoon"); }],
+     ["🎵", "Musiqa", "linear-gradient(145deg,#ff7aa8,#d63d78)", function () { show("music"); }],
+     ["🗂", "Kategoriya", "linear-gradient(145deg,#6fe0b5,#1f9d7a)", function () { show("cats"); }],
+     ["🎲", "Tasodifiy", "linear-gradient(145deg,#c9c3b8,#7d7668)", function () { randomMovie(); }]].forEach(function (o) {
+      var b = h("button", "sc", [h("span", "scico", o[0]), h("span", "sclab", o[1])]);
+      b.querySelector(".scico").style.background = o[2];
+      b.onclick = function () { haptic(); o[3](); };
+      row.appendChild(b);
+    });
+    return h("div", "htools", [sb, row]);
+  }
+  // 🏆 Haftaning TOP-5: tablar (Hammasi / Filmlar / Seriallar) va yon tomonga suriladigan kartalar
+  function topBanner(items) {
+    var sec = h("section", "section tb");
+    var mode = "all", idx = 0, timer = null, list = [];
+    var tabsRow = h("div", "tb-tabs");
+    var track = h("div", "tb-track"), dots = h("div", "tb-dots");
+    var view = h("div", "tb-view", [track]);
+    function pool(m) {
+      return items.filter(function (it) { return m === "all" || (m === "movie" ? it.cat !== "serial" : it.cat === "serial"); }).slice(0, 5);
+    }
+    [["all", "Hammasi"], ["movie", "Filmlar"], ["serial", "Seriallar"]].forEach(function (o) {
+      if (o[0] !== "all" && !pool(o[0]).length) return;
+      var b = h("button", "tb-tab" + (o[0] === mode ? " on" : ""), o[1]);
+      b.onclick = function () {
+        if (mode === o[0]) return; haptic(); mode = o[0];
+        tabsRow.querySelectorAll(".tb-tab").forEach(function (x) { x.classList.toggle("on", x === b); });
+        build();
+      };
+      tabsRow.appendChild(b);
+    });
+    function metaOf(it) {
+      var bits = [it.year ? String(it.year) : "", (it.genres && it.genres[0]) ? it.genres[0].label : "", it.imdb ? "★ " + it.imdb : ""].filter(Boolean);
+      return bits.join(" · ");
+    }
+    function slide(it, i) {
+      var btn = h("button", "tb-go", [icon(it.locked ? "lock" : "send"), it.locked ? "Premium" : (PUB ? "Telegramda ochish" : "Botga yuborish")]);
+      btn.onclick = function (e) { e.stopPropagation(); watch(it, btn); };
+      var s2 = h("div", "tb-slide", [
+        h("div", "tb-txt", [h("div", "tb-kick", "🏆 Hafta topi №" + (i + 1)), h("h3", null, it.title),
+          h("div", "tb-meta", metaOf(it)), h("div", "tb-type", NAMES[it.cat] || "Kino"), btn]),
+        h("div", "tb-poster", [posterNode(it, 360)])]);
+      s2.onclick = function () { openSheet(it); };
+      return s2;
+    }
+    function go(i, instant) {
+      if (!list.length) return;
+      idx = (i + list.length) % list.length;
+      track.style.transition = instant || REDUCE ? "none" : "transform .55s cubic-bezier(.22,.8,.22,1)";
+      track.style.transform = "translateX(" + (-idx * 100) + "%)";
+      track.querySelectorAll(".tb-slide").forEach(function (x, k) { x.classList.toggle("on", k === idx); });
+      dots.querySelectorAll("i").forEach(function (d, k) { d.classList.toggle("on", k === idx); });
+    }
+    function restart() { clearInterval(timer); if (list.length > 1 && !REDUCE) timer = setInterval(function () { if (document.body.contains(sec) && !sheetOpen) go(idx + 1); }, 4500); }
+    function build() {
+      list = pool(mode);
+      track.replaceChildren(); dots.replaceChildren();
+      list.forEach(function (it, i) {
+        track.appendChild(slide(it, i));
+        var d = h("i"); d.onclick = function () { go(i); restart(); }; dots.appendChild(d);
+      });
+      go(0, true); restart();
+    }
+    var x0 = null;
+    view.addEventListener("touchstart", function (e) { x0 = e.touches[0].clientX; clearInterval(timer); }, { passive: true });
+    view.addEventListener("touchend", function (e) {
+      if (x0 != null) { var dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40) go(idx + (dx < 0 ? 1 : -1)); }
+      x0 = null; restart();
+    }, { passive: true });
+    build();
+    sec.appendChild(tabsRow); sec.appendChild(view); sec.appendChild(dots);
+    return sec;
+  }
   function renderHome(view, data) {
+    startAmbient();
     homeGenres = data.genres || [];
     view.replaceChildren(heroView(data.hero || []));
     if (PUB && me.miniapp) view.appendChild(openInTelegram());
-    view.appendChild(quickChips(homeGenres));
+    view.appendChild(homeTools());
     var any = false;
     var byKey = {};
     (data.rails || []).forEach(function (r) { byKey[r.key] = r; });
@@ -1986,19 +2118,18 @@
     var tp = byKey.top, weekly = data.weekly || [];
     var topRail = tp && tp.items.length ? rail(Object.assign({}, tp, { title: "Eng ko'p ko'rilgan", items: tp.items.slice(0, 10),
       cls: "rankrail", wrapItem: rankItem })) : null;
-    if (weekly.length >= 3) {
-      add(rail({ title: "Haftaning TOP-10", items: weekly.slice(0, 10), cat: "video", sort: "top", cls: "rankrail", wrapItem: rankItem }));
-    }
+    if (weekly.length >= 1) add(topBanner(weekly));
     var hist = PUB ? localHist : (data.history || []);
     if (hist.length) add(rail({ title: "🕘 Davom ettiring", items: hist, cls: "hist" }));
+    (data.collections || []).forEach(function (c) {
+      add(rail({ title: c.title, items: c.items, more: function () { show("col", { id: c.id }); } }));
+    });
+    if (weekly.length >= 3) add(coverflow({ title: "🔥 Haftaning TOP'i", items: weekly, cat: "video", sort: "top" }));
     if (data.foryou && data.foryou.length) add(rail({ title: "🎯 Siz uchun", items: data.foryou }));
     var nw = byKey["new"]; if (nw && nw.items.length) add(rail(nw));
     if (topRail && weekly.length < 3) add(topRail);
     if (data.searched && data.searched.length >= 3) add(rail({ title: "🔎 Eng ko'p qidirilgan", items: data.searched }));
     if (data.choice && data.choice.length) add(rail({ title: "👑 Tomoshabinlar tanlovi", items: data.choice }));
-    (data.collections || []).forEach(function (c) {
-      add(rail({ title: c.title, items: c.items, more: function () { show("col", { id: c.id }); } }));
-    });
     (data.extra || []).forEach(function (r) { add(rail(r)); });
     ["serial", "cartoon"].forEach(function (k) { var r = byKey[k]; if (r && r.items.length) add(rail(r)); });
     if (data.shorts && data.shorts.length) {
