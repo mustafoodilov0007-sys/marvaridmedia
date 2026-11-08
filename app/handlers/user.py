@@ -47,6 +47,10 @@ SPECIAL_RE = re.compile(r"sorov|premium|promo|taklif|donat|r\d{1,12}")  # /start
 
 def run_special_payload(ctx: Ctx, payload: str) -> bool:
     """/start ga berilgan maxsus havolani bajaradi (so'rov, premium, promokod, taklif, donat). Bajarilsa True."""
+    if payload.startswith("wl_"):  # saytga kirish: «Telegram orqali kirish» tugmasidan
+        from .weblogin import ask_confirm
+        ask_confirm(ctx, payload[3:])
+        return True
     if payload == "sorov":  # saytdagi «So'rash» tugmasidan
         from .contact import REQUEST_PROMPT, CONTACT_TTL
         ctx.set_state("req", ttl=CONTACT_TTL)

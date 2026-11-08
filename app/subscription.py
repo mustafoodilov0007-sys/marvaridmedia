@@ -91,6 +91,8 @@ def check_gate(ctx: Ctx) -> bool:
     """Router uchun: obuna bo'lmagan bo'lsa obuna oynasini ko'rsatadi va False qaytaradi."""
     if not needs_gate(ctx):
         return True
+    if ctx.message is not None and ctx.text.strip().startswith("/start wl_"):   # saytga kirishni tasdiqlash — obunadan oldin ham
+        return True
     statuses = channel_statuses(ctx.app, ctx.user_id)
     if all_joined(statuses):
         return True

@@ -167,6 +167,13 @@ top-5 kino va **❓ topilmagan so'rovlar** (qaysi kinoni qo'shish kerakligini ko
 
 ---
 
+### 🔐 Saytga kirish
+Brauzerdagi mehmon **Telegram** yoki **Google** hisobi bilan kirishi mumkin («Men» sahifasi yoki izoh/baho bosilganda).
+- **Telegram:** sayt bir martalik havola beradi → botda «✅ Ha, men» bosiladi → sayt o'zi kiradi. Parol yo'q, BotFather sozlamasi shart emas.
+  Kirgan Telegram foydalanuvchisi kinoni to'g'ridan-to'g'ri o'z chatiga olishi, izoh yozishi va baho berishi mumkin; admin/Premium huquqlari saytda ham amal qiladi.
+- **Google:** `GOOGLE_CLIENT_ID` o'rnatilsa tugma paydo bo'ladi. Google hisobi izoh yoza oladi va baho bera oladi; kinoni botga yuborish uchun Telegram havolasi ochiladi.
+- Sessiya shu qurilmada 90 kun saqlanadi; «Men» → «Hisobdan chiqish».
+
 ### 💬 Saytdagi izohlar
 Kino oynasida (Telegram orqali ochilganda) izoh qoldirish, javob berish, yoqtirish va shikoyat qilish mumkin. Brauzerdagi mehmonlar izohlarni o'qiydi.
 Himoya: havola/@user taqiqlanadi (adminlarga mumkin), 20 soniyada 1 ta va soatiga 12 ta chegara, takror izoh rad etiladi, 3 ta shikoyatda izoh
@@ -306,6 +313,7 @@ data/             — baza va loglar (avtomatik yaratiladi)
 
 | O'zgaruvchi | Nima uchun |
 |---|---|
+| `GOOGLE_CLIENT_ID` | Saytda «Google orqali kirish» tugmasi uchun (ixtiyoriy; «Telegram orqali kirish» bunsiz ham ishlaydi). Olish: console.cloud.google.com → APIs & Services → OAuth consent screen (External) → Credentials → Create credentials → OAuth client ID → *Web application* → **Authorized JavaScript origins** ga sayt manzilini yozing (`https://marvaridmedia-production.up.railway.app`, domen ulasangiz — uni ham) → chiqqan Client ID ni shu o'zgaruvchiga qo'ying. |
 | `TMDB_API_KEY` | Kino ma'lumotini (yil, janr, davlat, davomiylik, yosh, izoh) avtomatik to'ldirish. Bepul kalit: themoviedb.org → Settings → API. Ishlatish: admin → kino → «🏷 Janr...» → «🌐 TMDB dan avtomatik to'ldirish» yoki saytdagi «✏️ Tahrirlash» → «🌐 TMDB dan to'ldirish». |
 | `OMDB_API_KEY` | *(ixtiyoriy)* IMDb reytingini ham olish. Bepul kalit: omdbapi.com |
 | `TMDB_LANG` | *(ixtiyoriy)* izoh tili, standart `ru-RU` (topilmasa inglizcha) |

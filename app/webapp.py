@@ -17,6 +17,7 @@ import re
 import threading
 import time
 import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
@@ -68,6 +69,69 @@ def check_init_data(init_data: str, token: str, max_age: int = INIT_DATA_MAX_AGE
 # ═════════════════════════ API ═════════════════════════
 
 GUEST = {"id": 0, "first_name": ""}  # ilova / brauzer: premium huquqisiz mehmon
+
+
+def _upsert(app: App, user: dict) -> None:
+    """Telegram foydalanuvchisini «users» jadvaliga yozadi. Google akkauntlar (manfiy ID) u yerga kirmaydi."""
+    if (user.get("id") or 0) > 0:
+        app.db.upsert_user(user)
+
+
+def _session_user(app: App, token: str) -> Optional[dict]:
+    """X-Session sarlavhasidagi kirish sessiyasidan foydalanuvchi (Telegram yoki Google akkaunt)."""
+    uid = app.db.session_user(token)
+    if uid is None:
+        return None
+    if uid > 0:
+        row = app.db.get_user(uid)
+        return {"id": uid, "first_name": (row["first_name"] if row else "") or "", "username": (row["username"] if row else "") or "", "_web": True}
+    acc = app.db.get_web_account(uid)
+    if not acc:
+        return None
+    return {"id": uid, "first_name": acc["name"] or "Foydalanuvchi", "_web": True, "_photo": acc["photo"]}
+
+
+def _google_verify(app: App, credential: str) -> Optional[dict]:
+    """Google ID-token ni Google'ning o'zida tekshiradi (imzo, muddat). To'g'ri bo'lsa — foydalanuvchi ma'lumoti."""
+    cid = app.config.google_client_id
+    if not cid or not credential or len(credential) > 4096:
+        return None
+    try:
+        url = "https://oauth2.googleapis.com/tokeninfo?" + urllib.parse.urlencode({"id_token": credential})
+        with urllib.request.urlopen(url, timeout=8) as r:
+            d = json.loads(r.read().decode("utf-8"))
+    except Exception:       # noqa: BLE001 — tarmoq/format xatosi: kirish rad etiladi
+        return None
+    if d.get("aud") != cid or d.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        return None
+    if str(d.get("email_verified")).lower() != "true" or int(d.get("exp") or 0) < time.time():
+        return None
+    return d
+
+
+def api_auth(app: App, path: str, body: dict) -> dict:
+    """🔐 Saytga kirish: Telegram (bot orqali tasdiqlash) yoki Google."""
+    db = app.db
+    if path == "/pub/auth/tg/start":
+        tok = db.create_login_token()
+        return {"ok": True, "token": tok, "link": f"https://t.me/{app.bot_username}?start=wl_{tok}"}
+    if path == "/pub/auth/tg/poll":
+        tok = str(body.get("token") or "")[:60]
+        row = db.get_login_token(tok) if tok else None
+        if not row:
+            return {"ok": False, "reason": "expired"}
+        if row["status"] != "done":
+            return {"ok": True, "status": "pending"}
+        db.drop_login_token(tok)
+        return {"ok": True, "status": "done", "session": db.create_session(row["user_id"]), "name": row["name"]}
+    if path == "/pub/auth/google":
+        info = _google_verify(app, str(body.get("credential") or ""))
+        if not info:
+            return {"ok": False, "reason": "google"}
+        uid = db.upsert_web_account("google", str(info.get("sub")), info.get("email") or "", info.get("name") or info.get("given_name") or "Foydalanuvchi",
+                                    info.get("picture") or "")
+        return {"ok": True, "session": db.create_session(uid), "name": info.get("name") or ""}
+    return {"ok": False, "reason": "not_found"}
 
 def _poster_key(poster_id: Optional[str]) -> Optional[str]:
     return hashlib.sha1(poster_id.encode()).hexdigest()[:12] if poster_id else None
@@ -209,7 +273,7 @@ def api_comment_post(app: App, user: dict, body: dict) -> dict:
         return {"ok": False, "reason": "not_found"}
     text = comments.clean(body.get("body"))
     uid = user["id"]
-    app.db.upsert_user(user)
+    _upsert(app, user)
     parent = 0
     if body.get("parent"):
         try:
@@ -330,7 +394,7 @@ def api_rate(app: App, user: dict, body: dict) -> dict:
         return {"ok": False, "reason": "bad"}
     if value not in (1, -1) or not app.db.get_movie(movie_id):
         return {"ok": False, "reason": "not_found"}
-    app.db.upsert_user(user)
+    _upsert(app, user)
     app.db.rate(user["id"], movie_id, value)
     return dict(app.db.rating(movie_id, user["id"]), ok=True)
 
@@ -511,7 +575,7 @@ def _channel_url(app: App) -> Optional[str]:
 
 def api_me(app: App, user: dict) -> dict:
     is_admin, vip = _user_flags(app, user["id"])
-    if user["id"]:   # tahlil: Telegram foydalanuvchisi saytni ochdi (kuniga bir marta), manba — start_param
+    if user["id"] > 0 and not user.get("_web"):   # tahlil: Telegram foydalanuvchisi saytni ochdi (kuniga bir marta), manba — start_param
         sp = user.get("_sp", "")
         try:
             app.db.site_visit(user["id"], "kanal" if sp.startswith("k") else ("menyu" if not sp else "boshqa"))
@@ -522,6 +586,10 @@ def api_me(app: App, user: dict) -> dict:
         "brand": app.brand,
         "bot": app.bot_username,
         "name": user.get("first_name") or "",
+        "web": bool(user.get("_web")),          # brauzerda hisob bilan kirgan
+        "tg": user["id"] > 0,                   # Telegram hisobi (botga yuborish mumkin)
+        "photo": user.get("_photo") or "",
+        "google": app.config.google_client_id,  # bo'sh bo'lsa — «Google orqali kirish» yashirin
         "premium": vip,
         "premium_on": app.setting_bool("premium_enabled"),
         "premium_until": app.db.premium_until(user["id"]) if user["id"] else 0,
@@ -737,10 +805,12 @@ def api_watch(app: App, user: dict, body: dict) -> dict:
     if not movie:
         return {"ok": False, "reason": "not_found"}
     uid = user["id"]
+    if uid < 0:      # Google akkaunt: Telegram chati yo'q — mijoz botga havola ochadi
+        return {"ok": False, "reason": "no_telegram"}
     update = {"message": {"message_id": 0, "date": int(time.time()), "from": user,
                           "chat": {"id": uid, "type": "private"}, "text": start_payload(movie["code"])}}
     ctx = Ctx(app, update)
-    app.db.upsert_user(user)
+    _upsert(app, user)
     if not ctx.is_admin and app.flooding(uid):
         return {"ok": False, "reason": "flood"}
     try:
@@ -762,10 +832,12 @@ def api_request(app: App, user: dict, body: dict) -> dict:
     query = str(body.get("q") or "").strip()[:200]
     if len(query) < 2:
         return {"ok": False, "reason": "short"}
+    if user["id"] < 0:
+        return {"ok": False, "reason": "no_telegram"}
     update = {"message": {"message_id": 0, "date": int(time.time()), "from": user,
                           "chat": {"id": user["id"], "type": "private"}, "text": query}}
     ctx = Ctx(app, update)
-    app.db.upsert_user(user)
+    _upsert(app, user)
     try:
         send_request(ctx, query)
     except Forbidden:
@@ -927,7 +999,7 @@ def api_play(app: App, user: dict, body: dict, guest: bool) -> dict:
         update = {"message": {"message_id": 0, "date": int(time.time()), "from": user,
                               "chat": {"id": user["id"], "type": "private"}, "text": start_payload(movie["code"])}}
         ctx = Ctx(app, update)
-        app.db.upsert_user(user)
+        _upsert(app, user)
         try:
             if app.router.gate_check and not app.router.gate_check(ctx):
                 return {"ok": False, "reason": "sub"}
@@ -1045,8 +1117,10 @@ def _kids_filter(o):
 # ───── 🌐 PWA va boy havola ko'rinishi (Open Graph) ─────
 
 # Telegram oynasi (web.telegram.org va ilovalar) ichida ochilishi uchun frame-ancestors ruxsat etilgan
-CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; "
-       "img-src 'self' data: blob: https://image.tmdb.org; font-src 'self'; media-src 'self' blob:; connect-src 'self'; "
+CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org https://accounts.google.com; "
+       "style-src 'self' 'unsafe-inline' https://accounts.google.com; frame-src https://accounts.google.com; "
+       "img-src 'self' data: blob: https://image.tmdb.org https://*.googleusercontent.com; font-src 'self'; media-src 'self' blob:; "
+       "connect-src 'self' https://accounts.google.com; "
        "object-src 'none'; base-uri 'self'; form-action 'self'; "
        "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org https://telegram.org")
 
@@ -1289,7 +1363,11 @@ def make_handler(app: App):
                     left -= len(chunk)
 
         def _user(self) -> Optional[dict]:
-            return check_init_data(self.headers.get("X-Init-Data", ""), app.config.token)
+            u = check_init_data(self.headers.get("X-Init-Data", ""), app.config.token)
+            if u:
+                return u
+            sess = self.headers.get("X-Session", "")
+            return _session_user(app, sess) if sess else None
 
         # ───── GET ─────
         def do_GET(self):
@@ -1428,6 +1506,10 @@ def make_handler(app: App):
                     body = {}
                 if not isinstance(body, dict):
                     body = {}
+                if path in ("/pub/auth/tg/start", "/pub/auth/tg/poll", "/pub/auth/google"):
+                    if self._limited(write_user, write_ip):
+                        return
+                    return self._json(api_auth(app, path, body))
                 if path in ("/pub/play", "/pub/searched", "/pub/hit"):  # 📱 ilova / brauzer — mehmon sifatida
                     if self._limited(write_user, write_ip):
                         return
@@ -1451,8 +1533,13 @@ def make_handler(app: App):
                     return self._json({"ok": False, "reason": "auth"}, 401)
                 if self._limited(write_user, write_ip, user):
                     return
+                if path == "/api/auth/logout":
+                    sess = self.headers.get("X-Session", "")
+                    if sess:
+                        app.db.delete_session(sess)
+                    return self._json({"ok": True})
                 if path == "/api/play":
-                    return self._json(api_play(app, user, body, guest=False))
+                    return self._json(api_play(app, user, body, guest=(user["id"] < 0)))
                 if path == "/api/watch":
                     return self._json(api_watch(app, user, body))
                 if path == "/api/request":

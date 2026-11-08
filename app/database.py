@@ -292,6 +292,31 @@ CREATE TABLE IF NOT EXISTS comment_reports (
     PRIMARY KEY (comment_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS web_accounts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider   TEXT    NOT NULL,
+    subject    TEXT    NOT NULL,
+    email      TEXT    NOT NULL DEFAULT '',
+    name       TEXT    NOT NULL DEFAULT '',
+    photo      TEXT    NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    UNIQUE (provider, subject)
+);
+CREATE TABLE IF NOT EXISTS web_sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id    INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    last_seen  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_web_sessions_user ON web_sessions(user_id);
+CREATE TABLE IF NOT EXISTS login_tokens (
+    token      TEXT PRIMARY KEY,
+    created_at INTEGER NOT NULL,
+    user_id    INTEGER NOT NULL DEFAULT 0,
+    name       TEXT    NOT NULL DEFAULT '',
+    status     TEXT    NOT NULL DEFAULT 'pending'
+);
+
 CREATE TABLE IF NOT EXISTS tickets (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     kind       TEXT    NOT NULL,
@@ -1267,9 +1292,10 @@ class Database:
     def get_comment(self, cid: int) -> Optional[sqlite3.Row]:
         return self.q1("SELECT * FROM comments WHERE id=?", (cid,))
 
-    _COMMENT_SQL = ("SELECT c.id, c.movie_id, c.user_id, c.parent_id, c.body, c.created_at, c.likes, u.first_name, u.premium_until,"
+    _COMMENT_SQL = ("SELECT c.id, c.movie_id, c.user_id, c.parent_id, c.body, c.created_at, c.likes,"
+                    " COALESCE(u.first_name, w.name) AS first_name, u.premium_until,"
                     " EXISTS(SELECT 1 FROM comment_likes l WHERE l.comment_id=c.id AND l.user_id=?) AS liked"
-                    " FROM comments c LEFT JOIN users u ON u.user_id=c.user_id")
+                    " FROM comments c LEFT JOIN users u ON u.user_id=c.user_id LEFT JOIN web_accounts w ON c.user_id = -w.id")
 
     def top_comments(self, movie_id: int, viewer: int, sort: str, limit: int, offset: int) -> List[sqlite3.Row]:
         order = "c.likes DESC, c.id DESC" if sort == "top" else "c.id DESC"
@@ -1338,6 +1364,65 @@ class Database:
         return self.q("SELECT c.id, c.movie_id, c.user_id, c.body, c.created_at, c.status, c.reports, u.first_name, m.title"
                       " FROM comments c LEFT JOIN users u ON u.user_id=c.user_id LEFT JOIN movies m ON m.id=c.movie_id"
                       " WHERE c.status=? ORDER BY c.id DESC LIMIT ?", (status, limit))
+
+    # ───────── 🔐 saytga kirish (Telegram bot orqali / Google) ─────────
+
+    def create_login_token(self) -> str:
+        import secrets
+        tok = secrets.token_urlsafe(18)
+        self.x("DELETE FROM login_tokens WHERE created_at<?", (now() - 1800,))
+        self.x("INSERT INTO login_tokens(token, created_at) VALUES (?,?)", (tok, now()))
+        return tok
+
+    def get_login_token(self, tok: str, max_age: int = 600) -> Optional[sqlite3.Row]:
+        return self.q1("SELECT * FROM login_tokens WHERE token=? AND created_at>=?", (tok, now() - max_age))
+
+    def bind_login_token(self, tok: str, user_id: int, name: str) -> bool:
+        return self.x("UPDATE login_tokens SET user_id=?, name=?, status='done' WHERE token=? AND status='pending' AND created_at>=?",
+                      (user_id, name[:60], tok, now() - 600)).rowcount > 0
+
+    def drop_login_token(self, tok: str) -> None:
+        self.x("DELETE FROM login_tokens WHERE token=?", (tok,))
+
+    def create_session(self, user_id: int) -> str:
+        import hashlib
+        import secrets
+        tok = secrets.token_urlsafe(32)
+        t = now()
+        self.x("INSERT INTO web_sessions(token_hash, user_id, created_at, last_seen) VALUES (?,?,?,?)",
+               (hashlib.sha256(tok.encode()).hexdigest(), user_id, t, t))
+        self.x("DELETE FROM web_sessions WHERE last_seen<?", (t - 90 * 86400,))
+        return tok
+
+    def session_user(self, tok: str) -> Optional[int]:
+        import hashlib
+        if not tok or len(tok) > 100:
+            return None
+        h = hashlib.sha256(tok.encode()).hexdigest()
+        row = self.q1("SELECT user_id, last_seen FROM web_sessions WHERE token_hash=?", (h,))
+        if not row or now() - row["last_seen"] > 90 * 86400:
+            return None
+        if now() - row["last_seen"] > 3600:
+            self.x("UPDATE web_sessions SET last_seen=? WHERE token_hash=?", (now(), h))
+        return row["user_id"]
+
+    def delete_session(self, tok: str) -> None:
+        import hashlib
+        self.x("DELETE FROM web_sessions WHERE token_hash=?", (hashlib.sha256(tok.encode()).hexdigest(),))
+
+    def upsert_web_account(self, provider: str, subject: str, email: str, name: str, photo: str) -> int:
+        """Google (va boshqa) akkaunt uchun ichki manfiy ID qaytaradi (Telegram ID lari musbat — aralashmaydi)."""
+        with self.tx() as c:
+            row = c.execute("SELECT id FROM web_accounts WHERE provider=? AND subject=?", (provider, subject)).fetchone()
+            if row:
+                c.execute("UPDATE web_accounts SET email=?, name=?, photo=? WHERE id=?", (email[:120], name[:60], photo[:300], row["id"]))
+                return -row["id"]
+            cur = c.execute("INSERT INTO web_accounts(provider, subject, email, name, photo, created_at) VALUES (?,?,?,?,?,?)",
+                            (provider, subject, email[:120], name[:60], photo[:300], now()))
+            return -cur.lastrowid
+
+    def get_web_account(self, user_id: int) -> Optional[sqlite3.Row]:
+        return self.q1("SELECT * FROM web_accounts WHERE id=?", (-user_id,)) if user_id < 0 else None
 
     # ───────── adminlar ─────────
 

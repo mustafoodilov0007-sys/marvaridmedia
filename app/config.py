@@ -45,6 +45,7 @@ class Config:
         self.provider_token = next(iter(self.provider_tokens.values()), "")   # (eski nom: birinchi token)
         self.brand = os.getenv("BRAND_NAME", "").strip() or "Marvarid Media"
         # 🌐 kino ma'lumotini avtomatik topish (TMDB — bepul kalit: themoviedb.org → Settings → API; OMDb — IMDb reyting uchun, ixtiyoriy)
+        self.google_client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()   # saytda «Google orqali kirish» uchun (ixtiyoriy)
         self.tmdb_key = os.getenv("TMDB_API_KEY", "").strip()
         self.tmdb_lang = os.getenv("TMDB_LANG", "").strip() or "ru-RU"
         self.omdb_key = os.getenv("OMDB_API_KEY", "").strip()

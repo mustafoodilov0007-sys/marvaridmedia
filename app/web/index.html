@@ -1050,6 +1050,23 @@
     .short video, .short .pic { background: transparent; }
     body.in-shorts .amb { display: none !important; }
   }
+
+  /* 🔐 kirish */
+  .login .lbox { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+  .lbtn { height: 54px; border-radius: 16px; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; font-size: 15px; }
+  .lbtn.tg { background: #2aabee; color: #fff; } .lbtn svg { width: 20px; height: 20px; } .lbtn:disabled { opacity: .6; }
+  .lor { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+  .lor::before, .lor::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .gbtn { display: flex; justify-content: center; min-height: 44px; }
+  .lstat { display: flex; gap: 14px; align-items: flex-start; padding: 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
+  .lstat > div:last-child { display: flex; flex-direction: column; gap: 4px; min-width: 0; } .lstat span { color: var(--muted); font-size: 13px; }
+  .lspin { width: 26px; height: 26px; flex: none; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; margin-top: 2px; }
+  .lrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .lgo { padding: 9px 14px; border-radius: 11px; background: var(--accent); color: var(--on-grad); font-weight: 700; font-size: 13px; } .lgo.ghost { background: var(--surface-2); color: var(--text); }
+  .logincard { display: flex; align-items: center; gap: 12px; width: 100%; margin: 12px 0 0; padding: 14px 16px; border-radius: 16px; text-align: left;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, var(--surface)), var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  .logincard > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; } .logincard b { font-size: 15px; } .logincard span { font-size: 12.5px; color: var(--muted); line-height: 1.3; }
+  .logincard em { font-style: normal; font-weight: 700; font-size: 13px; padding: 9px 16px; border-radius: 12px; background: var(--accent); color: var(--on-grad); }
   /*/REDESIGN*/
 
   /* kichikroq noutbuk / keng bo'lmagan oynalar: sarlavha sig'sin */
@@ -1288,6 +1305,15 @@
   var initData = tg ? tg.initData : "";
   // Telegram'dan tashqarida (📱 ilova yoki brauzer) — mehmon rejimi: katalog ochiq, ko'rish Telegram botda
   var PUB = !initData;
+  // 🔐 brauzerda hisob bilan kirish (Telegram yoki Google): sessiya shu qurilmada saqlanadi
+  var SESSION = "";
+  try { if (PUB) SESSION = localStorage.getItem("sess") || ""; } catch (e) {}
+  var AUTHED = PUB && !!SESSION;              // /api/me javobida tasdiqlanadi; yaroqsiz bo'lsa — mehmonga qaytadi
+  function guest() { return PUB && !AUTHED; }
+  function dropSession() {
+    SESSION = ""; AUTHED = false;
+    try { localStorage.removeItem("sess"); } catch (e) {}
+  }
   var APP = /MarvaridApp/.test(navigator.userAgent);
   // 🔎 SEO manzillar: /kino/123-nomi, /janr/comedy, /kinolar ... — qidiruv tizimlari uchun alohida sahifalar, odam uchun — shu sayt
   function pathInfo() {
@@ -1399,13 +1425,23 @@
   document.body.classList.toggle("kids", kidsMode);
   function api(path, opts) {
     opts = opts || {};
-    if (PUB) path = path.replace(/^\/api\//, "/pub/");
-    opts.headers = Object.assign({ "X-Init-Data": initData }, kidsMode ? { "X-Kids": "1" } : {}, opts.headers || {});
+    if (PUB && !SESSION) path = path.replace(/^\/api\//, "/pub/");
+    opts.headers = Object.assign({ "X-Init-Data": initData }, SESSION ? { "X-Session": SESSION } : {}, kidsMode ? { "X-Kids": "1" } : {}, opts.headers || {});
     return fetch(path, opts).then(function (r) {
       return r.json().catch(function () { return { ok: false, reason: "error" }; });
+    }).then(function (d) {
+      if (SESSION && d && d.reason === "auth") {          // sessiya eskirgan — mehmon rejimiga qaytamiz
+        dropSession(); setTimeout(function () { location.reload(); }, 50);
+      }
+      return d;
     });
   }
   function hue(str) { var x = 0; for (var i = 0; i < str.length; i++) x = (x * 31 + str.charCodeAt(i)) % 360; return x; }
+  function pubPost(path, body) {                  // kirish so'rovlari: sessiyasiz, har doim /pub/
+    return fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) })
+      .then(function (r) { return r.json().catch(function () { return { ok: false, reason: "error" }; }); });
+  }
+  function needLogin(msg) { toast(msg); setTimeout(function () { show("login"); }, 500); }
   function posterUrl(it, w) { return it.poster ? "/api/poster/" + it.id + "?v=" + it.poster + (w ? "&w=" + w : "") : null; }
 
   // ───── mavzu (yorug' / qorong'i) ─────
@@ -2204,7 +2240,7 @@
       add(rail({ title: c.title, items: c.items, more: function () { show("col", { id: c.id }); } }));
     });
     if (weekly.length >= 3) add(coverflow({ title: "🔥 Haftaning TOP'i", items: weekly, cat: "video", sort: "top" }));
-    var hist = PUB ? localHist : (data.history || []);          // «Davom ettiring» — haftaning TOP'idan keyin
+    var hist = guest() ? localHist : (data.history || []);          // «Davom ettiring» — haftaning TOP'idan keyin
     if (hist.length) add(rail({ title: "🕘 Davom ettiring", items: hist, cls: "hist" }));
     if (data.foryou && data.foryou.length) add(rail({ title: "🎯 Siz uchun", items: data.foryou }));
     var nw = byKey["new"]; if (nw && nw.items.length) add(rail(nw));
@@ -2278,6 +2314,7 @@
     current = name;
     stopHero();
     leaveShorts();
+    if (name !== "login") stopLoginPoll();
     var key = navKey(name);
     document.querySelectorAll(".nav button").forEach(function (b) {
       var on = b.dataset.view === key;
@@ -2319,6 +2356,7 @@
     if (name === "search") return renderSearch(view);
     if (name === "cats") return renderCats(view, my);
     if (name === "profile") return renderProfile(view);
+    if (name === "login") return renderLogin(view);
     if (name === "support") return renderSupport(view, my);
     if (name === "ratings") return renderRatings(view, my);
     if (name === "sub") return renderSub(view);
@@ -2517,7 +2555,7 @@
     }
     function vote(v) {
       haptic("medium");
-      if (PUB) { toast("⭐ Baho berish uchun saytni Telegram botdagi tugma orqali oching"); return; }
+      if (guest()) { needLogin("⭐ Baho berish uchun hisobingizga kiring"); return; }
       api("/api/rate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: it.id, v: v }) })
         .then(function (r) { if (r.ok) { paint(r); notify("success"); } else toast("⚠️ Baho saqlanmadi"); })
         .catch(function () { toast("⚠️ Ulanishda xatolik"); });
@@ -2525,7 +2563,7 @@
     up.onclick = function () { vote(1); };
     down.onclick = function () { vote(-1); };
     paint({ likes: it.likes || 0, dislikes: it.dislikes || 0, mine: 0 });
-    if (!PUB) api("/api/rating?id=" + it.id).then(function (r) { if (r.ok) paint(r); }).catch(function () {});
+    if (!guest()) api("/api/rating?id=" + it.id).then(function (r) { if (r.ok) paint(r); }).catch(function () {});
     row.appendChild(label); row.appendChild(up); row.appendChild(down);
     return row;
   }
@@ -2788,8 +2826,89 @@
     }).catch(function () { if (my === reqId) renderError(view, "network"); });
   }
 
+
+  // ───── 🔐 kirish sahifasi: Telegram (bot orqali tasdiqlash) yoki Google ─────
+  var loginPoll = null, loginPollNow = null;
+  function stopLoginPoll() { clearInterval(loginPoll); loginPoll = null; loginPollNow = null; }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && loginPollNow) loginPollNow(); });
+  function finishLogin(session, name) {
+    stopLoginPoll();
+    try { localStorage.setItem("sess", session); } catch (e) {}
+    SESSION = session; AUTHED = true;
+    return api("/api/me").then(function (d) {
+      if (d && d.ok) { me = d; setAvatar({ first_name: d.name, photo_url: d.photo }); if (d.admin) { $("bStats").classList.remove("hidden"); document.querySelector(".top").classList.add("adm"); } }
+      notify("success"); toast("✅ Xush kelibsiz, " + (name || (d && d.name) || "") + "!");
+      show("profile");
+    });
+  }
+  function loadGoogle(wrap) {
+    function init() {
+      try {
+        window.google.accounts.id.initialize({ client_id: me.google, callback: function (resp) {
+          pubPost("/pub/auth/google", { credential: resp.credential }).then(function (d) {
+            if (d.ok) finishLogin(d.session, d.name); else toast("⚠️ Google orqali kirib bo'lmadi. Qaytadan urinib ko'ring.");
+          });
+        } });
+        window.google.accounts.id.renderButton(wrap, { theme: "outline", size: "large", shape: "pill", text: "signin_with", locale: "uz", width: Math.min(320, wrap.clientWidth || 300) });
+      } catch (e) { wrap.textContent = "Google yuklanmadi"; }
+    }
+    if (window.google && window.google.accounts) return init();
+    var sc = document.createElement("script");
+    sc.src = "https://accounts.google.com/gsi/client"; sc.async = true; sc.onload = init;
+    sc.onerror = function () { wrap.textContent = "Google yuklanmadi — internetni tekshiring"; };
+    document.head.appendChild(sc);
+  }
+  function renderLogin(view) {
+    stopLoginPoll();
+    if (!PUB) { show("profile"); return; }
+    if (AUTHED) { show("profile"); return; }
+    if (!me.bot) { api("/api/me").then(function (d) { if (d && d.ok) { me = d; renderLogin(view); } }); return; }
+    var page = h("div", "page narrow login");
+    page.appendChild(h("h1", null, "Kirish"));
+    page.appendChild(h("p", "lead", "Izoh yozish, baho berish va kinoni Telegramingizga yuborish uchun hisobingizga kiring."));
+    var box = h("div", "lbox");
+    var tgBtn = h("button", "lbtn tg", [icon("send"), h("span", null, "Telegram orqali kirish")]);
+    var status = h("div", "lstat hidden");
+    function expired() { stopLoginPoll(); status.replaceChildren(h("div", null, [h("b", null, "⏳ Vaqt tugadi"), h("span", null, "Qaytadan «Telegram orqali kirish» ni bosing.")])); }
+    tgBtn.onclick = function () {
+      haptic(); tgBtn.disabled = true;
+      pubPost("/pub/auth/tg/start").then(function (r) {
+        tgBtn.disabled = false;
+        if (!r.ok) { toast("⚠️ Hozir kirib bo'lmadi. Keyinroq urinib ko'ring."); return; }
+        openLink(r.link);
+        var again = h("button", "lgo", "Telegramni qayta ochish"); again.onclick = function () { openLink(r.link); };
+        var cancel = h("button", "lgo ghost", "Bekor qilish"); cancel.onclick = function () { stopLoginPoll(); status.classList.add("hidden"); };
+        status.classList.remove("hidden");
+        status.replaceChildren(h("div", "lspin"), h("div", null, [h("b", null, "Telegramda «Start» va «✅ Ha, men» ni bosing"),
+          h("span", null, "Tasdiqlagach, shu sahifa o'zi hisobingizga kiradi."), h("div", "lrow", [again, cancel])]));
+        var tries = 0, busy = false;
+        function check() {
+          if (busy) return; busy = true;
+          pubPost("/pub/auth/tg/poll", { token: r.token }).then(function (d) {
+            busy = false;
+            if (d.ok && d.status === "done") finishLogin(d.session, d.name);
+            else if (!d.ok) expired();
+          }).catch(function () { busy = false; });
+        }
+        stopLoginPoll();
+        loginPollNow = check;
+        loginPoll = setInterval(function () { if (++tries > 200) { expired(); return; } check(); }, 2200);
+      }).catch(function () { tgBtn.disabled = false; toast("⚠️ Ulanishda xatolik"); });
+    };
+    box.appendChild(tgBtn);
+    if (me.google) {
+      var gw = h("div", "gbtn");
+      box.appendChild(h("div", "lor", "yoki")); box.appendChild(gw);
+      setTimeout(function () { loadGoogle(gw); }, 0);
+    }
+    box.appendChild(status);
+    page.appendChild(box);
+    page.appendChild(h("p", "pnote", "🔒 Telegram orqali kirishda parolingiz so'ralmaydi: faqat botda tasdiqlaysiz. Ismingizdan boshqa ma'lumot olinmaydi."));
+    view.replaceChildren(page);
+  }
   function renderProfile(view) {
     var user = !PUB && tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+    if (AUTHED) user = { first_name: me.name, photo_url: me.photo };
     var name = (user && user.first_name) || (PUB ? "Mehmon" : "Foydalanuvchi");
     var av = h("div", "pavatar");
     av.textContent = (name.trim()[0] || "M").toUpperCase();
@@ -2798,9 +2917,16 @@
       im.onload = function () { av.replaceChildren(im); };
       im.src = user.photo_url;
     }
-    var status = PUB ? "Brauzer rejimi" : (me.premium ? "💎 Premium a'zo" : "Oddiy foydalanuvchi");
+    var status = AUTHED ? (me.premium ? "💎 Premium a'zo" : (me.tg ? "Telegram hisobi" : "Google hisobi")) :
+      (PUB ? "Mehmon — kirmagansiz" : (me.premium ? "💎 Premium a'zo" : "Oddiy foydalanuvchi"));
     var page = h("div", "page narrow");
     page.appendChild(h("div", "pcard", [av, h("div", "pinfo", [h("b", null, name), h("span", null, status)])]));
+    if (guest()) {
+      var lc = h("button", "logincard", [h("div", null, [h("b", null, "Hisobingizga kiring"),
+        h("span", null, "Izoh yozish, baho berish va kinoni Telegramga yuborish uchun")]), h("em", null, "Kirish")]);
+      lc.onclick = function () { haptic(); show("login"); };
+      page.appendChild(lc);
+    }
     var nSaved = Object.keys(saved).length;
     page.appendChild(h("div", "pstats", [
       h("div", null, [h("b", null, String(nSaved)), h("span", null, "Sevimlilar")]),
@@ -2833,10 +2959,8 @@
     }
     if (me.bot) row("🤖 Telegram botni ochish", "@" + me.bot, function () { openLink("https://t.me/" + me.bot); });
     if (me.channel) row("📢 Kanalimiz", "Yangiliklar va e'lonlar", function () { openLink(me.channel); });
-    if (!PUB) {
-      row("⭐ Baholarim", "Siz 👍/👎 bergan kinolar", function () { show("ratings"); });
-      row("💎 Obuna va xaridlar", me.premium ? "Premium faol" : "Premium, promokod, taklif", function () { show("sub"); });
-    }
+    if (!guest()) row("⭐ Baholarim", "Siz 👍/👎 bergan kinolar", function () { show("ratings"); });
+    if (!PUB || (AUTHED && me.tg)) row("💎 Obuna va xaridlar", me.premium ? "Premium faol" : "Premium, promokod, taklif", function () { show("sub"); });
     var kidsRow = h("button", "crow", [h("b", null, "👶 Bolalar rejimi: " + (kidsMode ? "yoqilgan" : "o'chiq")),
       h("span", null, "Faqat multfilm va 12+ gacha kontent"), icon("chev")]);
     kidsRow.onclick = function () {
@@ -2874,7 +2998,7 @@
     drow("🕘 Ko'rish tarixini tozalash", function () {
       askConfirm("Ko'rish tarixi o'chirilsinmi?", function () {
         localHist = []; store.set("hist", "[]");
-        if (!PUB) api("/api/history/clear", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(function () {});
+        if (!guest()) api("/api/history/clear", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(function () {});
         toast("🧹 Ko'rish tarixi tozalandi");
       });
     });
@@ -2883,6 +3007,12 @@
       askConfirm("Barcha sevimlilar o'chirilsinmi?", function () {
         Object.keys(saved).forEach(function (k) { if (cloud) cloud.removeItem(k); });
         saved = {}; persistSaved(); toast("🧹 Sevimlilar tozalandi"); renderProfile(view);
+      });
+    });
+    if (AUTHED) drow("🚪 Hisobdan chiqish", function () {
+      askConfirm("Hisobdan chiqasizmi?", function () {
+        api("/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(function () {})
+          .then(function () { dropSession(); location.reload(); });
       });
     });
     page.appendChild(h("h3", "group-title", "Ma'lumotlar"));
@@ -3068,7 +3198,7 @@
       likeB.setAttribute("aria-label", "Yoqdi");
       likeB.onclick = function () {
         haptic("medium");
-        if (PUB) { toast("⭐ Baho berish uchun saytni Telegram botdagi tugma orqali oching"); return; }
+        if (guest()) { needLogin("⭐ Baho berish uchun hisobingizga kiring"); return; }
         api("/api/rate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: it.id, v: 1 }) })
           .then(function (r) {
             if (!r.ok) return toast("⚠️ Baho saqlanmadi");
@@ -3522,7 +3652,7 @@
       like.setAttribute("aria-label", "Yoqdi");
       like.onclick = function (e) {
         e.stopPropagation();
-        if (PUB) { toast("Izohlarni baholash uchun saytni Telegram orqali oching."); return; }
+        if (guest()) { needLogin("Izohlarni baholash uchun hisobingizga kiring"); return; }
         haptic();
         api("/api/comment/like", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cid: c.id }) })
           .then(function (r) { if (!r.ok) return; c.liked = r.liked; c.likes = r.likes; like.classList.toggle("on", r.liked); like.lastChild.textContent = r.likes ? String(r.likes) : ""; });
@@ -3550,7 +3680,7 @@
       var mb = h("button", "cm-btn more", [icon("dots")]); mb.setAttribute("aria-label", "Yana");
       mb.onclick = function (e) { e.stopPropagation(); tools.classList.toggle("hidden"); };
       act.appendChild(mb);
-      if (!c.mine && !PUB) {
+      if (!c.mine && !guest()) {
         var fb = h("button", "cm-tool", [icon("flag"), h("span", null, "Shikoyat")]);
         tapTwice(fb, "Aniqmi?", function () {
           api("/api/comment/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cid: c.id }) })
@@ -3592,7 +3722,7 @@
             setTotal(r.total); var first = list.querySelector(".cm-empty"); if (first) first.remove();
             r.item.replies = []; list.insertBefore(node(r.item, true), list.firstChild);
           }));
-          else if (PUB) slot.appendChild(cmtCta(it));
+          else if (guest()) slot.appendChild(cmtCta(it));
           else slot.appendChild(h("div", "cm-note", "Izoh qoldirish sizga cheklangan."));
         }
         if (!d.items.length && reset) list.appendChild(h("div", "cm-empty", [icon("chat"), h("b", null, "Hali izoh yo'q"), h("span", null, "Birinchi bo'lib fikr qoldiring.")]));
@@ -3602,9 +3732,9 @@
       }).catch(function () { if (reset) list.replaceChildren(); });
     }
     function cmtCta(it2) {
-      var b = h("button", "btn soft", [icon("send"), "Telegramda izoh qoldirish"]);
-      b.onclick = function () { haptic(); if (me.bot) openLink(botLink(it2)); };
-      return h("div", "cm-cta", [h("span", null, "Izoh qoldirish uchun saytni Telegram orqali oching."), b]);
+      var b = h("button", "btn primary", [icon("user"), "Kirish va izoh yozish"]);
+      b.onclick = function () { haptic(); closeSheet(); show("login"); };
+      return h("div", "cm-cta", [h("span", null, "Izoh qoldirish uchun hisobingizga kiring (Telegram yoki Google)."), b]);
     }
     more.onclick = function () { more.disabled = true; load(false).then(function () { more.disabled = false; }); };
     function setSort(k) { if (st.sort === k) return; st.sort = k; sortNew.classList.toggle("on", k === "new"); sortTop.classList.toggle("on", k === "top"); haptic(); load(true); }
@@ -3908,7 +4038,7 @@
   function watch(it, btn) {
     haptic("medium");
     rememberWatch(it);
-    if (PUB) {
+    if (guest() || (PUB && !me.tg)) {            // mehmon yoki Google hisobi: Telegram botda ochiladi
       if (!me.bot) { toast("⏳ Biroz kuting..."); return; }
       toast("📲 Telegram ochilmoqda...");
       openLink(botLink(it));
@@ -3931,11 +4061,11 @@
         if (res.ok) {
           notify("success");
           toast("✅ Botga yuborildi! Chatni oching.");
-          setTimeout(function () { tg ? tg.close() : closeSheet(); }, 1100);
+          setTimeout(function () { if (tg && !PUB) tg.close(); else { closeSheet(); openLink("https://t.me/" + me.bot); } }, 1100);
         } else if (res.reason === "sub" || res.reason === "premium") {
           notify("warning");
           toast(msg);
-          setTimeout(function () { tg ? tg.close() : closeSheet(); }, 1800);
+          setTimeout(function () { if (tg && !PUB) tg.close(); else { closeSheet(); openLink("https://t.me/" + me.bot); } }, 1800);
         } else {
           notify("error");
           toast(msg || "⚠️ Xatolik yuz berdi. Qaytadan urinib ko'ring.");
@@ -4023,13 +4153,14 @@
       if (desktopApp && store.get("fs") !== "0" && !tg.isFullscreen) tg.requestFullscreen();
     } catch (e) {}
   }
-  if (PUB) $("avatar").replaceChildren(icon("user"));
-  else setAvatar(tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null);
+  if (PUB && !AUTHED) $("avatar").replaceChildren(icon("user"));
+  else if (!PUB) setAvatar(tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null);
   // 📱 Android ilovadagi «orqaga» tugmasi: true — sayt o'zi hal qildi, false — ilovadan chiqish
   window.mmBack = function () { return goBack(); };
   api("/api/me").then(function (d) {
     if (!d.ok) return;
     me = d;
+    if (AUTHED) setAvatar({ first_name: d.name, photo_url: d.photo });
     setBrand(d.brand);
     if (d.channel) $("bChannel").classList.remove("hidden");
     if (d.admin) { $("bStats").classList.remove("hidden"); document.querySelector(".top").classList.add("adm"); }
