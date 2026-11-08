@@ -268,6 +268,30 @@ CREATE TABLE IF NOT EXISTS broadcasts (
     status      TEXT    NOT NULL DEFAULT 'running'
 );
 
+CREATE TABLE IF NOT EXISTS comments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    movie_id   INTEGER NOT NULL,
+    user_id    INTEGER NOT NULL,
+    parent_id  INTEGER NOT NULL DEFAULT 0,
+    body       TEXT    NOT NULL,
+    created_at INTEGER NOT NULL,
+    status     TEXT    NOT NULL DEFAULT 'ok',
+    likes      INTEGER NOT NULL DEFAULT 0,
+    reports    INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_comments_movie ON comments(movie_id, parent_id, status, id);
+CREATE INDEX IF NOT EXISTS idx_comments_user ON comments(user_id, created_at);
+CREATE TABLE IF NOT EXISTS comment_likes (
+    comment_id INTEGER NOT NULL,
+    user_id    INTEGER NOT NULL,
+    PRIMARY KEY (comment_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS comment_reports (
+    comment_id INTEGER NOT NULL,
+    user_id    INTEGER NOT NULL,
+    PRIMARY KEY (comment_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS tickets (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     kind       TEXT    NOT NULL,
@@ -671,6 +695,7 @@ class Database:
             c.execute("DELETE FROM history WHERE movie_id=?", (movie_id,))
             c.execute("DELETE FROM shorts WHERE movie_id=?", (movie_id,))
             c.execute("DELETE FROM parts WHERE movie_id=?", (movie_id,))
+            self._drop_comments(c, movie_id)
             c.execute("DELETE FROM movies WHERE id=?", (movie_id,))
 
     def add_part(self, movie_id: int, file_id: str, file_type: str) -> int:
@@ -1085,6 +1110,7 @@ class Database:
                              json.dumps(parts, ensure_ascii=False), json.dumps(shorts, ensure_ascii=False))).lastrowid
             for tbl in ("ratings", "collection_items", "history", "shorts", "parts"):
                 c.execute(f"DELETE FROM {tbl} WHERE movie_id=?", (movie_id,))
+            self._drop_comments(c, movie_id)
             c.execute("DELETE FROM movies WHERE id=?", (movie_id,))
             return tid
 
@@ -1224,6 +1250,94 @@ class Database:
         rows = self.q("SELECT method, COALESCE(SUM(amount),0) AS s FROM payments WHERE status='approved' AND created_at>=?"
                       " AND amount>0 GROUP BY method", (since,))
         return {r["method"]: r["s"] for r in rows}
+
+    # ───────── 💬 izohlar ─────────
+
+    @staticmethod
+    def _drop_comments(c, movie_id: int) -> None:
+        ids = "SELECT id FROM comments WHERE movie_id=?"
+        c.execute(f"DELETE FROM comment_likes WHERE comment_id IN ({ids})", (movie_id,))
+        c.execute(f"DELETE FROM comment_reports WHERE comment_id IN ({ids})", (movie_id,))
+        c.execute("DELETE FROM comments WHERE movie_id=?", (movie_id,))
+
+    def add_comment(self, movie_id: int, user_id: int, body: str, parent_id: int = 0) -> int:
+        return self.x("INSERT INTO comments(movie_id, user_id, parent_id, body, created_at) VALUES (?,?,?,?,?)",
+                      (movie_id, user_id, parent_id, body, now())).lastrowid
+
+    def get_comment(self, cid: int) -> Optional[sqlite3.Row]:
+        return self.q1("SELECT * FROM comments WHERE id=?", (cid,))
+
+    _COMMENT_SQL = ("SELECT c.id, c.movie_id, c.user_id, c.parent_id, c.body, c.created_at, c.likes, u.first_name, u.premium_until,"
+                    " EXISTS(SELECT 1 FROM comment_likes l WHERE l.comment_id=c.id AND l.user_id=?) AS liked"
+                    " FROM comments c LEFT JOIN users u ON u.user_id=c.user_id")
+
+    def top_comments(self, movie_id: int, viewer: int, sort: str, limit: int, offset: int) -> List[sqlite3.Row]:
+        order = "c.likes DESC, c.id DESC" if sort == "top" else "c.id DESC"
+        return self.q(f"{self._COMMENT_SQL} WHERE c.movie_id=? AND c.parent_id=0 AND c.status='ok' ORDER BY {order} LIMIT ? OFFSET ?",
+                      (viewer, movie_id, limit, offset))
+
+    def comment_replies(self, parent_ids: List[int], viewer: int) -> List[sqlite3.Row]:
+        if not parent_ids:
+            return []
+        ph = ",".join("?" * len(parent_ids))
+        return self.q(f"{self._COMMENT_SQL} WHERE c.parent_id IN ({ph}) AND c.status='ok' ORDER BY c.id", (viewer, *parent_ids))
+
+    def count_comments(self, movie_id: int, top_only: bool = False) -> int:
+        return self.val("SELECT COUNT(*) FROM comments WHERE movie_id=? AND status='ok'" + (" AND parent_id=0" if top_only else ""),
+                        (movie_id,))
+
+    def user_comment_load(self, user_id: int) -> Dict[str, int]:
+        """Spamdan himoya: oxirgi izoh vaqti va so'nggi soatdagi izohlar soni."""
+        t = now()
+        return {"last": self.val("SELECT MAX(created_at) FROM comments WHERE user_id=?", (user_id,)),
+                "hour": self.val("SELECT COUNT(*) FROM comments WHERE user_id=? AND created_at>=?", (user_id, t - 3600))}
+
+    def has_same_comment(self, user_id: int, movie_id: int, body: str) -> bool:
+        return self.q1("SELECT 1 FROM comments WHERE user_id=? AND movie_id=? AND body=? AND created_at>=?",
+                       (user_id, movie_id, body, now() - 86400)) is not None
+
+    def toggle_comment_like(self, cid: int, uid: int) -> Optional[tuple]:
+        with self.tx() as c:
+            if not c.execute("SELECT 1 FROM comments WHERE id=?", (cid,)).fetchone():
+                return None
+            if c.execute("SELECT 1 FROM comment_likes WHERE comment_id=? AND user_id=?", (cid, uid)).fetchone():
+                c.execute("DELETE FROM comment_likes WHERE comment_id=? AND user_id=?", (cid, uid))
+                liked = False
+            else:
+                c.execute("INSERT INTO comment_likes(comment_id, user_id) VALUES (?,?)", (cid, uid))
+                liked = True
+            n = c.execute("SELECT COUNT(*) FROM comment_likes WHERE comment_id=?", (cid,)).fetchone()[0]
+            c.execute("UPDATE comments SET likes=? WHERE id=?", (n, cid))
+            return liked, n
+
+    def report_comment(self, cid: int, uid: int, hide_at: int = 3) -> Optional[int]:
+        """Shikoyat qo'shadi (bir kishidan bir marta). Hide_at ta shikoyatda izoh yashiriladi. Shikoyatlar sonini qaytaradi."""
+        with self.tx() as c:
+            if not c.execute("SELECT 1 FROM comments WHERE id=?", (cid,)).fetchone():
+                return None
+            c.execute("INSERT OR IGNORE INTO comment_reports(comment_id, user_id) VALUES (?,?)", (cid, uid))
+            n = c.execute("SELECT COUNT(*) FROM comment_reports WHERE comment_id=?", (cid,)).fetchone()[0]
+            c.execute("UPDATE comments SET reports=?, status=CASE WHEN ?>=? THEN 'hidden' ELSE status END WHERE id=?",
+                      (n, n, hide_at, cid))
+            return n
+
+    def delete_comment(self, cid: int) -> int:
+        """Izohni va uning javoblarini o'chiradi. O'chirilganlar sonini qaytaradi."""
+        with self.tx() as c:
+            ids = [r[0] for r in c.execute("SELECT id FROM comments WHERE id=? OR parent_id=?", (cid, cid))]
+            for tbl in ("comment_likes", "comment_reports"):
+                c.execute(f"DELETE FROM {tbl} WHERE comment_id IN ({','.join('?' * len(ids))})", ids) if ids else None
+            if ids:
+                c.execute(f"DELETE FROM comments WHERE id IN ({','.join('?' * len(ids))})", ids)
+            return len(ids)
+
+    def restore_comment(self, cid: int) -> None:
+        self.x("UPDATE comments SET status='ok' WHERE id=?", (cid,))
+
+    def recent_comments(self, limit: int = 10, status: str = "ok") -> List[sqlite3.Row]:
+        return self.q("SELECT c.id, c.movie_id, c.user_id, c.body, c.created_at, c.status, c.reports, u.first_name, m.title"
+                      " FROM comments c LEFT JOIN users u ON u.user_id=c.user_id LEFT JOIN movies m ON m.id=c.movie_id"
+                      " WHERE c.status=? ORDER BY c.id DESC LIMIT ?", (status, limit))
 
     # ───────── adminlar ─────────
 

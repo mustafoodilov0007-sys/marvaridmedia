@@ -176,6 +176,120 @@ def api_catalog(app: App, user: dict, qs: dict) -> dict:
     return out
 
 
+# ═════════════════════════ 💬 Izohlar ═════════════════════════
+
+def _comment_movie(app: App, mid) -> Optional[dict]:
+    try:
+        m = app.db.get_movie(int(mid))
+    except (TypeError, ValueError):
+        return None
+    return m if m and m["category"] != "music" else None
+
+
+def api_comments(app: App, user: dict, qs: dict) -> dict:
+    from . import comments
+    m = _comment_movie(app, qs.get("id"))
+    if not m:
+        return {"ok": False, "reason": "not_found"}
+    try:
+        offset = max(0, int(qs.get("offset", "0")))
+    except ValueError:
+        offset = 0
+    uid = user.get("id") or 0
+    out = comments.listing(app, m["id"], uid, qs.get("sort", "new"), offset)
+    out.update({"ok": True, "can_post": bool(uid) and not app.db.is_contact_banned(uid), "admin": app.is_admin(uid) if uid else False,
+                "max": comments.MAX_LEN})
+    return out
+
+
+def api_comment_post(app: App, user: dict, body: dict) -> dict:
+    from . import comments
+    m = _comment_movie(app, body.get("id"))
+    if not m:
+        return {"ok": False, "reason": "not_found"}
+    text = comments.clean(body.get("body"))
+    uid = user["id"]
+    app.db.upsert_user(user)
+    parent = 0
+    if body.get("parent"):
+        try:
+            par = app.db.get_comment(int(body["parent"]))
+        except (TypeError, ValueError):
+            par = None
+        if not par or par["movie_id"] != m["id"] or par["status"] != "ok":
+            return {"ok": False, "reason": "not_found"}
+        parent = par["parent_id"] or par["id"]          # javob faqat bir pog'ona: javobga javob — asosiy izoh ostida
+    reason = comments.check(app, user, m["id"], text, app.is_admin(uid))
+    if reason:
+        return {"ok": False, "reason": reason, "msg": comments.REASONS.get(reason, "")}
+    cid = app.db.add_comment(m["id"], uid, text, parent)
+    row = app.db.q1(app.db._COMMENT_SQL + " WHERE c.id=?", (uid, cid))
+    it = comments.item(app, row, uid)
+    it["replies"] = []
+    return {"ok": True, "item": it, "total": app.db.count_comments(m["id"])}
+
+
+def api_comment_like(app: App, user: dict, body: dict) -> dict:
+    try:
+        res = app.db.toggle_comment_like(int(body.get("cid")), user["id"])
+    except (TypeError, ValueError):
+        res = None
+    if res is None:
+        return {"ok": False, "reason": "not_found"}
+    return {"ok": True, "liked": res[0], "likes": res[1]}
+
+
+def api_comment_report(app: App, user: dict, body: dict) -> dict:
+    from . import comments
+    try:
+        cid = int(body.get("cid"))
+    except (TypeError, ValueError):
+        return {"ok": False, "reason": "not_found"}
+    row = app.db.get_comment(cid)
+    n = app.db.report_comment(cid, user["id"], comments.HIDE_AT)
+    if n is None:
+        return {"ok": False, "reason": "not_found"}
+    if row and n == comments.HIDE_AT:       # yashirildi — bosh adminlarga xabar
+        from .handlers.audit import notify_hidden_comment
+        notify_hidden_comment(app, cid)
+    return {"ok": True, "hidden": n >= comments.HIDE_AT}
+
+
+def api_comment_delete(app: App, user: dict, body: dict) -> dict:
+    try:
+        cid = int(body.get("cid"))
+    except (TypeError, ValueError):
+        return {"ok": False, "reason": "not_found"}
+    row = app.db.get_comment(cid)
+    if not row:
+        return {"ok": False, "reason": "not_found"}
+    admin = app.is_admin(user["id"])
+    if row["user_id"] != user["id"] and not admin:
+        return {"ok": False, "reason": "forbidden"}
+    app.db.delete_comment(cid)
+    if admin and row["user_id"] != user["id"]:
+        from .handlers.audit import audit
+        audit(app, user["id"], "comment_del", f"{row['body'][:80]} (user {row['user_id']})")
+    return {"ok": True}
+
+
+def api_comment_ban(app: App, user: dict, body: dict) -> dict:
+    if not _admin_only(app, user):
+        return {"ok": False, "reason": "forbidden"}
+    row = None
+    try:
+        row = app.db.get_comment(int(body.get("cid")))
+    except (TypeError, ValueError):
+        pass
+    if not row or app.is_admin(row["user_id"]):
+        return {"ok": False, "reason": "not_found"}
+    banned = not app.db.is_contact_banned(row["user_id"])
+    app.db.set_contact_banned(row["user_id"], banned)
+    from .handlers.audit import audit
+    audit(app, user["id"], "ban", f"{row['user_id']}: izoh — {'cheklandi' if banned else 'cheklash olindi'}")
+    return {"ok": True, "banned": banned}
+
+
 def api_collection(app: App, user: dict, qs: dict) -> dict:
     col = app.db.get_collection(int(qs["id"])) if (qs.get("id") or "").isdigit() else None
     if not col:
@@ -1261,6 +1375,8 @@ def make_handler(app: App):
                         return self._json(api_catalog(app, user, qs))
                     if path == "/api/shorts":
                         return self._json(api_shorts(app, user, qs))
+                    if path == "/api/comments":
+                        return self._json(api_comments(app, user, qs))
                     if path == "/api/similar":
                         return self._json(api_similar(app, user, qs))
                     if path == "/api/collections":
@@ -1347,6 +1463,16 @@ def make_handler(app: App):
                     return self._json(api_searched(app, user, body))
                 if path == "/api/rate":
                     return self._json(api_rate(app, user, body))
+                if path == "/api/comment":
+                    return self._json(api_comment_post(app, user, body))
+                if path == "/api/comment/like":
+                    return self._json(api_comment_like(app, user, body))
+                if path == "/api/comment/report":
+                    return self._json(api_comment_report(app, user, body))
+                if path == "/api/comment/delete":
+                    return self._json(api_comment_delete(app, user, body))
+                if path == "/api/comment/ban":
+                    return self._json(api_comment_ban(app, user, body))
                 if path == "/api/admin/save":
                     return self._json(api_admin_save(app, user, body))
                 if path == "/api/admin/delete":
