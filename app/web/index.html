@@ -2109,7 +2109,6 @@
     homeGenres = data.genres || [];
     view.replaceChildren(heroView(data.hero || []));
     if (PUB && me.miniapp) view.appendChild(openInTelegram());
-    view.appendChild(homeTools());
     var any = false;
     var byKey = {};
     (data.rails || []).forEach(function (r) { byKey[r.key] = r; });
@@ -2119,12 +2118,12 @@
     var topRail = tp && tp.items.length ? rail(Object.assign({}, tp, { title: "Eng ko'p ko'rilgan", items: tp.items.slice(0, 10),
       cls: "rankrail", wrapItem: rankItem })) : null;
     if (weekly.length >= 1) add(topBanner(weekly));
-    var hist = PUB ? localHist : (data.history || []);
-    if (hist.length) add(rail({ title: "🕘 Davom ettiring", items: hist, cls: "hist" }));
     (data.collections || []).forEach(function (c) {
       add(rail({ title: c.title, items: c.items, more: function () { show("col", { id: c.id }); } }));
     });
     if (weekly.length >= 3) add(coverflow({ title: "🔥 Haftaning TOP'i", items: weekly, cat: "video", sort: "top" }));
+    var hist = PUB ? localHist : (data.history || []);          // «Davom ettiring» — haftaning TOP'idan keyin
+    if (hist.length) add(rail({ title: "🕘 Davom ettiring", items: hist, cls: "hist" }));
     if (data.foryou && data.foryou.length) add(rail({ title: "🎯 Siz uchun", items: data.foryou }));
     var nw = byKey["new"]; if (nw && nw.items.length) add(rail(nw));
     if (topRail && weekly.length < 3) add(topRail);
