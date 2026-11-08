@@ -968,6 +968,20 @@
   .tb-dots i { width: 6px; height: 6px; border-radius: 3px; background: var(--line); background: color-mix(in srgb, var(--muted) 45%, transparent); transition: width .3s, background .3s; cursor: pointer; }
   .tb-dots i.on { width: 22px; background: var(--accent); }
   @media (min-width: 900px) { .tb { padding: 0 var(--pad); } .tb-view, .tb-tabs { max-width: 860px; } .tb-poster { width: 150px; } .tb-txt h3 { font-size: 30px; } }
+
+  /* ───── 🔍 dizayn tekshiruvi tuzatishlari ───── */
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .crow { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; row-gap: 2px; align-items: center; }
+  .crow b { grid-column: 1; min-width: 0; } .crow span { grid-column: 1; grid-row: 2; text-align: left; font-size: 12.5px; line-height: 1.3; }
+  .crow span:empty { display: none; } .crow svg { grid-column: 2; grid-row: 1 / span 2; }
+  .tag { font-size: 11px; }
+  .top .ibtn, .top .avatar { width: 40px; height: 40px; }
+  @media (max-width: 380px) { .top .ibtn, .top .avatar { width: 37px; height: 37px; } }
+  .more { min-height: 44px; display: inline-flex; align-items: center; padding: 0 2px; }
+  .ctab { min-height: 44px; } .gchip { min-height: 40px; }
+  .seg button { min-height: 40px; }
+  @media (max-width: 400px) { .nav button { font-size: 10px; } }
+  @media (max-width: 899px) { .hero { height: min(78svh, 700px); } }
   /*/REDESIGN*/
 
   /* kichikroq noutbuk / keng bo'lmagan oynalar: sarlavha sig'sin */
@@ -1570,7 +1584,7 @@
       var qlt = topQuality(it); if (qlt) badges.appendChild(h("span", "badge glass", qlt));
       var lc = langCode(it); if (lc) badges.appendChild(h("span", "badge glass", lc));
       var meta = metaNode(it);
-      var body = h("div", "hero-body", [badges, h("h1", "hero-title", it.title), meta, ratingBadges(it)]);
+      var body = h("div", "hero-body", [badges, h("h2", "hero-title", it.title), meta, ratingBadges(it)]);
       body.appendChild(actionRow(it, true));
       s.appendChild(body);
       s.classList.add("tap");          // posterga bosilsa — tafsilot (izoh shu yerda chiqadi)
@@ -2107,7 +2121,7 @@
   function renderHome(view, data) {
     startAmbient();
     homeGenres = data.genres || [];
-    view.replaceChildren(heroView(data.hero || []));
+    view.replaceChildren(h("h1", "sr-only", (me.brand || "Marvarid Media") + " — kinolar, seriallar va multfilmlar"), heroView(data.hero || []));
     if (PUB && me.miniapp) view.appendChild(openInTelegram());
     var any = false;
     var byKey = {};
