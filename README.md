@@ -322,3 +322,9 @@ data/             — baza va loglar (avtomatik yaratiladi)
 **SEO:** sayt `/sitemap.xml` va `/robots.txt` beradi, har bir kino `/kino/<kod>-<nom>` manzilida. Google Search Console'ga saytni qo'shib, `/sitemap.xml` ni yuboring.
 
 **Testlar:** `python -m unittest discover -s tests -t .` (GitHub har yuborilganda o'zi ishga tushiradi).
+
+## Sayt tili (uz / ru / en)
+Profil → «Interfeys tili» (yoki kirish sahifasi) orqali O'zbek / Русский / English tanlanadi; tanlov `localStorage.lang` da saqlanadi.
+Telegram ichida standart til — o'zbekcha; oddiy brauzerda brauzer tili rus/ingliz bo'lsa shu til avtomatik tanlanadi.
+Tarjima lug'ati `app/web/index.html` ichidagi i18n blokida (`var D`). Kino nomlari va izohlar tarjima qilinmaydi. Bot interfeysi faqat o'zbekcha.
+Google tugmasi chiqishi uchun Railway'da `GOOGLE_CLIENT_ID` o'rnatilgan bo'lishi shart.
