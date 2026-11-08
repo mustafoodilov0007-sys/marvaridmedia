@@ -1042,6 +1042,14 @@
     .shorts { top: var(--sh-top); bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); height: auto; }
     .short { height: var(--feedH, 100%); }
   }
+
+  /* 📱 Shorts (telefon): kadr butun oynani egallaydi, video object-fit bilan sig'adi — JS o'lchamiga bog'liq emas (iOS 26 uchun ishonchli) */
+  @media (max-width: 899px) {
+    .short { height: 100%; }
+    .sframe { position: absolute; inset: 0; width: 100% !important; height: 100% !important; max-width: none; max-height: none; border-radius: 0; background: transparent; }
+    .short video, .short .pic { background: transparent; }
+    body.in-shorts .amb { display: none !important; }
+  }
   /*/REDESIGN*/
 
   /* kichikroq noutbuk / keng bo'lmagan oynalar: sarlavha sig'sin */
@@ -2950,7 +2958,11 @@
       (el._ui || []).forEach(function (n) { if (n.parentNode !== host) host.appendChild(n); });
     }
     if (window.ResizeObserver) {
-      shortsRO = new ResizeObserver(function () { Array.prototype.forEach.call(feed.children, function (el) { if (el._frame) fit(el); }); });
+      shortsRO = new ResizeObserver(function () {
+        Array.prototype.forEach.call(feed.children, function (el) { if (el._frame) fit(el); });
+        var H = feed.clientHeight;                       // o'lcham o'zgarsa (iOS paneli, burilish) — joriy short o'z joyiga qaytadi
+        if (H && feed.scrollTop % H) feed.scrollTop = Math.round(feed.scrollTop / H) * H;
+      });
       shortsRO.observe(feed);
     }
 
