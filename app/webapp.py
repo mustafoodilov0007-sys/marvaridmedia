@@ -354,7 +354,25 @@ def api_comment_ban(app: App, user: dict, body: dict) -> dict:
     return {"ok": True, "banned": banned}
 
 
+def _genre_collections(app: App, top: int = 6, min_n: int = 3) -> list:
+    """Avtomatik kolleksiyalar: kinosi eng ko'p janrlar — o'sha janr nomi bilan (Marvel/DC alohida kolleksiyaga ega)."""
+    counts = [(k, n) for k, n in app.db.genre_counts("video").items() if n >= min_n and k not in genres.AUTO_COLLECTIONS]
+    counts.sort(key=lambda kn: -kn[1])
+    out = []
+    for k, n in counts[:top]:
+        rows = app.db.catalog("video", "top", None, 8, genre=k)
+        out.append({"id": "g_" + k, "title": genres.name(k), "n": n,
+                    "covers": [{"id": r["id"], "poster": _poster_key(r["poster_id"])} for r in rows if r["poster_id"]][:4]})
+    return out
+
+
 def api_collection(app: App, user: dict, qs: dict) -> dict:
+    gid = qs.get("id") or ""
+    if gid.startswith("g_") and gid[2:] in genres.GENRES:
+        _, vip = _user_flags(app, user["id"])
+        premium_on = app.setting_bool("premium_enabled")
+        rows = app.db.catalog("video", "top", None, 200, genre=gid[2:])
+        return {"ok": True, "title": genres.name(gid[2:]), "items": [_item(r, premium_on, vip) for r in rows]}
     col = app.db.get_collection(int(qs["id"])) if (qs.get("id") or "").isdigit() else None
     if not col:
         return {"ok": False, "reason": "not_found"}
@@ -406,7 +424,7 @@ def api_collections(app: App, user: dict) -> dict:
             continue
         covers = [{"id": r["id"], "poster": _poster_key(r["poster_id"])} for r in app.db.collection_movies(c["id"], 8) if r["poster_id"]][:4]
         out.append({"id": c["id"], "title": c["title"], "n": c["n"], "covers": covers})
-    return {"ok": True, "items": out}
+    return {"ok": True, "items": out + _genre_collections(app, top=12)}
 
 
 def api_history_clear(app: App, user: dict) -> dict:
@@ -541,7 +559,7 @@ def api_home(app: App, user: dict) -> dict:
                           "items": pack(rows_g)})
     collections = [{"id": c["id"], "title": c["title"], "n": c["n"],
                     "covers": [{"id": r["id"], "poster": _poster_key(r["poster_id"])} for r in db.collection_movies(c["id"], 8) if r["poster_id"]][:4]}
-                   for c in db.list_collections() if c["n"]][:12]
+                   for c in db.list_collections() if c["n"]][:12] + _genre_collections(app)
     return {
         "ok": True,
         "history": history,

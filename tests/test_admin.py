@@ -322,6 +322,20 @@ class AddFlow(AdminCase):
         self.assertEqual(genres.detect("Marvel: Final", ""), ["marvel"])
         self.assertIsNotNone(did)
 
+    def test_genre_collections_named_by_top_genre(self):
+        from app import webapp
+        db = self.app.db
+        for i in range(4):
+            db.add_movie(20 + i, f"Jang {i}", "", None, False, 1, "F", "video", "movie", genre_keys=["action"])
+        db.add_movie(30, "Bitta", "", None, False, 1, "F", "video", "movie", genre_keys=["comedy"])
+        cols = webapp.api_collections(self.app, {"id": 0})["items"]
+        g = [c for c in cols if c["id"] == "g_action"]
+        self.assertEqual(g[0]["title"], "Jangari")
+        self.assertEqual(g[0]["n"], 4)
+        self.assertFalse([c for c in cols if c["id"] == "g_comedy"])      # 3 tadan kam — chiqmaydi
+        r = webapp.api_collection(self.app, {"id": 0}, {"id": "g_action"})
+        self.assertEqual((r["title"], len(r["items"])), ("Jangari", 4))
+
     def test_year_range_typed(self):
         from app import genres
         self.assertEqual(genres.parse_years("2012-2015"), (2012, 2015))
