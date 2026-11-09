@@ -295,7 +295,7 @@ class AddFlow(AdminCase):
 
     def test_one_card_edited_in_place_and_catalogs_large(self):
         from app import genres
-        self.assertEqual(len(genres.PICKER), 25)
+        self.assertEqual(len(genres.PICKER), 27)
         self.assertGreaterEqual(len(genres.COUNTRIES), 55)
         self.assertGreaterEqual(len(genres.LANGS), 12)
         self.video("Kino 1080p")
@@ -308,6 +308,19 @@ class AddFlow(AdminCase):
         self.assertEqual(self.sends(), before)                       # bosqichlar yangi xabar yubormaydi — bitta karta tahrirlanadi
         self.assertIn("Kartali kino", self.last(1))                  # tepada yig'ma ma'lumot
         self.assertIn("izoh", self.last(1))                          # sifat aniqlangan — qayta so'ralmadi, to'g'ri izohga o'tdi
+
+    def test_marvel_dc_genres_fill_collections(self):
+        from app import genres
+        db = self.app.db
+        mid = db.add_movie(5, "Temir odam", "", None, False, 1, "F", "video", "movie", genre_keys=["marvel", "action"])
+        did = db.add_movie(6, "Betmen", "", None, False, 1, "F", "video", "movie", genre_keys=["dc"])
+        titles = {c["title"]: c["n"] for c in db.list_collections()}
+        self.assertEqual(titles["Marvel to'plami"], 1)
+        self.assertEqual(titles["DC kolleksiyasi"], 1)
+        db.update_movie(mid, genres=genres.dump(["action"]))                 # janr olindi — kolleksiyadan chiqdi
+        self.assertEqual({c["title"]: c["n"] for c in db.list_collections()}["Marvel to'plami"], 0)
+        self.assertEqual(genres.detect("Marvel: Final", ""), ["marvel"])
+        self.assertIsNotNone(did)
 
     def test_year_range_typed(self):
         from app import genres

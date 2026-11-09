@@ -37,6 +37,8 @@ GENRES = {
     "mafia":     ("🎩", "Mafia",        ("mafia", "mafiya", "gangster")),
     "ghost":     ("👻", "Ruhlar",       ("ruhlar", "ruh", "arvoh", "arvohlar")),
     "vampire":   ("🧛", "Vampirlar",    ("vampir", "vampirlar", "vampire")),
+    "marvel":    ("🕷", "Marvel",       ("marvel", "marvell")),
+    "dc":        ("🦇", "DC",           ("dc",)),
     # eski kinolar va TMDB uchun saqlanadi (tanlash ro'yxatida chiqmaydi)
     "anime":     ("🌸", "Anime",        ("anime",)),
     "indian":    ("🇮🇳", "Hind",         ("hind", "hindiston", "indiysk", "bollivud")),
@@ -48,7 +50,9 @@ GENRES = {
 PICKER = [k for k in GENRES if k not in ("anime", "indian", "turkish", "korean")]
 
 # qisqa kalit so'zlar faqat to'liq so'z bo'lsa mos keladi («turk» ≠ «turkum», «hind» ≠ «hindu...» emas)
-_EXACT = {"hind", "turk", "anime", "drama", "sirli", "yumor", "urush", "ruh", "sport"}
+# janr → avtomatik kolleksiya nomi (kino shu janrni olsa, kolleksiyaga o'zi qo'shiladi)
+AUTO_COLLECTIONS = {"marvel": "Marvel to'plami", "dc": "DC kolleksiyasi"}
+_EXACT = {"dc", "marvel", "hind", "turk", "anime", "drama", "sirli", "yumor", "urush", "ruh", "sport"}
 _YEAR_RE = re.compile(r"\b(19[2-9]\d|20[0-4]\d)\b")
 
 

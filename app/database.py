@@ -702,7 +702,9 @@ class Database:
                       (movie_id, 1, file_id, file_type, t, dur))
             if dur and category != "music":
                 c.execute("UPDATE movies SET duration=? WHERE id=?", (dur, movie_id))
-            return movie_id
+        if category != "music" and any(k in genres.AUTO_COLLECTIONS for k in genre_keys or []):
+            self.sync_genre_collections(movie_id)
+        return movie_id
 
     def update_movie(self, movie_id: int, **fields) -> None:
         if "title" in fields:
@@ -716,6 +718,8 @@ class Database:
             return
         cols = ", ".join(f"{k}=?" for k in fields)
         self.x(f"UPDATE movies SET {cols} WHERE id=?", list(fields.values()) + [movie_id])
+        if "genres" in fields:
+            self.sync_genre_collections(movie_id)
 
     def delete_movie(self, movie_id: int) -> None:
         with self.tx() as c:
@@ -1048,6 +1052,20 @@ class Database:
         cur = self.x("INSERT OR IGNORE INTO collection_items(collection_id, movie_id, pos) VALUES (?,?,?)",
                      (cid, movie_id, pos))
         return cur.rowcount > 0
+
+    def sync_genre_collections(self, movie_id: int) -> None:
+        """Marvel/DC janri belgilangan kino «Marvel to'plami» / «DC kolleksiyasi»ga o'zi qo'shiladi (janr olinsa — chiqariladi)."""
+        m = self.get_movie(movie_id)
+        if not m:
+            return
+        have = set(genres.parse(m["genres"]))
+        for key, title in genres.AUTO_COLLECTIONS.items():
+            row = self.q1("SELECT id FROM collections WHERE title=?", (title,))
+            if key in have:
+                cid = row["id"] if row else self.add_collection(title)
+                self.add_to_collection(cid, movie_id)
+            elif row:
+                self.remove_from_collection(row["id"], movie_id)
 
     def remove_from_collection(self, cid: int, movie_id: int) -> None:
         self.x("DELETE FROM collection_items WHERE collection_id=? AND movie_id=?", (cid, movie_id))
