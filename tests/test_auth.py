@@ -132,6 +132,12 @@ class GoogleLogin(AuthCase):
 
 
 class Ads(AuthCase):
+    def test_yandex_verification_file(self):
+        import urllib.request
+        with urllib.request.urlopen(self.web.base + "/yandex_ad2be0e9bc24166d.html", timeout=15) as r:
+            self.assertEqual(r.status, 200)
+            self.assertIn("Verification: ad2be0e9bc24166d", r.read().decode())
+
     def test_yandex_code_in_head_and_csp(self):
         import urllib.request
         self.app.config.yandex_ads_id = "20369723"

@@ -1169,6 +1169,9 @@ def csp_for(app) -> str:
                .replace("img-src 'self' data: blob:", "img-src 'self' data: blob: https:", 1)
                .replace("connect-src 'self' https://accounts.google.com;", f"connect-src 'self' https://accounts.google.com {_ADS};", 1))
 
+YANDEX_VERIFY = ('<html>\n    <head>\n        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">\n    </head>\n'
+                 '    <body>Verification: ad2be0e9bc24166d</body>\n</html>\n')
+
 STATIC_FILES = {
     "/og.png": "image/png", "/icon-192.png": "image/png", "/icon-512.png": "image/png",
     "/icon-maskable-512.png": "image/png", "/apple-touch-icon.png": "image/png",
@@ -1429,6 +1432,8 @@ def make_handler(app: App):
             try:
                 if path in ("/", "/index.html"):
                     return self._index(qs, None)
+                if path == "/yandex_ad2be0e9bc24166d.html":       # Yandex Reklama tarmog'i: sayt egaligini tasdiqlash fayli
+                    return self._send(200, YANDEX_VERIFY.encode(), "text/html; charset=utf-8", "public, max-age=3600")
                 if path == "/robots.txt":
                     return self._send(200, seo.robots(_site_base(self, app)).encode(), "text/plain; charset=utf-8", "public, max-age=3600")
                 if path == "/sitemap.xml":
