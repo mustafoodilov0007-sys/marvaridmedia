@@ -309,6 +309,31 @@ class AddFlow(AdminCase):
         self.assertIn("Kartali kino", self.last(1))                  # tepada yig'ma ma'lumot
         self.assertIn("izoh", self.last(1))                          # sifat aniqlangan — qayta so'ralmadi, to'g'ri izohga o'tdi
 
+    def test_year_range_typed(self):
+        from app import genres
+        self.assertEqual(genres.parse_years("2012-2015"), (2012, 2015))
+        self.assertEqual(genres.parse_years("1994 – 99"), (1994, 1999))
+        self.assertEqual(genres.parse_years("2015"), (2015, 0))
+        self.assertEqual(genres.parse_years("2015-2012"), None)
+        self.assertEqual(genres.year_text(2012, 2015), "2012–2015")
+        self.video("Serial 720p")
+        self.press(1, "am:cat:serial")
+        self.press(1, "am:auto")
+        self.msg(1, "Oraliqli serial")
+        self.press(1, "am:gok")
+        self.press(1, "am:c:-")
+        self.msg(1, "2012-2015")
+        self.assertIn("2012–2015", self.last(1))
+        self.press(1, "am:l:-")
+        for cb in ("am:skip", "am:lskip", "am:wskip", "am:skip", "am:save:0"):
+            self.press(1, cb)
+        m = self.app.db.get_movie_by_code(1)
+        self.assertEqual((m["year"], m["year_end"]), (2012, 2015))
+        from app import webapp
+        item = webapp._item(self.app.db.catalog("serial", "new", None, 5)[0], False, True)
+        self.assertEqual((item["year"], item["year_end"]), (2012, 2015))
+        self.assertEqual(len(self.app.db.catalog("serial", "new", None, 5, year=2014)), 1)   # oraliq ichidagi yil bo'yicha ham topiladi
+
     def test_card_goes_below_poster(self):
         self.video("Kino 1080p")
         self.press(1, "am:cat:movie")

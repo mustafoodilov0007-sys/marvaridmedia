@@ -113,7 +113,7 @@ def _summary(ctx: Ctx) -> str:
     if d.get("country"):
         bits.append(genres.country_label(d["country"]))
     if d.get("year"):
-        bits.append(f"📅 {d['year']}")
+        bits.append(f"📅 {genres.year_text(d['year'], d.get('year_end'))}")
     if d.get("lang"):
         bits.append(genres.lang_label(d["lang"]))
     q = genres.quality_text(genres.quality_dump(d.get("quality") or []))
@@ -577,7 +577,7 @@ def ask_year(ctx: Ctx) -> None:
     sel = int(ctx.sdata.get("year") or 0)
     hint = f"\n💡 Topilgan yil: <b>{sel}</b>" if sel else ""
     card(ctx, f"6️⃣ <b>Chiqqan yilini</b> tanlang 📅{hint}\n\n"
-         "Ro'yxatda yo'q bo'lsa — yilni yozib yuboring (masalan <code>1997</code>).",
+         "Ro'yxatda yo'q bo'lsa — yozib yuboring: <code>1997</code> yoki serial uchun oraliq: <code>2012-2015</code>.",
          {"inline_keyboard": year_rows(sel, "am:y:", _skip_row("am:y:0") + [nav_row(ctx)])})
 
 
@@ -727,16 +727,17 @@ def st_meta(ctx: Ctx) -> None:
         ctx.send("🖼 Poster saqlandi! Yuqoridagi tugmalar bilan davom eting 👆")
         return
     text = ctx.text.strip()
-    if ctx.state == "am:year" and re.fullmatch(r"\d{4}", text):
-        if not genres.YEAR_MIN <= int(text) <= genres.YEAR_MAX:
-            ctx.send(f"❗️ Yil {genres.YEAR_MIN}–{genres.YEAR_MAX} oralig'ida bo'lsin.")
+    if ctx.state == "am:year" and re.fullmatch(r"\d{4}\s*[-–—−/]\s*\d{2,4}|\d{4}", text):
+        yy = genres.parse_years(text)
+        if not yy:
+            ctx.send(f"❗️ Yil {genres.YEAR_MIN}–{genres.YEAR_MAX} oralig'ida bo'lsin (oraliq bo'lsa: <code>2012-2015</code>, boshi tugashidan kichik).")
             return
-        ctx.goto("am:year", year=int(text))
+        ctx.goto("am:year", year=yy[0], year_end=yy[1])
         eat(ctx)
         ask_lang(ctx)
         return
     hint = {"am:genre": "janrlarni tanlab «✅ Tayyor» ni bosing", "am:country": "davlatni tanlang",
-            "am:year": "yilni tanlang yoki yozib yuboring (masalan <code>2017</code>)", "am:lang": "tilni tanlang",
+            "am:year": "yilni tanlang yoki yozib yuboring (<code>2017</code> yoki <code>2012-2015</code>)", "am:lang": "tilni tanlang",
             "am:quality": "sifatni tanlab «✅ Tayyor» ni bosing"}
     ctx.send(f"👆 Yuqoridagi tugmalardan {hint.get(ctx.state, 'tanlang')}.")
 
@@ -814,7 +815,7 @@ def show_confirm(ctx: Ctx, poster) -> None:
             + ("" if cat == "music" else
                f"🎭 Janr: {genres.line(genres.dump(d.get('genres') or [])) or '—'}\n"
                f"🌍 Davlat: {genres.country_label(d.get('country')) or '—'}\n"
-               f"📅 Yil: {d.get('year') or '—'}\n"
+               f"📅 Yil: {genres.year_text(d.get('year'), d.get('year_end')) or '—'}\n"
                f"🗣 Til: {genres.lang_label(d.get('lang')) or '—'}\n"
                f"🎞 Sifat: {genres.quality_text(genres.quality_dump(d.get('quality') or [])) or '—'}\n") +
             (f"🔗 Qismlar linki: {esc(d.get('group_link') or '—')}\n" if _linked(ctx) else "") +
@@ -847,7 +848,7 @@ def save_movie(ctx: Ctx, premium: bool) -> None:
     linked = _linked(ctx)
     movie_id = db.add_movie(d["code"], d["title"], d.get("desc") or "", d.get("poster"), premium,
                             ctx.user_id, d["file_id"], d["file_type"], cat, d.get("desc_html") or "",
-                            genre_keys=d.get("genres"), year=d.get("year"),
+                            genre_keys=d.get("genres"), year=d.get("year"), year_end=d.get("year_end") or 0,
                             country=d.get("country"), lang=d.get("lang"),
                             quality=genres.quality_dump(d.get("quality") or []),
                             group_link=(d.get("group_link") or "") if _linked(ctx) else "",
@@ -1178,7 +1179,7 @@ def cb_add_movie(ctx: Ctx) -> None:
             _stale(ctx)
             return
         year = int(parts[2])
-        ctx.goto("am:year", year=year)
+        ctx.goto("am:year", year=year, year_end=0)
         ctx.answer()
         ask_lang(ctx)
     elif action == "l" and len(parts) > 2:
@@ -1417,7 +1418,7 @@ def manage_view(ctx: Ctx, movie):
             + ("" if cat == "music" else
                f"🎭 Janr: <b>{genres.line(movie['genres']) or '—'}</b>\n"
                f"🌍 Davlat: <b>{genres.country_label(movie['country']) or '—'}</b>\n"
-               f"📅 Yil: <b>{movie['year'] or '—'}</b>\n"
+               f"📅 Yil: <b>{genres.year_text(movie['year'], movie['year_end']) or '—'}</b>\n"
                f"🗣 Til: <b>{genres.lang_label(movie['lang']) or '—'}</b>\n"
                f"🎞 Sifat: <b>{genres.quality_text(movie['quality']) or '—'}</b>\n") +
             (f"🔗 Qismlar linki: {esc(movie['group_link'] or '—')}\n" if (cat == "serial" or movie["group_link"]) else "") +
@@ -1458,7 +1459,7 @@ def meta_menu(ctx: Ctx, movie) -> None:
     text = (f"🏷 <b>{esc(movie['title'])}</b> — ma'lumotlari\n\n"
             f"🎭 Janr: <b>{genres.line(movie['genres']) or '—'}</b>\n"
             f"🌍 Davlat: <b>{genres.country_label(movie['country']) or '—'}</b>\n"
-            f"📅 Yil: <b>{movie['year'] or '—'}</b>\n"
+            f"📅 Yil: <b>{genres.year_text(movie['year'], movie['year_end']) or '—'}</b>\n"
             f"🗣 Til: <b>{genres.lang_label(movie['lang']) or '—'}</b>\n"
             f"🎞 Sifat: <b>{genres.quality_text(movie['quality']) or '—'}</b>\n\n"
             "👇 Nimani o'zgartiramiz?")
@@ -1708,7 +1709,8 @@ def cb_manage(ctx: Ctx) -> None:
             or (action[:2] == "ls" and (action[2:] in genres.LANGS or action[2:] == "-")):
         val = action[2:]
         field = {"cs": "country", "ys": "year", "ls": "lang"}[action[:2]]
-        db.update_movie(mid, **{field: int(val) if field == "year" else ("" if val == "-" else val)})
+        extra = {"year_end": 0} if field == "year" else {}
+        db.update_movie(mid, **{field: int(val) if field == "year" else ("" if val == "-" else val)}, **extra)
         ctx.answer("✅ Saqlandi")
         meta_menu(ctx, db.get_movie(mid))
     elif action == "gen" or (action.startswith("gx") and action[2:] in genres.GENRES):
@@ -1737,7 +1739,7 @@ def cb_manage(ctx: Ctx) -> None:
     elif action == "ey":
         ctx.answer()
         ctx.set_state("dm:year", movie_id=mid)
-        ctx.send(f"📅 <b>{esc(movie['title'])}</b>\n\nChiqqan <b>yilini</b> yuboring (masalan <code>2024</code>).\n"
+        ctx.send(f"📅 <b>{esc(movie['title'])}</b>\n\nChiqqan <b>yilini</b> yuboring (masalan <code>2024</code>; serial uchun oraliq: <code>2012-2015</code>).\n"
                  "Olib tashlash uchun <code>-</code> yuboring.", cancel_kb())
     elif action == "prem":
         db.update_movie(mid, is_premium=not movie["is_premium"])
@@ -1963,13 +1965,13 @@ def st_edit_year(ctx: Ctx) -> None:
         return
     text = ctx.text.strip()
     if text == "-":
-        year = 0
-    elif re.fullmatch(r"(19[2-9]\d|20[0-4]\d)", text):
-        year = int(text)
+        yy = (0, 0)
     else:
-        ctx.send("❗️ Yilni 4 xonali son bilan yuboring (masalan <code>2024</code>) yoki <code>-</code>.", cancel_kb())
+        yy = genres.parse_years(text)
+    if yy is None:
+        ctx.send("❗️ Yilni yuboring: <code>2024</code> yoki serial uchun oraliq <code>2012-2015</code> (yoki <code>-</code> — olib tashlash).", cancel_kb())
         return
-    ctx.db.update_movie(movie["id"], year=year)
+    ctx.db.update_movie(movie["id"], year=yy[0], year_end=yy[1])
     ctx.clear_state()
     ctx.send("✅ Yil yangilandi!")
     send_manage(ctx, ctx.db.get_movie(movie["id"]))

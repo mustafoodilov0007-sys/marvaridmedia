@@ -338,7 +338,7 @@ CATEGORIES = ("movie", "serial", "cartoon", "music")
 
 _CATALOG_ROW = """
 SELECT m.id, m.code, m.title, m.description, m.is_premium, m.views, m.created_at, m.category, m.poster_id,
-       m.genres, m.year, m.country, m.lang, m.quality, m.duration, m.age, m.imdb, m.group_link, m.watch_url,
+       m.genres, m.year, m.year_end, m.country, m.lang, m.quality, m.duration, m.age, m.imdb, m.group_link, m.watch_url,
        (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = 1) AS likes,
        (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = -1) AS dislikes,
        (SELECT s.id FROM shorts s WHERE s.movie_id = m.id AND s.kind = 'video' ORDER BY s.id LIMIT 1) AS trailer,
@@ -391,6 +391,8 @@ class Database:
             for r in self.conn.execute("SELECT id, description FROM movies WHERE category<>'music'").fetchall():
                 self.conn.execute("UPDATE movies SET country=?, lang=? WHERE id=?",
                                   (genres.detect_country(r[1]), genres.detect_lang(r[1]), r[0]))
+        if "year_end" not in cols:  # 📅 serial yillar oralig'i (2012–2015): year — boshlanishi, year_end — tugashi
+            self.conn.execute("ALTER TABLE movies ADD COLUMN year_end INTEGER NOT NULL DEFAULT 0")
         if "watch_url" not in cols:  # 🌐 kino joylangan boshqa saytning linki (ixtiyoriy) — saytda «Saytda ko'rish» tugmasi
             self.conn.execute("ALTER TABLE movies ADD COLUMN watch_url TEXT NOT NULL DEFAULT ''")
         if "group_link" not in cols:  # 📺 serialning qolgan qismlari joylangan guruh havolasi
@@ -672,7 +674,7 @@ class Database:
                   is_premium: bool, added_by: int, file_id: str, file_type: str,
                   category: str = "movie", desc_html: str = "", genre_keys=None, year: Optional[int] = None,
                   country: Optional[str] = None, lang: Optional[str] = None, quality: str = "",
-                  group_link: str = "", watch_url: str = "") -> int:
+                  group_link: str = "", watch_url: str = "", year_end: int = 0) -> int:
         t = now()
         if category not in CATEGORIES:
             category = "movie"
@@ -689,11 +691,11 @@ class Database:
                 code = (c.execute("SELECT MIN(code) FROM movies WHERE code<0").fetchone()[0] or 0) - 1
             cur = c.execute(
                 "INSERT INTO movies(code, title, description, poster_id, is_premium, norm_title, norm_desc,"
-                " added_by, created_at, category, desc_html, genres, year, country, lang, quality, group_link, watch_url)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " added_by, created_at, category, desc_html, genres, year, country, lang, quality, group_link, watch_url, year_end)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (code, title, description or "", poster_id, 1 if is_premium else 0, normalize(title),
                  normalize(description or ""), added_by, t, category, desc_html or "",
-                 genres.dump(genre_keys), year or 0, country or "", lang or "", quality or "", group_link or "", watch_url or ""))
+                 genres.dump(genre_keys), year or 0, country or "", lang or "", quality or "", group_link or "", watch_url or "", year_end or 0))
             movie_id = cur.lastrowid
             dur = duration_of(file_id)
             c.execute("INSERT INTO parts(movie_id, part_no, file_id, file_type, created_at, duration) VALUES (?,?,?,?,?,?)",
@@ -903,8 +905,8 @@ class Database:
             where.append("m.country=?")
             params.append(country)
         if year:
-            where.append("m.year=?")
-            params.append(year)
+            where.append("(m.year=? OR (m.year_end>0 AND ? BETWEEN m.year AND m.year_end))")
+            params.extend([year, year])
         if lang:
             where.append("m.lang=?")
             params.append(lang)

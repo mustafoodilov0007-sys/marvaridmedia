@@ -400,8 +400,13 @@ def api_rate(app: App, user: dict, body: dict) -> dict:
 
 
 def api_collections(app: App, user: dict) -> dict:
-    return {"ok": True, "items": [{"id": c["id"], "title": c["title"], "n": c["n"]}
-                                  for c in app.db.list_collections() if c["n"]]}
+    out = []
+    for c in app.db.list_collections():
+        if not c["n"]:
+            continue
+        covers = [{"id": r["id"], "poster": _poster_key(r["poster_id"])} for r in app.db.collection_movies(c["id"], 8) if r["poster_id"]][:4]
+        out.append({"id": c["id"], "title": c["title"], "n": c["n"], "covers": covers})
+    return {"ok": True, "items": out}
 
 
 def api_history_clear(app: App, user: dict) -> dict:
@@ -476,6 +481,7 @@ def _item(r, premium_on: bool, vip: bool) -> dict:
         "title": r["title"],
         "desc": truncate(desc, 400),
         "year": year,
+        "year_end": r["year_end"] if "year_end" in keys and r["year_end"] and year and r["year_end"] > year else None,
         "trailer": r["trailer"] if "trailer" in keys else None,
         "added": r["created_at"] if "created_at" in keys else 0,
         "genres": [{"key": k, "label": genres.label(k)} for k in genres.parse(r["genres"] if "genres" in keys else "")],
@@ -533,8 +539,9 @@ def api_home(app: App, user: dict) -> dict:
         if len(rows_g) >= 3:
             extra.append({"key": "g_" + key, "title": genres.name(key), "cat": "video", "f": {"genre": key},
                           "items": pack(rows_g)})
-    collections = [{"id": c["id"], "title": c["title"], "items": pack(db.collection_movies(c["id"], 15))}
-                   for c in db.list_collections() if c["n"]]
+    collections = [{"id": c["id"], "title": c["title"], "n": c["n"],
+                    "covers": [{"id": r["id"], "poster": _poster_key(r["poster_id"])} for r in db.collection_movies(c["id"], 8) if r["poster_id"]][:4]}
+                   for c in db.list_collections() if c["n"]][:12]
     return {
         "ok": True,
         "history": history,
@@ -621,7 +628,7 @@ def api_admin_movie(app: App, user: dict, qs: dict) -> dict:
         "ok": True,
         "movie": {
             "id": m["id"], "code": m["code"], "title": m["title"], "description": m["description"] or "",
-            "category": m["category"], "genres": genres.parse(m["genres"]), "year": m["year"] or 0,
+            "category": m["category"], "genres": genres.parse(m["genres"]), "year": m["year"] or 0, "year_end": m["year_end"] or 0,
             "country": m["country"], "lang": m["lang"], "quality": genres.quality_parse(m["quality"]),
             "premium": bool(m["is_premium"]), "group_link": m["group_link"] or "", "watch_url": m["watch_url"] or "",
             "duration_min": round((m["duration"] or 0) / 60), "age": m["age"] or 0, "imdb": m["imdb"] or "",
@@ -686,13 +693,14 @@ def api_admin_save(app: App, user: dict, body: dict) -> dict:
         if "lang" in body and (body["lang"] in genres.LANGS or body["lang"] == ""):
             f["lang"] = body["lang"]
         if "year" in body:
-            try:
-                y = int(body["year"] or 0)
-            except (TypeError, ValueError):
-                return {"ok": False, "reason": "year"}
-            if y and not 1900 <= y <= 2100:
-                return {"ok": False, "reason": "year"}
-            f["year"] = y
+            raw = str(body["year"] or "").strip()
+            if raw in ("", "0"):
+                f["year"], f["year_end"] = 0, 0
+            else:
+                yy = genres.parse_years(raw)
+                if not yy:
+                    return {"ok": False, "reason": "year"}
+                f["year"], f["year_end"] = yy
         if "duration_min" in body:
             try:
                 dm = int(float(body["duration_min"] or 0))

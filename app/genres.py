@@ -84,6 +84,33 @@ def detect(*texts: str) -> List[str]:
     return found[:4]
 
 
+_RANGE_RE = re.compile(r"^\s*(\d{4})\s*[-–—−/]\s*(\d{2}|\d{4})\s*$")
+
+
+def parse_years(text: str):
+    """«2015» → (2015, 0); «2012-2015» / «1994 – 99» → (2012, 2015). Yaroqsiz — None."""
+    t = (text or "").strip()
+    if re.fullmatch(r"\d{4}", t):
+        y = int(t)
+        return (y, 0) if YEAR_MIN <= y <= YEAR_MAX else None
+    m = _RANGE_RE.match(t)
+    if not m:
+        return None
+    a, b = int(m.group(1)), m.group(2)
+    e = int(b) if len(b) == 4 else (a // 100) * 100 + int(b)
+    if not (YEAR_MIN <= a <= YEAR_MAX and YEAR_MIN <= e <= YEAR_MAX) or e < a:
+        return None
+    return (a, e) if e != a else (a, 0)
+
+
+def year_text(year, year_end=0) -> str:
+    """2012, 2015 → «2012–2015»; faqat yil bo'lsa — «2012»."""
+    y, e = int(year or 0), int(year_end or 0)
+    if not y:
+        return ""
+    return f"{y}–{e}" if e and e > y else str(y)
+
+
 def detect_year(*texts: str) -> int:
     m = _YEAR_RE.search(" ".join(t or "" for t in texts))
     return int(m.group(1)) if m else 0
@@ -220,7 +247,7 @@ def info_lines(movie) -> list:
     if "country" in keys and movie["country"] in COUNTRIES:
         lines.append(f"🌍 Davlati: {country_label(movie['country'])}")
     if movie["year"]:
-        lines.append(f"📅 Yili: {movie['year']}")
+        lines.append(f"📅 Yili: {year_text(movie['year'], movie['year_end'] if 'year_end' in keys else 0)}")
     g = ", ".join(name(k) for k in parse(movie["genres"]))
     if g:
         lines.append(f"🎭 Janri: {g}")
