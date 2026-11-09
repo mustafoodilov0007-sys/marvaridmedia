@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from pathlib import Path
@@ -45,7 +46,12 @@ class Config:
         self.provider_token = next(iter(self.provider_tokens.values()), "")   # (eski nom: birinchi token)
         self.brand = os.getenv("BRAND_NAME", "").strip() or "Marvarid Media"
         # 🌐 kino ma'lumotini avtomatik topish (TMDB — bepul kalit: themoviedb.org → Settings → API; OMDb — IMDb reyting uchun, ixtiyoriy)
-        self.google_client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()   # saytda «Google orqali kirish» uchun (ixtiyoriy)
+        gid = os.getenv("GOOGLE_CLIENT_ID", "").strip()                     # saytda «Google orqali kirish» uchun (ixtiyoriy)
+        if gid and not gid.endswith(".apps.googleusercontent.com"):
+            # noto'g'ri qiymat (masalan Client Secret «GOCSPX-...») — ishlatilmaydi va saytga chiqarilmaydi
+            logging.getLogger("config").warning("GOOGLE_CLIENT_ID noto'g'ri: «….apps.googleusercontent.com» bilan tugashi kerak — Google tugmasi o'chirildi")
+            gid = ""
+        self.google_client_id = gid
         self.tmdb_key = os.getenv("TMDB_API_KEY", "").strip()
         self.tmdb_lang = os.getenv("TMDB_LANG", "").strip() or "ru-RU"
         self.omdb_key = os.getenv("OMDB_API_KEY", "").strip()
