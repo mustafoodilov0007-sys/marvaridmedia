@@ -1156,6 +1156,19 @@ CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.o
        "object-src 'none'; base-uri 'self'; form-action 'self'; "
        "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org https://telegram.org")
 
+# Yandex reklama (avto-joylashtirish) yoqilgan bo'lsa — faqat shu domenlarga ruxsat (reklama rasmlari/ramkalari boshqa manzillardan keladi)
+_ADS = ("https://yandex.ru https://*.yandex.ru https://*.yandex.net https://*.yandex.com https://yastatic.net https://*.yastatic.net")
+
+
+def csp_for(app) -> str:
+    if not getattr(app.config, "yandex_ads_id", ""):
+        return CSP
+    return (CSP.replace("https://accounts.google.com;", f"https://accounts.google.com {_ADS};", 1)
+               .replace("style-src 'self' 'unsafe-inline'", f"style-src 'self' 'unsafe-inline' {_ADS}", 1)
+               .replace("frame-src https://accounts.google.com;", f"frame-src https://accounts.google.com {_ADS} https:;", 1)
+               .replace("img-src 'self' data: blob:", "img-src 'self' data: blob: https:", 1)
+               .replace("connect-src 'self' https://accounts.google.com;", f"connect-src 'self' https://accounts.google.com {_ADS};", 1))
+
 STATIC_FILES = {
     "/og.png": "image/png", "/icon-192.png": "image/png", "/icon-512.png": "image/png",
     "/icon-maskable-512.png": "image/png", "/apple-touch-icon.png": "image/png",
@@ -1317,7 +1330,7 @@ def make_handler(app: App):
             self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
             self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
             if ctype.startswith("text/html"):
-                self.send_header("Content-Security-Policy", CSP)
+                self.send_header("Content-Security-Policy", csp_for(app))
             for k, v in (extra or {}).items():
                 self.send_header(k, v)
             self.end_headers()
@@ -1337,6 +1350,12 @@ def make_handler(app: App):
             else:
                 html_text = re.sub(r"<!--OG-->.*?<!--/OG-->", lambda m: "<!--OG-->\n" + _og_block(app, base, qs.get("k", "")) + "\n<!--/OG-->",
                                    html_text, count=1, flags=re.S)
+            ads = getattr(app.config, "yandex_ads_id", "")
+            if ads:       # Yandex reklama kodi — </head> dan oldin (Yandex ko'rsatmasi), moderator shu kodni sahifada ko'radi
+                snippet = (f"<!-- Yandex Autoplacement {ads} -->\n"
+                           '<script src="https://yandex.ru/ads/system/context.js" async></script>\n'
+                           f'<script data-page-id="{ads}" src="https://yandex.ru/ads/system/ap-loader.js" async></script>\n')
+                html_text = html_text.replace("</head>", snippet + "</head>", 1)
             body = html_text.encode("utf-8")
             etag = '"' + hashlib.sha1(body).hexdigest()[:20] + '"'
             if status == 200 and self.headers.get("If-None-Match") == etag:      # o'zgarmagan — qayta yuklanmaydi

@@ -131,5 +131,20 @@ class GoogleLogin(AuthCase):
         self.assertEqual(me["google"], "cid")
 
 
+class Ads(AuthCase):
+    def test_yandex_code_in_head_and_csp(self):
+        import urllib.request
+        self.app.config.yandex_ads_id = "20369723"
+        with urllib.request.urlopen(self.web.base + "/", timeout=15) as r:
+            html = r.read().decode()
+            csp = r.headers["Content-Security-Policy"]
+        self.assertIn('data-page-id="20369723" src="https://yandex.ru/ads/system/ap-loader.js"', html)
+        self.assertLess(html.index("ap-loader.js"), html.index("</head>"))
+        self.assertIn("https://yandex.ru", csp)
+        self.app.config.yandex_ads_id = ""
+        with urllib.request.urlopen(self.web.base + "/", timeout=15) as r:
+            self.assertNotIn("ap-loader.js", r.read().decode())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -52,6 +52,8 @@ class Config:
             logging.getLogger("config").warning("GOOGLE_CLIENT_ID noto'g'ri: «….apps.googleusercontent.com» bilan tugashi kerak — Google tugmasi o'chirildi")
             gid = ""
         self.google_client_id = gid
+        ads = os.getenv("YANDEX_ADS_ID", "20369723").strip()                # Yandex avto-joylashtirish (bo'sh yoki «off» — o'chiq)
+        self.yandex_ads_id = ads if ads.isdigit() else ""
         self.tmdb_key = os.getenv("TMDB_API_KEY", "").strip()
         self.tmdb_lang = os.getenv("TMDB_LANG", "").strip() or "ru-RU"
         self.omdb_key = os.getenv("OMDB_API_KEY", "").strip()
