@@ -295,7 +295,7 @@ class AddFlow(AdminCase):
 
     def test_one_card_edited_in_place_and_catalogs_large(self):
         from app import genres
-        self.assertGreaterEqual(len(genres.GENRES), 28)
+        self.assertEqual(len(genres.PICKER), 25)
         self.assertGreaterEqual(len(genres.COUNTRIES), 55)
         self.assertGreaterEqual(len(genres.LANGS), 12)
         self.video("Kino 1080p")
@@ -308,6 +308,21 @@ class AddFlow(AdminCase):
         self.assertEqual(self.sends(), before)                       # bosqichlar yangi xabar yubormaydi — bitta karta tahrirlanadi
         self.assertIn("Kartali kino", self.last(1))                  # tepada yig'ma ma'lumot
         self.assertIn("izoh", self.last(1))                          # sifat aniqlangan — qayta so'ralmadi, to'g'ri izohga o'tdi
+
+    def test_card_goes_below_poster(self):
+        self.video("Kino 1080p")
+        self.press(1, "am:cat:movie")
+        self.press(1, "am:auto")
+        self.msg(1, "Posterli")
+        for cb in ("am:gok", "am:c:-", "am:y:0", "am:l:-", "am:skip", "am:wskip"):
+            self.press(1, cb)
+        n = self.sends()
+        m = message(1, "")
+        m["message"].pop("text")
+        m["message"]["photo"] = [{"file_id": "P1"}]
+        self.run_update(self.app, m)
+        self.assertEqual(self.sends(), n + 1)                        # tasdiq kartasi poster ostida yangi xabar bo'ldi
+        self.assertIn("Hammasi tayyor", self.last(1))
 
     def test_quality_asked_once_only_when_not_detected(self):
         self.video("", w=0, h=0)

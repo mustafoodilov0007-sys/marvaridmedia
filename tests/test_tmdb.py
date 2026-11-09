@@ -85,7 +85,7 @@ class TmdbCase(unittest.TestCase):
     def test_tv_details_and_english_fallback(self):
         d = self.t().details("tv", 1396)
         self.assertEqual((d["category"], d["duration_min"], d["age"], d["year"]), ("serial", 47, 18, 2008))
-        self.assertEqual(sorted(d["genres"]), ["crime", "drama"])
+        self.assertEqual(sorted(d["genres"]), ["criminal", "drama"])
         self.assertEqual(d["overview"], "A chemistry teacher")                      # ruscha yo'q — inglizcha
         self.assertEqual(d["imdb"], "")                                              # OMDb «N/A»
 

@@ -132,6 +132,11 @@ def card(ctx: Ctx, text: str, kb=None) -> None:
     wid = d.get("wid")
     msg = ctx.cb_message
     mid = None if wid == -1 else ((msg["message_id"] if msg and "text" in msg else None) or wid)
+    um = ctx.message
+    if mid and ctx.callback is None and um and not um.get("text"):
+        # admin rasm/video yubordi (masalan poster) — karta uning ostida chiqsin: eskisini o'chirib, yangisini yuboramiz
+        ctx.bot.safe("deleteMessage", {"chat_id": ctx.chat_id, "message_id": mid})
+        mid = None
     if mid:
         try:
             ctx.bot.edit_message_text(ctx.chat_id, mid, text, kb)
@@ -470,7 +475,7 @@ def st_desc(ctx: Ctx) -> None:
 
 def genre_rows(selected, toggle_prefix: str, done_cb: str, done_text: str = "✅ Tayyor — davom etish", extra=None) -> list:
     rows, row = [], []
-    for k in genres.GENRES:
+    for k in genres.PICKER:
         on = k in selected
         row.append(btn(("✅ " if on else "") + genres.label(k), f"{toggle_prefix}{k}", style=SUCCESS if on else None))
         if len(row) == 3:

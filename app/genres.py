@@ -13,39 +13,42 @@ from .utils import normalize
 # kalit → (belgi, nomi, izohdagi kalit so'zlar — normalize() qilingan ko'rinishda, so'z boshi bo'yicha)
 GENRES = {
     "action":    ("💥", "Jangari",      ("jangari", "boyevik", "boevik", "ekshn", "action", "jangovar")),
+    "adventure": ("🗺", "Sarguzasht",   ("sarguzasht", "priklyuchen", "adventure")),
     "comedy":    ("😂", "Komediya",     ("komediya", "komedi", "comedy", "kulgili", "yumor")),
     "drama":     ("🎭", "Drama",        ("drama", "dramatik")),
-    "thriller":  ("🔪", "Triller",      ("triller", "thriller", "sirli")),
-    "horror":    ("👻", "Qo'rqinchli",  ("qorqinchli", "horror", "uzhas", "ujas", "dahshatli", "vahimali")),
+    "romance":   ("❤️", "Melodrama",    ("melodrama",)),
+    "romantic":  ("💕", "Romantika",    ("romantika", "romantik", "romance", "muhabbat")),
     "fantasy":   ("🚀", "Fantastika",   ("fantastika", "fantastik", "scifi", "kosmik")),
-    "adventure": ("🗺", "Sarguzasht",   ("sarguzasht", "priklyuchen", "adventure")),
-    "romance":   ("❤️", "Melodrama",    ("melodrama", "romantik", "romance", "muhabbat")),
-    "crime":     ("🕵️", "Detektiv",     ("detektiv", "kriminal", "jinoyat", "crime")),
+    "magic":     ("🧙", "Fentezi",      ("fentezi", "fantasy", "sehrli")),
+    "horror":    ("😱", "Qo'rqinchli",  ("qorqinchli", "horror", "uzhas", "ujas", "dahshatli", "vahimali")),
+    "thriller":  ("🔪", "Triller",      ("triller", "thriller", "sirli")),
+    "crime":     ("🕵️", "Detektiv",     ("detektiv",)),
+    "criminal":  ("🔫", "Kriminal",     ("kriminal", "jinoyat", "crime")),
     "history":   ("🏛", "Tarixiy",      ("tarixiy", "istorich")),
+    "biography": ("📖", "Biografik",    ("biografik", "biografiya", "biography")),
+    "docu":      ("🎞", "Hujjatli",     ("hujjatli", "dokumental", "documentary")),
     "family":    ("👨‍👩‍👧", "Oilaviy",   ("oilaviy", "family", "semeyn")),
+    "animation": ("🎨", "Animatsiya",   ("animatsiya", "animatsion", "animation")),
+    "musical":   ("🎶", "Musiqiy",      ("musiqiy", "myuzikl", "musical")),
+    "sport":     ("⚽", "Sport",        ("sport", "sportiv")),
+    "war":       ("⚔️", "Harbiy",       ("harbiy", "urush", "voennyy", "vojna")),
+    "zombie":    ("🧟", "Zombilar",     ("zombi", "zombilar", "zombie")),
+    "superhero": ("🦸", "Super qahramonlar", ("superqahramon", "superqahramonlar", "superhero", "supergeroy")),
+    "mafia":     ("🎩", "Mafia",        ("mafia", "mafiya", "gangster")),
+    "ghost":     ("👻", "Ruhlar",       ("ruhlar", "ruh", "arvoh", "arvohlar")),
+    "vampire":   ("🧛", "Vampirlar",    ("vampir", "vampirlar", "vampire")),
+    # eski kinolar va TMDB uchun saqlanadi (tanlash ro'yxatida chiqmaydi)
     "anime":     ("🌸", "Anime",        ("anime",)),
     "indian":    ("🇮🇳", "Hind",         ("hind", "hindiston", "indiysk", "bollivud")),
     "turkish":   ("🇹🇷", "Turk",         ("turk", "turkiya", "turkcha", "turetsk")),
     "korean":    ("🇰🇷", "Koreys",       ("koreys", "koreya", "dorama", "korean")),
-    "magic":     ("🧙", "Fentezi",      ("fentezi", "fantasy", "sehrli", "sehr")),
-    "war":       ("⚔️", "Harbiy",       ("harbiy", "urush", "voennyy", "vojna")),
-    "biography": ("📖", "Biografik",    ("biografik", "biografiya", "biography")),
-    "docu":      ("🎞", "Hujjatli",     ("hujjatli", "dokumental", "documentary")),
-    "musical":   ("🎶", "Musiqiy",      ("musiqiy", "myuzikl", "musical")),
-    "sport":     ("⚽", "Sport",        ("sport", "sportiv")),
-    "western":   ("🤠", "Vestern",      ("vestern", "western")),
-    "mystery":   ("🔮", "Mistika",      ("mistika", "mistik", "mystery")),
-    "superhero": ("🦸", "Superqahramon", ("superqahramon", "superhero", "supergeroy")),
-    "disaster":  ("🌪", "Falokat",      ("falokat", "katastrofa", "disaster")),
-    "psycho":    ("🧠", "Psixologik",   ("psixologik", "psihologik", "psychological")),
-    "teen":      ("🎒", "O'smirlar",    ("osmirlar", "osmir", "teen", "maktab")),
-    "kids":      ("🧒", "Bolalar",      ("bolalar", "bolalarbop", "detskiy")),
-    "russian":   ("🇷🇺", "Rus kinosi",   ("ruskino", "rossiyaning")),
-    "uzbek":     ("🇺🇿", "O'zbek kinosi", ("ozbekfilm", "ozbekkino")),
 }
 
+# admin kino qo'shayotganda ko'radigan janrlar tartibi
+PICKER = [k for k in GENRES if k not in ("anime", "indian", "turkish", "korean")]
+
 # qisqa kalit so'zlar faqat to'liq so'z bo'lsa mos keladi («turk» ≠ «turkum», «hind» ≠ «hindu...» emas)
-_EXACT = {"hind", "turk", "anime", "drama", "sirli", "yumor", "urush"}
+_EXACT = {"hind", "turk", "anime", "drama", "sirli", "yumor", "urush", "ruh", "sport"}
 _YEAR_RE = re.compile(r"\b(19[2-9]\d|20[0-4]\d)\b")
 
 
@@ -72,7 +75,8 @@ def detect(*texts: str) -> List[str]:
     """Nom va izohdan janrlarni topadi (masalan «Janr: komediya, jangari» → comedy, action)."""
     words = normalize(" ".join(t or "" for t in texts)).split()
     found = []
-    for key, (_, _, keys) in GENRES.items():
+    for key in PICKER:
+        keys = GENRES[key][2]
         for kw in keys:
             if any((w == kw) if kw in _EXACT else w.startswith(kw) for w in words):
                 found.append(key)
