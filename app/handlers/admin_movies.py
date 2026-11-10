@@ -10,7 +10,7 @@ from .. import genres
 from ..core import NEXT, Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, number_rows
 from ..telegram import BadRequest, InputFile, TelegramError
-from ..texts import B, CATEGORIES, cat_icon, cat_name
+from ..texts import B, CATEGORIES, cat_icon, cat_name, title_icon
 from .audit import audit
 from ..utils import (entities_to_html, esc, extract_media, fmt_date, fmt_datetime, fmt_num, message_html, normalize, post_link,
                      premium_html, truncate)
@@ -1277,7 +1277,7 @@ def announce_text(app, movie, parts: int) -> str:
     (u botda va saytda); havolalar — pastdagi tugmalarda."""
     cat = movie["category"]
     music = cat == "music"
-    head = f"{cat_icon(cat)} <b>{esc(movie['title'])}</b>"
+    head = f"{title_icon(cat)} <b>{esc(movie['title'])}</b>"
     blocks = [head]
     info = [] if music else genres.card_lines(movie, parts)
     if info:

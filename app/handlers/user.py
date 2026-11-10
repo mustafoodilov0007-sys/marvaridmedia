@@ -15,7 +15,7 @@ from ..core import Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, nav_row, number_rows, user_menu
 from ..subscription import all_joined, channel_statuses, gate_view, needs_gate
 from ..telegram import BadRequest, TelegramError
-from ..texts import B, HELP_TEXT, cat_icon, cat_name
+from ..texts import B, HELP_TEXT, cat_icon, cat_name, title_icon
 from ..utils import (esc, fmt_datetime, fmt_num, fuzzy_match, normalize, now, phonetic, render,
                      truncate, visible_len)
 
@@ -754,7 +754,7 @@ def premium_locked(ctx: Ctx, movie) -> bool:
 def send_premium_lock(ctx: Ctx, movie) -> None:
     what = cat_name(movie["category"]).lower()
     ctx.send(f"🔒 <b>Bu {what} faqat Premium a'zolar uchun!</b>\n\n"
-             f"{cat_icon(movie['category'])} <b>{esc(movie['title'])}</b>\n\n"
+             f"{title_icon(movie['category'])} <b>{esc(movie['title'])}</b>\n\n"
              "💎 Premium obuna bilan ushbu va boshqa maxsus kontentdan cheklovsiz foydalaning.",
              ikb([btn("💎 Premium olish", "pr:menu", style=SUCCESS)]))
 
@@ -789,7 +789,7 @@ def open_movie(ctx: Ctx, movie, extra_rows=None) -> None:
 def build_caption(app, movie, part, total: int) -> str:
     """Botga yuboriladigan kino izohi: nom + yil, 2 qatorli ma'lumot, qisqa syujet (ochiladigan iqtibos), kod va ko'rishlar."""
     music = movie["category"] == "music"
-    head = f"{cat_icon(movie['category'])} <b>{esc(movie['title'])}</b>"
+    head = f"{title_icon(movie['category'])} <b>{esc(movie['title'])}</b>"
     if total > 1:
         head += f"\n📺 <b>{esc(part_label(part))}</b>  <i>/ {total}</i>"
     info = [] if music else genres.card_lines(movie)
@@ -882,7 +882,7 @@ def send_part(ctx: Ctx, movie, part, total: int, extra_rows=None) -> None:
             _reported_parts.add(part["id"])
             app.notify_admins(
                 "⚠️ <b>Kino faylida muammo!</b>\n\n"
-                f"{cat_icon(movie['category'])} {esc(movie['title'])}\n"
+                f"{title_icon(movie['category'])} {esc(movie['title'])}\n"
                 + (f"🔢 Kod: <code>{movie['code']}</code> • " if movie["code"] > 0 else "")
                 + f"{part['part_no']}-qism\n"
                 f"❗️ {esc(exc.description)}\n\nFaylni qayta yuklash tavsiya etiladi.")
@@ -1013,7 +1013,7 @@ def _inline_query(ctx: Ctx) -> None:
         if r["views"]:
             bits.append(f"👁 {fmt_num(r['views'])}")
         link = app.deep_link(r["code"])
-        text = f"{cat_icon(r['category'])} <b>{esc(r['title'])}</b>\n" + "\n".join(genres.info_lines(r))
+        text = f"{title_icon(r['category'])} <b>{esc(r['title'])}</b>\n" + "\n".join(genres.info_lines(r))
         item = {
             "type": "article", "id": str(r["id"]), "title": title[:100],
             "description": " • ".join(bits),

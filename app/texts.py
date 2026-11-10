@@ -47,6 +47,11 @@ def cat_icon(category: str) -> str:
     return CATEGORIES.get(category or "movie", CATEGORIES["movie"])[0]
 
 
+def title_icon(category: str) -> str:
+    """Kino nomi oldidagi belgi: hammasi uchun bir xil 🎬 (serial, multfilm ham) — musiqada 🎵. Premium emoji ulangan bo'lsa shu bo'lib chiqadi."""
+    return "🎵" if category == "music" else "🎬"
+
+
 def cat_name(category: str) -> str:
     return CATEGORIES.get(category or "movie", CATEGORIES["movie"])[1]
 
