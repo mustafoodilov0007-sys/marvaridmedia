@@ -204,21 +204,25 @@
       });
       return best;
     }
+    var geo = null;                    // kartochkalar joyi (bir marta o'lchanadi; o'lcham o'zgarsa qayta) — har kadrda o'lchash yo'q
+    function measure() {
+      var base = cf.offsetLeft;
+      geo = Array.prototype.map.call(cf.children, function (c) { return { x: c.offsetLeft - base, w: c.offsetWidth || 1 }; });
+    }
     function layout() {
       ticking = false;
-      var cr = cf.getBoundingClientRect(), cx = cr.left + cr.width / 2, best = 0, bd = 1e9;
-      var kids = cf.children, rects = new Array(kids.length), i0;
-      for (i0 = 0; i0 < kids.length; i0++) rects[i0] = kids[i0].getBoundingClientRect();        // avval hammasini o'qiymiz (so'ng yozamiz) — qayta hisoblash bitta marta
-      Array.prototype.forEach.call(kids, function (c, i) {
-        var b = rects[i];
-        if (b.right < cr.left - b.width || b.left > cr.right + b.width) { c.classList.remove("on"); return; }   // ko'rinmaydigan chetdagilarga tegmaymiz
-        var d = (b.left + b.width / 2 - cx) / b.width, ad = Math.min(Math.abs(d), 2.2);
-        c.style.transform = (LITE ? "" : "perspective(800px) rotateY(" + (Math.max(-1.2, Math.min(1.2, d)) * -14).toFixed(1) + "deg) ") + "scale(" + (1 - ad * 0.08).toFixed(3) + ")";
-        c.style.setProperty("--po", (1 - Math.min(ad, 1.5) * 0.32).toFixed(2));
-        c.style.zIndex = String(10 - Math.round(ad * 3));
-        c.classList.toggle("on", ad < 0.4);
+      if (!geo || geo.length !== cf.children.length) measure();
+      var kids = cf.children, cw = cf.clientWidth, mid = cf.scrollLeft + cw / 2, best = 0, bd = 1e9;
+      for (var i = 0; i < kids.length; i++) {
+        var c = kids[i], g = geo[i], d = (g.x + g.w / 2 - mid) / g.w;
         if (Math.abs(d) < bd) { bd = Math.abs(d); best = i; }
-      });
+        if (Math.abs(d) * g.w > cw / 2 + 2 * g.w) { if (c._on) { c.classList.remove("on"); c._on = false; } continue; }   // ko'rinmaydiganlarga tegmaymiz
+        var ad = Math.min(Math.abs(d), 2.2), on = ad < 0.4;
+        c.style.transform = (LITE ? "" : "perspective(800px) rotateY(" + (Math.max(-1.2, Math.min(1.2, d)) * -14).toFixed(1) + "deg) ") + "scale(" + (1 - ad * 0.08).toFixed(3) + ")";
+        if (c.firstChild) c.firstChild.style.opacity = (1 - Math.min(ad, 1.5) * 0.32).toFixed(2);
+        c.style.zIndex = String(10 - Math.round(ad * 3));
+        if (on !== c._on) { c.classList.toggle("on", on); c._on = on; }
+      }
       curG = best;
       var oi = cf.children[best]._i;
       if (oi !== cur) { cur = oi; if (open) { open = false; info.classList.remove("open"); } }   // boshqa kinoga o'tilsa panel yopiladi
@@ -238,7 +242,7 @@
     }
     cf.addEventListener("scroll", function () { queue(); clearTimeout(idleT); idleT = setTimeout(settle, 140); }, { passive: true });
     cf._dragEnd = function () { centerOn(bestChild()); };
-    window.addEventListener("resize", queue);
+    window.addEventListener("resize", function () { geo = null; queue(); });
     cf.addEventListener("keydown", function (e) {   // klaviatura: ← → strelkalar
       var dir = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
       if (!dir) return;
@@ -250,21 +254,7 @@
       }, 500);
     });
     requestAnimationFrame(function () { requestAnimationFrame(function () { centerOn(mid, true); queue(); }); });
-    // o'zi sekin aylanib turadi (ko'rinib turganda va tegilmaganda)
-    if (!REDUCE) {
-      var visible = false, idleUntil = 0;
-      if ("IntersectionObserver" in window) {
-        new IntersectionObserver(function (e) { visible = e[e.length - 1].isIntersecting; if (visible) queue(); }, { threshold: 0.4 }).observe(cf);
-      }
-      ["pointerdown", "wheel", "touchstart", "keydown"].forEach(function (ev) {
-        sec.addEventListener(ev, function () { idleUntil = Date.now() + 8000; }, { passive: true });
-      });
-      var iv = setInterval(function () {
-        if (!document.body.contains(cf)) { clearInterval(iv); return; }
-        if (!visible || open || document.hidden || Date.now() < idleUntil || sheetOpen || cf.classList.contains("dragging")) return;
-        step(1);
-      }, 4200);
-    }
+    // avtomatik aylanish yo'q: posterlar faqat foydalanuvchi surganda harakatlanadi (o'zidan «o'ynab ketmaydi»)
     return sec;
   }
 

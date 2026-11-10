@@ -71,13 +71,11 @@
   function persistSaved() { store.set("saved", JSON.stringify(saved)); }
   function animOnce(el, cls, ms) {   // CSS-animatsiyani qayta ishga tushiradi (sinf qo'yib, keyin olib tashlaydi)
     if (!el) return;
-    el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
-    setTimeout(function () { el.classList.remove(cls); }, ms || 600);
+    replayClass(el, cls, function () { setTimeout(function () { el.classList.remove(cls); }, ms || 600); });
   }
   function popBtn(el) {          // 🔖 bosilganda «pop» animatsiyasini qayta ishga tushiradi
     if (!el) return;
-    el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop");
-    setTimeout(function () { el.classList.remove("pop"); }, 600);
+    replayClass(el, "pop", function () { setTimeout(function () { el.classList.remove("pop"); }, 600); });
   }
   function toggleSaved(it) {
     var key = "b" + it.id;

@@ -45,6 +45,12 @@
   if (PUB && !APP && "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
     window.addEventListener("load", function () { navigator.serviceWorker.register("/sw.js").catch(function () {}); });
   }
+  // CSS animatsiyani qayta boshlash — «void el.offsetWidth» (butun sahifani majburan qayta hisoblash, qotish sababi) o'rniga 2 kadr kutamiz
+  function replayClass(el, cls, then) {
+    if (!el) return;
+    el.classList.remove(cls);
+    requestAnimationFrame(function () { requestAnimationFrame(function () { el.classList.add(cls); if (then) then(); }); });
+  }
   var me = { bot: "", brand: "Marvarid Media", channel: null };
   var NAMES = { movie: "Kino", serial: "Serial", cartoon: "Multfilm", music: "Musiqa", video: "Kino" };
   var PLURAL = { movie: "Kinolar", serial: "Seriallar", cartoon: "Multfilmlar", music: "Musiqalar", video: "Barcha kinolar" };

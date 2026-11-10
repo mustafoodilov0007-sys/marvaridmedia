@@ -30,7 +30,8 @@
       var bg = s.querySelector(".sheet-top .bg"); if (!bg) return;
       var y = Math.max(0, s.scrollTop);
       if (window.innerWidth < 900) {                 // telefon: poster joyida qoladi, matn ustiga chiqadi; poster asta qorayadi
-        s.style.setProperty("--sdim", Math.min(0.7, y / (window.innerHeight * 0.55)).toFixed(3));
+        var dim = s.querySelector(".sheet-top .sdim");    // faqat bitta qatlamning shaffofligi (butun sahifa qayta hisoblanmaydi)
+        if (dim) dim.style.opacity = Math.min(0.7, y / (window.innerHeight * 0.55)).toFixed(3);
         return;
       }
       bg.style.transform = "translate3d(0," + (y * 0.42).toFixed(1) + "px,0) scale(" + (1 + Math.min(y, 240) / 900).toFixed(3) + ")";

@@ -83,9 +83,20 @@
 
   // ───── hero karusel ─────
   var heroTimer = null, heroIdx = 0, heroItems = [], HERO_MS = 6500;
+  var heroVis = true;
   function heroView(items) {
     heroItems = items;
     var wrap = h("section", "hero");
+    heroVis = true;
+    if ("IntersectionObserver" in window) {        // karusel ekrandan chiqsa — avtomatik almashish va animatsiyalar to'xtaydi
+      var hio = new IntersectionObserver(function (e) {
+        var v = e[e.length - 1].isIntersecting;
+        if (v === heroVis) return;
+        heroVis = v; wrap.classList.toggle("offscreen", !v);
+        if (v) restartHero(); else stopHero();
+      }, { threshold: 0.15 });
+      hio.observe(wrap);
+    }
     wrap.setAttribute("aria-roledescription", "karusel");
     wrap.setAttribute("aria-label", "Yangi qo'shilgan kinolar");
     if (!items.length) {
@@ -177,18 +188,18 @@
     });
     var dots = document.querySelectorAll(".hero .dot");
     dots.forEach(function (d) { d.classList.remove("on"); });
-    void document.body.offsetWidth;                 // progress animatsiyasi qaytadan boshlansin
-    if (dots[heroIdx]) dots[heroIdx].classList.add("on");
+    if (dots[heroIdx]) replayClass(dots[heroIdx], "on");       // progress qaytadan (sahifani majburan qayta hisoblamasdan)
   }
   function stopHero() { clearTimeout(heroTimer); heroTimer = null; }
   function restartHero() {
     stopHero();
-    if (heroItems.length < 2 || REDUCE) return;
+    if (heroItems.length < 2 || REDUCE || !heroVis || document.hidden) return;
     var dots = document.querySelectorAll(".hero .dot");
-    if (dots[heroIdx]) { dots[heroIdx].classList.remove("on"); void document.body.offsetWidth; dots[heroIdx].classList.add("on"); }
+    if (dots[heroIdx]) replayClass(dots[heroIdx], "on");
     heroTimer = setTimeout(function () { goSlide(heroIdx + 1); restartHero(); }, HERO_MS);
   }
 
+  document.addEventListener("visibilitychange", function () { if (document.hidden) stopHero(); else if (current === "home" && !sheetOpen) restartHero(); });
   function openExternal(url) {
     if (!PUB && tg && tg.openLink) { try { tg.openLink(url); return; } catch (e) {} }
     var a = document.createElement("a");

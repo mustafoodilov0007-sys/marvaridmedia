@@ -79,7 +79,10 @@
     onScroll();
     updateBack();
     var view = $("view");
-    view.classList.remove("enter"); void view.offsetWidth; view.classList.add("enter");
+    if (!REDUCE && view.animate) {                        // sahifa almashganda: bitta yumshoq paydo bo'lish (kompozitorda)
+      try { view.getAnimations().forEach(function (a) { a.cancel(); }); } catch (e) {}
+      view.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: "cubic-bezier(.22,1,.36,1)" });
+    }
     var my = ++reqId;
     if (name === "home") {
       var sk = h("div", "page", [h("div", "rail", skeletonCards(4))]);

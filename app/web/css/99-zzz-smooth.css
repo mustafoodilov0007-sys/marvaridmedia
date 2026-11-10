@@ -1,0 +1,68 @@
+/* ⚡ Silliqlik (oxirgi qatlam). Qoida: animatsiya faqat transform/opacity bilan; doimiy (cheksiz) fon animatsiyalari yo'q;
+   telefonda xira fon (backdrop-filter) yo'q — Android WebView'da u har kadrda qayta chiziladi va aylantirishni qotiradi. */
+
+/* 1) doimiy fon animatsiyalari: zarrachalar, porlash, yurak urishi, tugma yaltirashi, poster yaltirashi */
+.amb { display: none !important; }
+.slide.on::before { animation: none !important; opacity: .7; }
+.top .ibtn#bSupport { animation: none !important; }
+.hero .btn.primary::after { display: none !important; }
+.poster:has(img:not(.ok)) .ph::after { animation: none !important; display: none; }
+
+/* 2) skelet: fon siljishi (har kadrda qayta chizish) o'rniga yengil shaffoflik pulsatsiyasi */
+@keyframes skPulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.sk, .cm-skel i { background: var(--surface-2) !important; animation: skPulse 1.6s ease-in-out infinite !important; }
+
+/* 3) karusel nuqtasi: kenglik (layout) emas — transform bilan to'ladi */
+.dot i { width: 100% !important; transform: scaleX(0); transform-origin: left center; }
+.dot.on i { animation: hprogT 6.5s linear forwards !important; }
+@keyframes hprogT { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* 4) ro'yxatlar: har bir karta alohida emas — sahifa bir marta, bitta qatlam bilan paydo bo'ladi */
+.grid > .card, .section:not(.rv) .rail > .card, .rv.in .rail > .card { animation: none !important; }
+#view.enter > * { animation: none !important; }
+#view.enter { animation: pgFade .34s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes pgFade { from { opacity: 0; } to { opacity: 1; } }   /* faqat shaffoflik: #view ichidagi fixed elementlar siljimaydi */
+
+/* 5) kino sahifasi: Ken Burns (doimiy kattalashish) yo'q; qorayish — alohida qatlam */
+.sheet.on .sheet-top .bg { animation: none !important; }
+.sheet-top::before { display: none !important; }
+.sheet-top .sdim { position: absolute; inset: 0; z-index: 1; background: #000; opacity: 0; pointer-events: none; will-change: opacity; }
+.sheet-top .bg { transition: opacity .26s ease-out; }
+.flyp { will-change: transform; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); background-position: center top; transform-origin: 0 0; backface-visibility: hidden; }
+/* ma'lumotlar: poster qo'nayotganda ohista, bir tekis ko'tariladi */
+@keyframes sRise { from { opacity: 0; transform: translate3d(0, 14px, 0); } to { opacity: 1; transform: none; } }
+.sheet.on .sheet-main .info > *, .sheet.on .sheet-main + .actions, .sheet.on .stabs, .sheet.on .spanel:not(.hidden) {
+  animation: sRise .62s cubic-bezier(.22, 1, .36, 1) both !important; }
+.sheet.on .sheet-main .info > :nth-child(1) { animation-delay: .26s !important; }
+.sheet.on .sheet-main .info > :nth-child(2) { animation-delay: .31s !important; }
+.sheet.on .sheet-main .info > :nth-child(3) { animation-delay: .36s !important; }
+.sheet.on .sheet-main .info > :nth-child(4) { animation-delay: .41s !important; }
+.sheet.on .sheet-main .info > :nth-child(5) { animation-delay: .46s !important; }
+.sheet.on .sheet-main + .actions { animation-delay: .5s !important; }
+.sheet.on .stabs { animation-delay: .55s !important; }
+.sheet.on .spanel:not(.hidden) { animation-delay: .6s !important; }
+.spanel:not(.hidden) { animation: pgFade .3s ease-out both; }
+
+@media (max-width: 899px) {
+  /* telefonda: ochilish/yopilish JS (Web Animations) bilan boshqariladi — CSS o'tishi aralashmasin */
+  .sheet, .sheet.on { transition: none !important; opacity: 1; }
+  /* sahifa ochiq turganda orqadagisi chizilmaydi (yashirin qatlam = GPU tejaladi) */
+  body.sheet-cover #view, body.sheet-cover .top, body.sheet-cover .nav, body.sheet-cover .hero { visibility: hidden; }
+  /* xira fon yo'q: o'rniga quyuq, deyarli shaffof bo'lmagan fon */
+  *, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  .top.solid { background: color-mix(in srgb, var(--bg) 96%, transparent); }
+  .hero .btn.soft, .hero .btn.sq { background: rgba(16, 14, 18, .58); }
+  .toast { background: color-mix(in srgb, var(--surface) 97%, transparent); }
+}
+
+/* lite / kamaytirilgan harakat */
+html.lite .sheet.on .sheet-main .info > *, html.lite .sheet.on .stabs, html.lite .sheet.on .sheet-main + .actions, html.lite .sheet.on .spanel { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .sheet.on .sheet-main .info > *, .sheet.on .stabs, .sheet.on .sheet-main + .actions, .sheet.on .spanel, #view.enter { animation: none !important; }
+}
+
+/* karusel ekrandan tashqarida — hech narsa harakatlanmaydi */
+.hero.offscreen .slide .bg, .hero.offscreen .dot.on i { animation-play-state: paused !important; }
+
+/* Shorts vaqt chizig'i: kenglik o'rniga transform */
+.sprog i { width: 100% !important; transform: scaleX(0); transform-origin: left center; will-change: transform; }

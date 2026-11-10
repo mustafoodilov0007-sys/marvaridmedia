@@ -140,7 +140,7 @@
           failShort(el);
         });
         media.addEventListener("timeupdate", function () {
-          if (media.duration) prog.firstChild.style.width = (media.currentTime / media.duration * 100) + "%";
+          if (media.duration) prog.firstChild.style.transform = "scaleX(" + (media.currentTime / media.duration).toFixed(4) + ")";   // kenglik emas — transform (qayta hisoblashsiz)
         });
         el.classList.add("is-loading");
       } else {

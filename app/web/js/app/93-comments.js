@@ -176,8 +176,11 @@
     }
     return bar;
   }
-  // 🛫 Kartadan kino oynasiga: poster joyidan «uchib» o'tadi (qaytishda — orqasiga). Faqat transform/rect, 0.4 soniya.
-  var flyEl = null, flySrc = null, flyId = null;
+  // 🛫 Kartadan kino sahifasiga o'tish (FLIP). Faqat transform va opacity, Web Animations API orqali — brauzer buni alohida
+  // (kompozitor) oqimda bajaradi, shuning uchun sahifa qurilayotgan paytda ham poster silliq uchadi, qotmaydi.
+  var M_EASE = "cubic-bezier(.32,.72,0,1)", M_OPEN = 560, M_CLOSE = 460;     // iOS uslubidagi yumshoq sekinlashish, sakrashsiz
+  var WAAPI = !!(document.body && document.body.animate);
+  var flyEl = null, flySrc = null, flyId = null, flyAnim = null, sheetAnim = null;
   function imgOf(posterEl) {          // poster rasmi: <img> yoki fon rasmi (karusel)
     if (!posterEl) return "";
     var im = posterEl.querySelector("img.ok");
@@ -187,36 +190,71 @@
     return m ? m[1] : "";
   }
   function hidesSrc(el) { return !el.classList.contains("bg"); }      // karusel foni (butun slayd) yashirilmaydi — matn qolib ketmasin
-  function flyBox(url, r, radius) {
+  function radiusOf(el) { return parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0; }
+  function inView(r) { return r.width > 8 && r.height > 8 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; }
+  // poster nusxasi KATTA (oxirgi) holatida joylanadi; kichik holat — transform (scale + translate)
+  function makeFly(url, box, radius) {
     var d = document.createElement("div");
     d.className = "flyp";
-    d.style.cssText = "left:" + r.left + "px;top:" + r.top + "px;width:" + r.width + "px;height:" + r.height + "px;border-radius:" + radius + ";background-image:url('" + url + "')";
+    d.style.cssText = "left:" + box.left + "px;top:" + box.top + "px;width:" + box.width + "px;height:" + box.height + "px;border-radius:" +
+      radius.toFixed(1) + "px;background-image:url('" + url + "')";
     document.body.appendChild(d);
     return d;
   }
-  function flyMove(d, r, radius, done) {
-    void d.offsetWidth;
-    var E = "cubic-bezier(.4,0,.2,1)", T = ".66s";          // sekin va yumshoq (ease-in-out)
-    d.style.transition = "left " + T + " " + E + ", top " + T + " " + E + ", width " + T + " " + E + ", height " + T + " " + E + ", border-radius " + T + " " + E;
-    d.style.left = r.left + "px"; d.style.top = r.top + "px"; d.style.width = r.width + "px"; d.style.height = r.height + "px"; d.style.borderRadius = radius;
-    var fin = false;
-    function end() { if (fin) return; fin = true; done(); }
-    d.addEventListener("transitionend", end); setTimeout(end, 800);
+  function flipT(from, box) {        // box joyidagi elementni from to'rtburchagiga «qisqartiradigan» transform
+    return "translate3d(" + (from.left - box.left).toFixed(1) + "px," + (from.top - box.top).toFixed(1) + "px,0) scale(" +
+      (from.width / box.width).toFixed(4) + "," + (from.height / box.height).toFixed(4) + ")";
   }
-  function flyTarget(sheet) {          // telefonda poster butun ekranli muqovaga «kengayadi», kompyuterda — oynadagi postergacha
-    return innerWidth < 900 ? sheet.querySelector(".sheet-top") : sheet.querySelector(".sheet-main .poster");
+  function maskFly(d, h, heroH) {    // telefonda: poster muqova pastida yumshoq so'nadi (sarlavha uning ostida ko'rinadi)
+    var a = Math.max(0, (heroH - 190) / h * 100), b = Math.min(100, (heroH - 20) / h * 100);
+    var m = "linear-gradient(180deg,#000 " + a.toFixed(1) + "%,transparent " + b.toFixed(1) + "%)";
+    d.style.webkitMaskImage = m; d.style.maskImage = m;
+  }
+  function decodeUrl(url, maxMs) {   // katta muqova rasmi tayyor bo'lguncha kutamiz (ko'pi bilan maxMs) — «sakrash» bo'lmasin
+    return new Promise(function (res) {
+      if (!url) return res();
+      var im = new Image(), done = false;
+      function ok() { if (!done) { done = true; res(); } }
+      im.src = url;
+      if (im.decode) im.decode().then(ok, ok); else { im.onload = ok; im.onerror = ok; }
+      setTimeout(ok, maxMs);
+    });
+  }
+  function stopAnims() {
+    if (flyAnim) { try { flyAnim.cancel(); } catch (e) {} flyAnim = null; }
+    if (sheetAnim) { try { sheetAnim.cancel(); } catch (e) {} sheetAnim = null; }
   }
   function flyCleanup() {
     if (flyEl) { flyEl.remove(); flyEl = null; }
-    var tp = flyTarget($("sheet")); if (tp) tp.style.visibility = "";
+    var sh = $("sheet"), bgx = sh.querySelector(".sheet-top .bg"), tp = sh.querySelector(".sheet-main .poster");
+    if (bgx) bgx.style.opacity = "";
+    if (tp) tp.style.visibility = "";
     if (flySrc) flySrc.style.visibility = "";
   }
-  function inView(r) { return r.width > 8 && r.height > 8 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; }
   function openSheet(it, fromPop, srcPoster) {
     haptic();
     if (!fromPop) pushSheet(it);
     var s = $("sheet");
     if (!sheetOpen) lastFocus = document.activeElement;
+    var wasOpen = sheetOpen, mobile = innerWidth < 900;
+    stopAnims(); flyCleanup(); flySrc = null; flyId = null;
+    document.body.classList.remove("sheet-cover");
+    sheetOpen = true;
+    // 1) poster DARHOL ucha boshlaydi (kompozitorda), sahifa esa keyingi kadrda quriladi — bosilgan zahoti javob, qotish yo'q
+    var url = (!wasOpen && !REDUCE && WAAPI && srcPoster) ? imgOf(srcPoster) : "";
+    var sr = url ? srcPoster.getBoundingClientRect() : null;
+    if (sr && !inView(sr)) url = "";
+    var heroBox = null;
+    if (url && mobile) {
+      heroBox = { left: 0, top: 0, width: innerWidth, height: innerWidth * sr.height / sr.width };
+      flyEl = makeFly(url, heroBox, radiusOf(srcPoster) * heroBox.width / sr.width);
+      flySrc = srcPoster; flyId = it.id;
+      if (hidesSrc(srcPoster)) srcPoster.style.visibility = "hidden";
+      flyAnim = flyEl.animate([{ transform: flipT(sr, heroBox) }, { transform: "none" }], { duration: M_OPEN, easing: M_EASE, fill: "both" });
+      requestAnimationFrame(function () { setTimeout(build, 0); });
+    } else build();
+    function build() {
+    if (!sheetOpen) return;                 // ochilish to'xtatilgan (tez yopildi)
     var bg = h("div", "bg" + (it.poster ? "" : " ph"));
     if (it.poster) bg.style.backgroundImage = "url('" + posterUrl(it, innerWidth < 900 ? 720 : 360) + "')";
     var closeBtn = h("button", "ibtn close", [icon("x")]);
@@ -231,9 +269,9 @@
     if (it.country) metaBits.push(it.country);
     var metaLine = h("div", "smeta", [it.age ? h("span", "agebox", it.age + "+") : null, h("span", null, metaBits.join(" · "))]);
     var stats = h("div", "stats");
-    if (it.views > 0) { var sv = h("span"); countUp(sv, "👁 ", it.views, fmt, " ko'rilgan"); stats.appendChild(sv); }
+    if (it.views > 0) stats.appendChild(h("span", null, "👁 " + fmt(it.views) + " ko'rilgan"));
     var sc = score(it);
-    if (sc !== null) { var ss = h("span"); countUp(ss, "👍 ", sc, String, "% yoqdi"); stats.appendChild(ss); }
+    if (sc !== null) stats.appendChild(h("span", null, "👍 " + sc + "% yoqdi"));
     if (it.added) stats.appendChild(h("span", null, "📅 " + fmtDate(it.added) + " qo'shilgan"));
     var desc = null;
     if (it.desc) {
@@ -283,7 +321,7 @@
       };
       tabsEl.appendChild(tb); panels.push(pn);
     });
-    var topKids = [bg, h("div", "grip"), closeBtn];
+    var topKids = [bg, h("div", "sdim"), h("div", "grip"), closeBtn];
     var heroVid = null;
     if (it.trailer && !LITE && !REDUCE && !(navigator.connection && navigator.connection.saveData)) {     // muqova ustida treyler jim o'ynaydi (poster qoladi)
       heroVid = document.createElement("video");
@@ -318,56 +356,102 @@
         }).catch(function () {});
       }, 480);
     }
-    flyCleanup(); flySrc = null; flyId = null;
     if (heroVid) { var pv = heroVid.play(); if (pv && pv.catch) pv.catch(function () {}); }
-    var url = (!sheetOpen && !REDUCE && srcPoster) ? imgOf(srcPoster) : "";
-    if (url) { s.style.transition = "none"; s.style.opacity = "0"; }       // oyna o'z joyida paydo bo'ladi, poster «uchib» keladi
+    s.style.transition = "none";
+    s.style.transform = "";
     $("veil").classList.add("on");
     s.classList.add("on");
-    s.scrollTop = 0; s.style.setProperty("--sdim", "0");
-    if (url) {
-      var tp = flyTarget(s), sr = srcPoster.getBoundingClientRect(), tr = tp ? tp.getBoundingClientRect() : null;
-      if (tr && inView(sr) && tr.width > 8) {
+    s.scrollTop = 0;
+    var dimEl = s.querySelector(".sheet-top .sdim"); if (dimEl) dimEl.style.opacity = "0";
+    var finishOpen = function () { if (sheetOpen && mobile) document.body.classList.add("sheet-cover"); };   // orqadagi sahifa chizilmaydi
+    if (flyEl && heroBox) {                                   // telefon: poster muqovaga aylanadi
+      var bgEl = s.querySelector(".sheet-top .bg"), heroT = s.querySelector(".sheet-top");
+      if (bgEl) bgEl.style.opacity = "0";
+      maskFly(flyEl, heroBox.height, heroT ? heroT.getBoundingClientRect().height : innerHeight * .6);
+      sheetAnim = s.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 380, easing: "ease-out" });
+      var myFly = flyEl, myAnim = flyAnim;
+      Promise.all([myAnim.finished.catch(function () {}), decodeUrl(it.poster ? posterUrl(it, 720) : "", 900)]).then(function () {
+        if (flyEl !== myFly) return;
+        if (bgEl) bgEl.style.opacity = "";
+        if (flySrc) flySrc.style.visibility = "";
+        var fade = myFly.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, easing: "ease-out", fill: "forwards" });
+        fade.onfinish = function () { myFly.remove(); if (flyEl === myFly) flyEl = null; finishOpen(); };
+        flyAnim = null;
+      });
+    } else if (url && !mobile) {                              // kompyuter: poster oynadagi posterga uchadi
+      var tp = s.querySelector(".sheet-main .poster"), tr = tp ? tp.getBoundingClientRect() : null;
+      if (tr && tr.width > 8) {
         tp.style.visibility = "hidden";
-        flyEl = flyBox(url, sr, getComputedStyle(srcPoster).borderRadius);
+        flyEl = makeFly(url, tr, radiusOf(tp));
         flySrc = srcPoster; flyId = it.id;
         if (hidesSrc(srcPoster)) srcPoster.style.visibility = "hidden";
-        void s.offsetWidth;
-        s.style.transition = "opacity .55s ease"; s.style.opacity = "1";
-        var mine = flyEl;
-        flyMove(flyEl, tr, getComputedStyle(tp).borderRadius, function () {
-          if (flyEl !== mine) return;
-          tp.style.visibility = ""; srcPoster.style.visibility = ""; flyEl.remove(); flyEl = null;
-          s.style.transition = ""; s.style.opacity = "";
-        });
-      } else { s.style.transition = ""; s.style.opacity = ""; }
+        flyAnim = flyEl.animate([{ transform: flipT(sr, tr) }, { transform: "none" }], { duration: M_OPEN, easing: M_EASE });
+        sheetAnim = s.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 360, easing: "ease-out" });
+        var dFly = flyEl;
+        flyAnim.onfinish = function () {
+          tp.style.visibility = ""; if (flySrc) flySrc.style.visibility = "";
+          dFly.remove(); if (flyEl === dFly) flyEl = null; flyAnim = null;
+        };
+      }
+    } else if (!wasOpen && mobile && WAAPI && !REDUCE) {      // telefon, manbasiz (qidiruv, havola): sahifa pastdan yumshoq chiqadi
+      sheetAnim = s.animate([{ opacity: 0, transform: "translate3d(0,28px,0)" }, { opacity: 1, transform: "none" }], { duration: 480, easing: M_EASE });
+      sheetAnim.onfinish = function () { sheetAnim = null; finishOpen(); };
+    } else finishOpen();
+    requestAnimationFrame(function () { s.style.transition = ""; });
     }
-    sheetOpen = true;
     lockSwipes(true);
     stopHero();
     document.querySelectorAll(".short video").forEach(function (v) { v.pause(); });
     updateBack();
-    setTimeout(function () { try { closeBtn.focus({ preventScroll: true }); } catch (e) {} }, 60);
+    setTimeout(function () { var cb = s.querySelector(".close"); try { if (cb) cb.focus({ preventScroll: true }); } catch (e) {} }, 60);
   }
   function closeSheet(fromPop) {
     closeTrailer(true);
-    document.querySelectorAll("#sheet video").forEach(function (v) { try { v.pause(); } catch (e) {} });
-    var sh = $("sheet"), back = null;
-    if (flySrc && flyId != null && document.body.contains(flySrc) && !REDUCE) {      // orqaga «uchib» qaytish
-      var tp0 = flyTarget(sh), im0 = tp0 && tp0.classList.contains("sheet-top") ? imgOf(tp0.querySelector(".bg")) : imgOf(tp0), sr0 = flySrc.getBoundingClientRect(), tr0 = tp0 ? tp0.getBoundingClientRect() : null;
-      if (im0 && tr0 && inView(sr0) && inView(tr0)) back = { url: im0, from: tr0, to: sr0, src: flySrc, tp: tp0 };
-    }
-    flyCleanup();
-    if (back) {
-      back.tp.style.visibility = "hidden"; if (hidesSrc(back.src)) back.src.style.visibility = "hidden";
-      var cl = flyBox(back.url, back.from, getComputedStyle(back.tp).borderRadius);
-      flyMove(cl, back.to, getComputedStyle(back.src).borderRadius, function () { back.src.style.visibility = ""; cl.remove(); });
-      setTimeout(function () { back.src.style.visibility = ""; if (cl.parentNode) cl.remove(); }, 900);
-    }
+    var sh = $("sheet"), mobile = innerWidth < 900;
+    sh.querySelectorAll("video").forEach(function (v) { try { v.pause(); } catch (e) {} });
+    document.body.classList.remove("sheet-cover");             // orqadagi sahifa yana ko'rinadi (yopilish ostida)
+    stopAnims();
+    var src = flySrc, id = flyId;
+    if (flyEl) { flyEl.remove(); flyEl = null; }
     flySrc = null; flyId = null;
-    $("veil").classList.remove("on");
-    $("sheet").classList.remove("on");
+    var back = null;
+    if (src && !sh.classList.contains("on")) { src.style.visibility = ""; src = null; }   // sahifa hali qurilmagan — qaytish uchishi yo'q
+    if (src && id != null && document.body.contains(src) && !REDUCE && WAAPI) {      // orqaga «uchib» qaytish
+      var sr0 = src.getBoundingClientRect();
+      if (inView(sr0)) {
+        if (mobile) {
+          var bg0 = sh.querySelector(".sheet-top .bg"), hero0 = sh.querySelector(".sheet-top"), url0 = imgOf(bg0);
+          if (url0 && hero0) back = { url: url0, box: { left: 0, top: 0, width: innerWidth, height: innerWidth * sr0.height / sr0.width },
+                                      heroH: hero0.getBoundingClientRect().height, hide: bg0 };
+        } else {
+          var tp0 = sh.querySelector(".sheet-main .poster"), tr0 = tp0 ? tp0.getBoundingClientRect() : null;
+          if (tp0 && tr0 && inView(tr0)) back = { url: imgOf(tp0) || imgOf(src), box: tr0, hide: tp0 };
+        }
+        if (back && back.url) {
+          var cl = makeFly(back.url, back.box, mobile ? radiusOf(src) * back.box.width / sr0.width : radiusOf(back.hide));
+          if (back.heroH) maskFly(cl, back.box.height, back.heroH);
+          back.hide.style.visibility = "hidden";
+          if (hidesSrc(src)) src.style.visibility = "hidden";
+          var ba = cl.animate([{ transform: "none" }, { transform: flipT(sr0, back.box) }], { duration: M_CLOSE, easing: M_EASE, fill: "forwards" });
+          var fin = function () { src.style.visibility = ""; back.hide.style.visibility = ""; cl.remove(); };
+          ba.onfinish = fin; setTimeout(function () { if (cl.parentNode) fin(); }, M_CLOSE + 400);
+        } else back = null;
+      }
+    }
+    if (src && !back) src.style.visibility = "";
     sheetOpen = false;
+    $("veil").classList.remove("on");
+    if (mobile && WAAPI && !REDUCE) {                          // telefon: sahifa yumshoq so'nadi, so'ng yashirinadi
+      var from = sh.style.transform || "none";
+      sheetAnim = sh.animate([{ opacity: 1, transform: from }, { opacity: 0, transform: back ? from : "translate3d(0,22px,0)" }],
+                             { duration: back ? 300 : 340, easing: "ease-out", fill: "forwards" });
+      var mine = sheetAnim;
+      sheetAnim.onfinish = function () {
+        if (sheetAnim !== mine) return;
+        if (!sheetOpen) { sh.classList.remove("on"); sh.style.transform = ""; }
+        mine.cancel(); sheetAnim = null;
+      };
+    } else sh.classList.remove("on");
     lockSwipes(false);
     setTimeout(flushUnsaved, 260);              // sevimlilardan olib tashlangan kartalar oyna yopilgach so'nadi
     hideMain();
