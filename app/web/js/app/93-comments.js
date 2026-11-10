@@ -214,20 +214,18 @@
     var s = $("sheet");
     if (!sheetOpen) lastFocus = document.activeElement;
     var bg = h("div", "bg" + (it.poster ? "" : " ph"));
-    if (it.poster) bg.style.backgroundImage = "url('" + posterUrl(it, 360) + "')";
+    if (it.poster) bg.style.backgroundImage = "url('" + posterUrl(it, innerWidth < 900 ? 720 : 360) + "')";
     var closeBtn = h("button", "ibtn close", [icon("x")]);
     closeBtn.setAttribute("aria-label", "Yopish");
     closeBtn.onclick = function () { closeSheet(); };
-    var chips = h("div", "chips", [h("span", "chip", NAMES[it.cat] || "Kino"), it.code > 0 ? h("span", "chip", "Kod: " + it.code) : null]);
-    if (it.year) chips.appendChild(h("span", "chip", yr(it)));
-    if (it.age) chips.appendChild(h("span", "chip", it.age + "+"));
-    if (fmtDur(it.duration)) chips.appendChild(h("span", "chip", "⏱ " + fmtDur(it.duration)));
-    if (it.parts > 1) chips.appendChild(h("span", "chip", it.parts + " qism"));
+    var chips = h("div", "chips");
     (it.genres || []).forEach(function (g) { chips.appendChild(h("span", "chip g", g.label)); });
-    if (it.country) chips.appendChild(h("span", "chip", it.country));
-    if (it.lang) chips.appendChild(h("span", "chip", it.lang));
-    if (it.quality) chips.appendChild(h("span", "chip", "🎞 " + it.quality));
     if (it.premium) chips.appendChild(h("span", "chip gold", "PREMIUM"));
+    var metaBits = [NAMES[it.cat] || "Kino"];
+    if (it.year) metaBits.push(yr(it));
+    if (fmtDur(it.duration)) metaBits.push(fmtDur(it.duration));
+    if (it.country) metaBits.push(it.country);
+    var metaLine = h("div", "smeta", [it.age ? h("span", "agebox", it.age + "+") : null, h("span", null, metaBits.join(" · "))]);
     var stats = h("div", "stats");
     if (it.views > 0) { var sv = h("span"); countUp(sv, "👁 ", it.views, fmt, " ko'rilgan"); stats.appendChild(sv); }
     var sc = score(it);
@@ -244,26 +242,49 @@
         desc.appendChild(tgl);
       }
     }
+    // «Tafsilotlar» yorlig'i uchun ma'lumotlar qatori
+    function drow(label, value) { return value ? h("div", "drow", [h("span", null, label), h("b", null, String(value))]) : null; }
+    var details = h("div", "sdetails", [
+      drow("Turi", NAMES[it.cat] || "Kino"), drow("Yili", it.year ? yr(it) : ""), drow("Davomiyligi", fmtDur(it.duration)),
+      drow("Davlat", it.country), drow("Til", it.lang), drow("Sifat", it.quality), drow("Yosh cheklovi", it.age ? it.age + "+" : ""),
+      drow("IMDb", it.imdb), drow("Qismlar", it.parts > 1 ? it.parts + " qism" : ""), drow("Kod", it.code > 0 ? it.code : ""),
+      drow("Ko'rilgan", it.views > 0 ? fmt(it.views) : ""), drow("Qo'shilgan", it.added ? fmtDate(it.added) : "")].filter(Boolean));
     var hasMain = useMain(it);
     s.classList.toggle("hasmain", hasMain);
     var similar = it.cat === "music" ? null : h("div", "similar");
     s.setAttribute("aria-label", it.title);
     var acts = actionRow(it, false);
+    var noteNode = h("div", "note", it.locked ? "Bu kontent Premium a'zolar uchun. Bot chatida Premium olish tugmasi chiqadi."
+      : it.cat === "music" ? "«Tinglash» — shu yerning o'zida eshitasiz. Yonidagi tugma qo'shiqni Telegram botga yuboradi."
+      : PUB ? "«Kinoni ko'rish» bosilsa, Telegram'da botimiz ochiladi va kinoni yuboradi."
+      : "«Kinoni ko'rish» bosilsa, bot kinoni chatga yuboradi.");
+    var tabList = [{ label: "Umumiy", nodes: [desc, it.glink ? glinkRow(it) : null, it.cat === "music" ? null : rateRow(it), noteNode, similar] }];
+    if (it.cat !== "music") tabList.push({ label: "Izohlar", nodes: [commentsSection(it)] });
+    if (it.trailer || it.turl) {
+      var trBtn = h("button", "strailer", [posterNode(it, 720), h("span", "play", [icon("play")]), h("b", null, "Treylerni ko'rish")]);
+      trBtn.onclick = function () { haptic(); openTrailer(it); };
+      tabList.push({ label: "Treyler", nodes: [trBtn] });
+    }
+    tabList.push({ label: "Tafsilotlar", nodes: [details] });
+    var tabsEl = h("div", "stabs"), panels = [];
+    tabList.forEach(function (t, i) {
+      var tb = h("button", "stab" + (i ? "" : " on"), t.label);
+      var pn = h("div", "spanel" + (i ? " hidden" : ""), t.nodes.filter(Boolean));
+      tb.onclick = function () {
+        haptic();
+        tabsEl.querySelectorAll(".stab").forEach(function (x) { x.classList.toggle("on", x === tb); });
+        panels.forEach(function (x) { x.classList.toggle("hidden", x !== pn); });
+        try { tb.scrollIntoView({ inline: "center", block: "nearest" }); } catch (e) {}
+      };
+      tabsEl.appendChild(tb); panels.push(pn);
+    });
     var parts = [
       h("div", "sheet-top", [bg, h("div", "grip"), closeBtn]),
-      h("div", "sheet-main", [posterNode(it, 720), h("div", "info", [h("h3", null, it.title), ratingBadges(it), chips, stats.childNodes.length ? stats : null])]),
-      desc,
+      h("div", "sheet-main", [posterNode(it, 720), h("div", "info", [h("h3", null, it.title), metaLine, ratingBadges(it), chips, stats.childNodes.length ? stats : null])]),
       acts,
-      it.glink ? glinkRow(it) : null,
-      it.cat === "music" ? null : rateRow(it),
       me.admin ? adminBar(it) : null,
-      h("div", "note", it.locked ? "Bu kontent Premium a'zolar uchun. Bot chatida Premium olish tugmasi chiqadi."
-        : it.cat === "music" ? "«Tinglash» — shu yerning o'zida eshitasiz. Yonidagi tugma qo'shiqni Telegram botga yuboradi."
-        : PUB ? "«Kinoni ko'rish» bosilsa, Telegram'da botimiz ochiladi va kinoni yuboradi."
-        : "«Kinoni ko'rish» bosilsa, bot kinoni chatga yuboradi."),
-      it.cat === "music" ? null : commentsSection(it),
-      similar
-    ];
+      tabsEl
+    ].concat(panels);
     var bar = (hasMain || it.cat === "music") ? null : stickyBar(it, acts);
     if (bar) parts.push(bar);
     s.replaceChildren.apply(s, parts.filter(Boolean));          // null qiymatlar «null» matni bo'lib chiqmasin
