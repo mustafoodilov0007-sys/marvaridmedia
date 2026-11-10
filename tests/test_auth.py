@@ -154,7 +154,12 @@ class Ads(AuthCase):
         from app import webapp
         if not webapp._webp_ok():
             self.skipTest("Pillow WebP yo'q")
-        im = Image.effect_noise((900, 1350), 40).convert("RGB")
+        from PIL import ImageDraw, ImageFilter
+        im = Image.linear_gradient("L").resize((900, 1350)).convert("RGB")          # poster kabi silliq rasm (shovqin emas)
+        d = ImageDraw.Draw(im)
+        d.ellipse((200, 300, 700, 800), fill=(180, 60, 40))
+        d.rectangle((100, 1000, 800, 1200), fill=(30, 90, 160))
+        im = im.filter(ImageFilter.GaussianBlur(3))
         b = io.BytesIO()
         im.save(b, "JPEG", quality=90)
         jpg = webapp._thumb(b.getvalue(), 360)
