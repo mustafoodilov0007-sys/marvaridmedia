@@ -457,6 +457,29 @@ class AddFlow(AdminCase):
                 th.join(5)
         self.assertIn("izohingizga javob yozdi", " ".join(self.app.bot.texts(51)))
 
+    def test_premium_trial_given_once_to_new_users(self):
+        from app.handlers import trial
+        db = self.app.db
+        self.app.set_setting("trial_days", "3")
+        self.app.set_setting("trial_since", "1")
+        self.msg(201, "/start")                                              # yangi foydalanuvchi — sovg'a
+        self.assertIn("bepul Premium", " ".join(self.app.bot.texts(201)))
+        until = db.premium_until(201)
+        self.assertGreater(until, 0)
+        self.msg(201, "/start")                                              # ikkinchi marta — berilmaydi
+        self.assertEqual(db.premium_until(201), until)
+        self.app.set_setting("trial_days", "0")
+        self.msg(202, "/start")
+        self.assertEqual(db.premium_until(202), 0)                           # o'chiq — berilmaydi
+        self.app.set_setting("trial_days", "3")
+        db.x("UPDATE users SET joined_at=0 WHERE user_id=202")               # funksiya yoqilishidan oldingi (eski) foydalanuvchi
+        self.msg(202, "/start")
+        self.assertEqual(db.premium_until(202), 0)
+        self.msg(1, "/sinov")
+        self.assertIn("sinov muddati", self.last(1).lower())
+        self.press(1, "tr:set:7")
+        self.assertEqual(trial.trial_days(self.app), 7)
+
     def test_year_range_typed(self):
         from app import genres
         self.assertEqual(genres.parse_years("2012-2015"), (2012, 2015))

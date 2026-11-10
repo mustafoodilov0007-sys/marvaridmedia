@@ -110,6 +110,9 @@ def cmd_start(ctx: Ctx) -> None:
     apply_referral(ctx, payload)
     if not code or is_new:
         send_welcome(ctx)
+    if is_new:
+        from .trial import maybe_gift
+        maybe_gift(ctx)
     if code:
         handle_query(ctx, payload)
 
