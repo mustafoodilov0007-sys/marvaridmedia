@@ -344,6 +344,21 @@ def cmd_contest_admin(ctx: Ctx) -> None:
     ctx.send(*_admin_view(ctx.app))
 
 
+@router.command("bekorqilish", owner=True)
+def cmd_contest_cancel(ctx: Ctx) -> None:
+    """/bekorqilish — faol musobaqani mukofotsiz bekor qiladi, kanaldagi e'lonni o'chiradi va keyingi avtomatik boshlanishlarni to'xtatadi."""
+    app = ctx.app
+    was = enabled(app)
+    if was:
+        finish_contest(app, award=False)
+    else:
+        delete_announcement(app)
+    app.set_setting("contest_on", "0")
+    ctx.send("❌ <b>Musobaqa bekor qilindi.</b> Mukofot berilmadi, kanaldagi e'lon o'chirildi.\n"
+             "Yangisini /musobaqa orqali boshlashingiz mumkin." if was else
+             "ℹ️ Faol musobaqa yo'q edi. Kanaldagi eski e'lon (bo'lsa) o'chirildi.\nYangisini /musobaqa orqali boshlang.")
+
+
 def _set_len(app, days: int) -> None:
     app.set_setting("contest_len", str(days))
     per = active_period(app)

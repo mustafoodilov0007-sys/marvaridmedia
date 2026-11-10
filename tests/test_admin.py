@@ -562,6 +562,17 @@ class AddFlow(AdminCase):
                 db.upsert_user({"id": n, "first_name": "d"})
                 db.x("UPDATE users SET ref_by=?, joined_at=? WHERE user_id=?", (inviter, start + 100, n))
 
+    def test_bekorqilish_command(self):
+        from app.handlers import contest
+        self.app.set_setting("post_channel", "-100777")
+        self.press(1, "cn:tog")
+        self.assertTrue(contest.enabled(self.app))
+        self.msg(1, "/bekorqilish")
+        self.assertFalse(contest.enabled(self.app))
+        self.assertIn("bekor qilindi", self.last(1))
+        self.msg(1, "/bekorqilish")
+        self.assertIn("Faol musobaqa yo'q", self.last(1))
+
     def test_contest_with_custom_days_prizes_announce_and_auto_finish(self):
         from app.handlers import contest
         db = self.app.db
