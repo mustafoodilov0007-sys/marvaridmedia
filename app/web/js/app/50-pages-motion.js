@@ -136,7 +136,7 @@
       var gp = h("div", "gpills");
       (it.genres || []).slice(0, 3).forEach(function (g) { gp.appendChild(h("span", "gpill", gname(g))); });
       var t = h("button", "cft", [it.title, icon("chev")]);
-      t.type = "button"; t.onclick = function () { openSheet(it); };
+      t.type = "button"; t.onclick = function () { openSheet(it, false, cf.querySelector(".cfc.on .poster")); };
       inner.replaceChildren(t, metaNode(it), ratingBadges(it), gp.childNodes.length ? gp : null, actionRow(it, false));
     }
     function setOpen(v) {
@@ -358,7 +358,7 @@
         h("div", "tb-txt", [h("div", "tb-kick", "🏆 Hafta topi №" + (i + 1)), h("h3", null, it.title),
           h("div", "tb-meta", metaOf(it)), h("div", "tb-type", NAMES[it.cat] || "Kino"), btn]),
         h("div", "tb-poster", [posterNode(it, 360)])]);
-      s2.onclick = function () { openSheet(it); };
+      s2.onclick = function () { openSheet(it, false, s2.querySelector(".tb-poster .poster")); };
       return s2;
     }
     function go(i, instant) {

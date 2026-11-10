@@ -122,7 +122,9 @@
       s.classList.add("tap");          // posterga bosilsa — tafsilot (izoh shu yerda chiqadi)
       s.onclick = function (e) {
         if (e.target.closest("button, a")) return;
-        haptic(); openSheet(it);
+        haptic();
+        var hpEl = s.querySelector(".hp"), src = hpEl && getComputedStyle(hpEl).display !== "none" ? hpEl : s.querySelector(".bg:not(.ph)");
+        openSheet(it, false, src);
       };
       wrap.appendChild(s);
     });

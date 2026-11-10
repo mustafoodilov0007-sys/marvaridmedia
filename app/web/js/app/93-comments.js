@@ -178,7 +178,15 @@
   }
   // 🛫 Kartadan kino oynasiga: poster joyidan «uchib» o'tadi (qaytishda — orqasiga). Faqat transform/rect, 0.4 soniya.
   var flyEl = null, flySrc = null, flyId = null;
-  function imgOf(posterEl) { var im = posterEl && posterEl.querySelector("img.ok"); return im && im.currentSrc ? im.currentSrc : (im ? im.src : ""); }
+  function imgOf(posterEl) {          // poster rasmi: <img> yoki fon rasmi (karusel)
+    if (!posterEl) return "";
+    var im = posterEl.querySelector("img.ok");
+    if (!im) Array.prototype.forEach.call(posterEl.querySelectorAll("img"), function (x) { if (!im && x.complete && x.naturalWidth) im = x; });
+    if (im) return im.currentSrc || im.src;
+    var m = /url\(["']?([^"')]+)["']?\)/.exec(posterEl.style.backgroundImage || "");
+    return m ? m[1] : "";
+  }
+  function hidesSrc(el) { return !el.classList.contains("bg"); }      // karusel foni (butun slayd) yashirilmaydi — matn qolib ketmasin
   function flyBox(url, r, radius) {
     var d = document.createElement("div");
     d.className = "flyp";
@@ -280,7 +288,7 @@
         tp.style.visibility = "hidden";
         flyEl = flyBox(url, sr, getComputedStyle(srcPoster).borderRadius);
         flySrc = srcPoster; flyId = it.id;
-        srcPoster.style.visibility = "hidden";
+        if (hidesSrc(srcPoster)) srcPoster.style.visibility = "hidden";
         void s.offsetWidth;
         s.style.transition = "opacity .3s"; s.style.opacity = "1";
         var mine = flyEl;
@@ -306,7 +314,7 @@
     }
     flyCleanup();
     if (back) {
-      back.tp.style.visibility = "hidden"; back.src.style.visibility = "hidden";
+      back.tp.style.visibility = "hidden"; if (hidesSrc(back.src)) back.src.style.visibility = "hidden";
       var cl = flyBox(back.url, back.from, getComputedStyle(back.tp).borderRadius);
       flyMove(cl, back.to, getComputedStyle(back.src).borderRadius, function () { back.src.style.visibility = ""; cl.remove(); });
       setTimeout(function () { back.src.style.visibility = ""; if (cl.parentNode) cl.remove(); }, 700);
