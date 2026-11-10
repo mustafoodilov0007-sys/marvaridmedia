@@ -30,6 +30,15 @@ class BotCase(unittest.TestCase):
 
 
 class Basics(BotCase):
+    def test_unknown_command_and_title_buttons(self):
+        add_movie(self.app, 20, "Avatar Suv yo'li")
+        self.msg(5, "/qandaydir")
+        self.assertIn("Bunday buyruq yo'q", self.last(5))
+        self.msg(5, "avatar")
+        btns = str(self.app.bot.sent[-1])
+        self.assertIn("1. Avatar Suv yo", btns)                                  # raqam o'rniga nomli tugma
+
+
     def test_start_and_search(self):
         add_movie(self.app, 15, "Avatar")
         self.msg(5, "/start")

@@ -56,6 +56,9 @@ PHRASES = [
      "💎 С Premium вы получите доступ к этому и другому эксклюзивному контенту.",
      "💎 With Premium you get unlimited access to this and other exclusive content."),
     ("😔 Izlagan kinongiz topilmasa — /sorov", "😔 Не нашли фильм — /sorov", "😔 Can't find a movie — /sorov"),
+    ("🤔 Bunday buyruq yo'q. Kino <b>nomini</b> yoki <b>kodini</b> yozing, yoki /help ni bosing.",
+     "🤔 Такой команды нет. Напишите <b>название</b> или <b>код</b> фильма или нажмите /help.",
+     "🤔 No such command. Type a movie <b>title</b> or <b>code</b>, or tap /help."),
     # kino ostidagi tugmalar va izoh
     ("📤 Do'stlarga ulashish", "📤 Поделиться", "📤 Share with friends"),
     ("🎭 O'xshashlari", "🎭 Похожие", "🎭 Similar"),

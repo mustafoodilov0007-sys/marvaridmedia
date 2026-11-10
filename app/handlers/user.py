@@ -284,6 +284,9 @@ def on_any_message(ctx: Ctx) -> None:
 def handle_query(ctx: Ctx, raw: str) -> None:
     app, db = ctx.app, ctx.db
     text = (raw or "").strip()
+    if text.startswith("/") and not re.fullmatch(r"/m?\d{1,9}c?", text):      # noma'lum buyruq — qidiruvga o'tkazilmaydi
+        ctx.send("🤔 Bunday buyruq yo'q. Kino <b>nomini</b> yoki <b>kodini</b> yozing, yoki /help ni bosing.")
+        return
     if re.fullmatch(r"m?\d{1,9}c", text):      # obuna tekshiruvidan keyin kelgan kanal havolasi
         text = text[:-1]
     mm = MUSIC_RE.fullmatch(text)
@@ -392,6 +395,13 @@ def fmt_item(r, extra: Optional[str] = None) -> str:
     if r["is_premium"]:
         title = "💎 " + title
     bits = []
+    keys = r.keys()
+    if "year" in keys and r["year"]:
+        bits.append(genres.year_text(r["year"], r["year_end"] if "year_end" in keys else 0))
+    if "genres" in keys:
+        g = genres.parse(r["genres"])
+        if g:
+            bits.append(genres.name(g[0]))
     if r["parts"] > 1:
         bits.append(f"📺 {r['parts']} qism")
     if extra:
@@ -411,7 +421,13 @@ def build_list(header: str, rows, start_no: int, page: int, pages: int, page_pre
     if pages > 1:
         lines.append(f"📄 Sahifa: <b>{page + 1}/{pages}</b>")
     lines.append(hint)
-    kb_rows = number_rows(nums)
+    if len(rows) <= 6:      # kam natija — raqam o'rniga nomli tugmalar (bir bosishda to'g'ri kino)
+        kb_rows = []
+        for (i, data), r in zip(nums, rows):
+            yr = f" ({r['year']})" if "year" in r.keys() and r["year"] else ""
+            kb_rows.append([btn(f"{i}. {truncate(r['title'], 34)}{yr}", data, style=PRIMARY)])
+    else:
+        kb_rows = number_rows(nums)
     if pages > 1 and page_prefix:
         kb_rows.append(nav_row(page_prefix, page, pages))
     kb_rows.append([btn("❌ Yopish", "x", style=DANGER)])

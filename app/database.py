@@ -354,7 +354,7 @@ SELECT m.id, m.code, m.title, m.description, m.is_premium, m.views, m.created_at
 FROM movies m"""
 
 _MOVIE_ROW = """
-SELECT m.id, m.code, m.title, m.is_premium, m.views, m.created_at, m.category,
+SELECT m.id, m.code, m.title, m.is_premium, m.views, m.created_at, m.category, m.year, m.year_end, m.genres,
        (SELECT COUNT(*) FROM parts p WHERE p.movie_id = m.id) AS parts
 FROM movies m
 """
