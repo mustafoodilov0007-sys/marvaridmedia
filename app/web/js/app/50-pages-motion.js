@@ -110,11 +110,26 @@
     info.setAttribute("aria-live", "polite");
     var cur = -1, curG = 0, tgt = null, open = false, idleT = 0, ticking = false;   // tgt — oxirgi bosilgan maqsad (tez bosilganda adashmaslik uchun)
     function childLeft(el) { return el.offsetLeft - cf.offsetLeft - (cf.clientWidth - el.offsetWidth) / 2; }
+    var glideRaf = 0;
+    function glide(to) {                 // sekin, yumshoq (ease-in-out) surilish — poster «sakramaydi»
+      cancelAnimationFrame(glideRaf);
+      var from = cf.scrollLeft, dist = to - from;
+      if (Math.abs(dist) < 2) return;
+      var dur = Math.min(760, 420 + Math.abs(dist) * 0.3), t0 = performance.now();
+      cf.style.scrollSnapType = "none";
+      (function frame(t) {
+        var k = Math.min(1, (t - t0) / dur), e = k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+        cf.scrollLeft = from + dist * e;
+        if (k < 1) glideRaf = requestAnimationFrame(frame); else cf.style.scrollSnapType = "";
+      })(t0);
+    }
+    cf.addEventListener("touchstart", function () { if (glideRaf) { cancelAnimationFrame(glideRaf); glideRaf = 0; cf.style.scrollSnapType = ""; } }, { passive: true });
     function centerOn(g, instant) {
       var el = cf.children[g];
       if (!el) return;
       tgt = g;
-      cf.scrollTo({ left: childLeft(el), behavior: (REDUCE || instant) ? "auto" : "smooth" });
+      if (REDUCE || instant) cf.scrollTo({ left: childLeft(el), behavior: "auto" });
+      else glide(childLeft(el));
     }
     var lastStep = 0;
     function shiftSet(d) {   // bir nusxa kengligiga sezdirmay ko'chish (ko'rinish bir xil qoladi)
@@ -161,7 +176,7 @@
     }
     for (var k = 0; k < COPIES; k++) {
       items.forEach(function (it, i) {
-        var c = h("button", "cfc", [posterNode(it, 720), h("span", "rkb", String(i + 1)), h("span", "cfhint", [icon("chev")])]);
+        var c = h("button", "cfc", [posterNode(it, 720), h("span", "rkb", String(i + 1))]);
         c.type = "button"; c._i = i;
         c.setAttribute("aria-label", (i + 1) + ". " + it.title);
         c.setAttribute("aria-expanded", "false");
@@ -169,7 +184,8 @@
         c.onclick = function () {
           haptic();
           var g = Array.prototype.indexOf.call(cf.children, c);
-          if (c.classList.contains("on")) setOpen(!open); else { setOpen(false); centerOn(g); }
+          if (c.classList.contains("on")) openSheet(items[c._i], false, c.querySelector(".poster"));   // o'rtadagi poster — kino sahifasi ochiladi
+          else centerOn(g);                                                                              // yonidagisi — yumshoq o'rtaga keladi
         };
         cf.appendChild(c);
       });
@@ -179,7 +195,7 @@
     l.setAttribute("aria-label", "Oldingi"); rr.setAttribute("aria-label", "Keyingi");
     l.onclick = function () { setOpen(false); step(-1); };
     rr.onclick = function () { setOpen(false); step(1); };
-    sec.appendChild(h("div", "cfwrap", [cf, l, rr, info]));
+    sec.appendChild(h("div", "cfwrap", [cf, l, rr]));
     function bestChild() {
       var cr = cf.getBoundingClientRect(), cx = cr.left + cr.width / 2, best = 0, bd = 1e9;
       Array.prototype.forEach.call(cf.children, function (c, i) {
@@ -197,7 +213,7 @@
         var b = rects[i];
         if (b.right < cr.left - b.width || b.left > cr.right + b.width) { c.classList.remove("on"); return; }   // ko'rinmaydigan chetdagilarga tegmaymiz
         var d = (b.left + b.width / 2 - cx) / b.width, ad = Math.min(Math.abs(d), 2.2);
-        c.style.transform = (LITE ? "" : "perspective(800px) rotateY(" + (Math.max(-1.2, Math.min(1.2, d)) * -22).toFixed(1) + "deg) ") + "scale(" + (1 - ad * 0.1).toFixed(3) + ")";
+        c.style.transform = (LITE ? "" : "perspective(800px) rotateY(" + (Math.max(-1.2, Math.min(1.2, d)) * -14).toFixed(1) + "deg) ") + "scale(" + (1 - ad * 0.08).toFixed(3) + ")";
         c.style.setProperty("--po", (1 - Math.min(ad, 1.5) * 0.32).toFixed(2));
         c.style.zIndex = String(10 - Math.round(ad * 3));
         c.classList.toggle("on", ad < 0.4);

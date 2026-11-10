@@ -196,11 +196,12 @@
   }
   function flyMove(d, r, radius, done) {
     void d.offsetWidth;
-    d.style.transition = "left .42s cubic-bezier(.2,.8,.2,1), top .42s cubic-bezier(.2,.8,.2,1), width .42s cubic-bezier(.2,.8,.2,1), height .42s cubic-bezier(.2,.8,.2,1), border-radius .42s";
+    var E = "cubic-bezier(.4,0,.2,1)", T = ".66s";          // sekin va yumshoq (ease-in-out)
+    d.style.transition = "left " + T + " " + E + ", top " + T + " " + E + ", width " + T + " " + E + ", height " + T + " " + E + ", border-radius " + T + " " + E;
     d.style.left = r.left + "px"; d.style.top = r.top + "px"; d.style.width = r.width + "px"; d.style.height = r.height + "px"; d.style.borderRadius = radius;
     var fin = false;
     function end() { if (fin) return; fin = true; done(); }
-    d.addEventListener("transitionend", end); setTimeout(end, 520);
+    d.addEventListener("transitionend", end); setTimeout(end, 800);
   }
   function flyTarget(sheet) {          // telefonda poster butun ekranli muqovaga «kengayadi», kompyuterda — oynadagi postergacha
     return innerWidth < 900 ? sheet.querySelector(".sheet-top") : sheet.querySelector(".sheet-main .poster");
@@ -332,7 +333,7 @@
         flySrc = srcPoster; flyId = it.id;
         if (hidesSrc(srcPoster)) srcPoster.style.visibility = "hidden";
         void s.offsetWidth;
-        s.style.transition = "opacity .3s"; s.style.opacity = "1";
+        s.style.transition = "opacity .55s ease"; s.style.opacity = "1";
         var mine = flyEl;
         flyMove(flyEl, tr, getComputedStyle(tp).borderRadius, function () {
           if (flyEl !== mine) return;
@@ -361,7 +362,7 @@
       back.tp.style.visibility = "hidden"; if (hidesSrc(back.src)) back.src.style.visibility = "hidden";
       var cl = flyBox(back.url, back.from, getComputedStyle(back.tp).borderRadius);
       flyMove(cl, back.to, getComputedStyle(back.src).borderRadius, function () { back.src.style.visibility = ""; cl.remove(); });
-      setTimeout(function () { back.src.style.visibility = ""; if (cl.parentNode) cl.remove(); }, 700);
+      setTimeout(function () { back.src.style.visibility = ""; if (cl.parentNode) cl.remove(); }, 900);
     }
     flySrc = null; flyId = null;
     $("veil").classList.remove("on");

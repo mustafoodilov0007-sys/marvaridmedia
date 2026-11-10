@@ -50,21 +50,21 @@
 
 /* kino sahifasi: ma'lumotlar yengil, tez ketma-ket paydo bo'ladi (jami ~0.3 s) */
 @keyframes sUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-.sheet.on .sheet-main .info > * { animation: sUp var(--t3) var(--ease-out) both; }
-.sheet.on .sheet-main .info > :nth-child(1) { animation-delay: .06s; }
-.sheet.on .sheet-main .info > :nth-child(2) { animation-delay: .09s; }
-.sheet.on .sheet-main .info > :nth-child(3) { animation-delay: .12s; }
-.sheet.on .sheet-main .info > :nth-child(4) { animation-delay: .15s; }
-.sheet.on .sheet-main .info > :nth-child(5) { animation-delay: .18s; }
-.sheet.on .sheet-main + .actions { animation: sUp var(--t3) var(--ease-out) .2s both; }
-.sheet.on .stabs { animation: sUp var(--t3) var(--ease-out) .24s both; }
-.sheet.on .spanel:not(.hidden) { animation: sUp var(--t3) var(--ease-out) .28s both; }
+.sheet.on .sheet-main .info > * { animation: sUp .6s var(--ease-out) both; }
+.sheet.on .sheet-main .info > :nth-child(1) { animation-delay: .36s; }
+.sheet.on .sheet-main .info > :nth-child(2) { animation-delay: .42s; }
+.sheet.on .sheet-main .info > :nth-child(3) { animation-delay: .48s; }
+.sheet.on .sheet-main .info > :nth-child(4) { animation-delay: .54s; }
+.sheet.on .sheet-main .info > :nth-child(5) { animation-delay: .60s; }
+.sheet.on .sheet-main + .actions { animation: sUp .6s var(--ease-out) .66s both; }
+.sheet.on .stabs { animation: sUp .6s var(--ease-out) .72s both; }
+.sheet.on .spanel:not(.hidden) { animation: sUp .6s var(--ease-out) .78s both; }
 .sheet .chips > .chip { animation: none; }
 .sheet.on .sheet-top .bg:not(.ph) { animation: sKen 24s ease-in-out infinite alternate; }
 @keyframes sKen { from { scale: 1; } to { scale: 1.05; } }
 @media (max-width: 899px) {
-  .sheet { transition: opacity var(--t3) var(--ease-in-out), visibility 0s linear var(--t3); }
-  .sheet.on { transition: opacity var(--t3) var(--ease-in-out), visibility 0s; }
+  .sheet { transition: opacity .5s var(--ease-in-out), visibility 0s linear .5s; }
+  .sheet.on { transition: opacity .5s var(--ease-in-out), visibility 0s; }
 }
 html.lite .sheet.on .sheet-main .info > *, html.lite .sheet.on .stabs, html.lite .sheet.on .sheet-main + .actions,
 html.lite .sheet.on .spanel, html.lite .grid > .card, html.lite .rail > .card { animation: none !important; }
