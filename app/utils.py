@@ -111,6 +111,23 @@ def truncate(text: str, limit: int) -> str:
 _TAG_RE = re.compile(r"<[^>]+>")
 
 
+def short_desc_block(movie, limit: int = 180) -> str:
+    """Qisqa syujet — ochiladigan iqtibos ichida (premium emoji va formati saqlanadi, uzun bo'lsa oddiy matn kesiladi). Bo'lmasa — bo'sh."""
+    keys = movie.keys()
+    html_ = (movie["desc_html"] if "desc_html" in keys else "") or ""
+    plain = (movie["description"] or "").strip()
+    if html_ and visible_len(html_) <= limit:
+        return html_ if "<blockquote" in html_ else f"<blockquote expandable>{html_}</blockquote>"
+    if plain:
+        if len(plain) > limit:                      # gap oxirida yoki so'z oxirida kesamiz (so'z o'rtasida emas)
+            cut = plain[:limit]
+            end = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
+            cut = cut[:end + 1] if end >= limit * 0.55 else cut[:cut.rfind(" ")].rstrip(",;:—- ") + "…"
+            plain = cut
+        return f"<blockquote expandable>{esc(plain)}</blockquote>"
+    return ""
+
+
 def visible_len(html_text: str) -> int:
     """Telegram hisoblaydigan uzunlik (teglar olib tashlangan, UTF-16 birliklarda)."""
     plain = html.unescape(_TAG_RE.sub("", html_text or ""))

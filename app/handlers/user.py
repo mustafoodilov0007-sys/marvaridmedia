@@ -16,7 +16,7 @@ from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, nav_row, 
 from ..subscription import all_joined, channel_statuses, gate_view, needs_gate
 from ..telegram import BadRequest, TelegramError
 from ..texts import B, HELP_TEXT, cat_icon, cat_name, title_icon
-from ..utils import (esc, fmt_datetime, fmt_num, fuzzy_match, normalize, now, phonetic, render,
+from ..utils import (short_desc_block, esc, fmt_datetime, fmt_num, fuzzy_match, normalize, now, phonetic, render,
                      truncate, visible_len)
 
 log = logging.getLogger("user")
@@ -787,13 +787,13 @@ def open_movie(ctx: Ctx, movie, extra_rows=None) -> None:
 
 
 def build_caption(app, movie, part, total: int) -> str:
-    """Botga yuboriladigan kino izohi: nom + yil, 2 qatorli ma'lumot, qisqa syujet (ochiladigan iqtibos), kod va ko'rishlar."""
+    """Botga yuboriladigan kino izohi (kanal posti bilan bir xil ko'rinish): nom, yorliqli qatorlar, qisqa syujet, kod va ko'rishlar."""
     music = movie["category"] == "music"
     head = f"{title_icon(movie['category'])} <b>{esc(movie['title'])}</b>"
     if total > 1:
         head += f"\n📺 <b>{esc(part_label(part))}</b>  <i>/ {total}</i>"
     info = [] if music else genres.card_lines(movie)
-    meta = (f"🔢 Kod: <code>{movie['code']}</code>  ·  " if movie["code"] > 0 else "") + f"👁 {fmt_num(movie['views'] + 1)}"
+    meta = (f"🔢 Kodi: <code>{movie['code']}</code>  ·  " if movie["code"] > 0 else "") + f"👁 {fmt_num(movie['views'] + 1)}"
     if movie["is_premium"]:
         meta += "  ·  💎 <b>PREMIUM</b>"
     footer = render(app.setting("caption_footer"), brand=esc(app.brand), bot=app.bot_username).strip()
@@ -803,14 +803,9 @@ def build_caption(app, movie, part, total: int) -> str:
     blocks = [head]
     if info:
         blocks.append("\n".join(info))
-    budget = min(DESC_MAX, 1000 - visible_len(head) - sum(visible_len(x) for x in info) - visible_len(meta) - visible_len(footer)
-                 - visible_len(link_block) - 40)
-    desc = (movie["description"] or "").strip()
-    desc_html = (movie["desc_html"] if "desc_html" in movie.keys() else "") or ""
-    if desc_html and visible_len(desc_html) <= budget:
-        blocks.append(desc_html if "<blockquote" in desc_html else f"<blockquote expandable>{desc_html}</blockquote>")  # premium emoji va format saqlanadi
-    elif desc and budget > 30:
-        blocks.append(f"<blockquote expandable>{esc(truncate(desc, budget))}</blockquote>")
+    desc = short_desc_block(movie, DESC_MAX)
+    if desc:
+        blocks.append(desc)
     if link_block:
         blocks.append(link_block)
     blocks.append(meta)
@@ -819,7 +814,7 @@ def build_caption(app, movie, part, total: int) -> str:
     return "\n\n".join(blocks)
 
 
-DESC_MAX = 260           # kino izohidagi syujet shuncha belgigacha (qolgani saytda va «Izohlar va batafsil» da)
+DESC_MAX = 180           # kino izohidagi qisqa syujet (qolgani saytda va «Izohlar va batafsil» da)
 
 
 def part_kb(app, movie, part, total: int, extra_rows=None) -> dict:

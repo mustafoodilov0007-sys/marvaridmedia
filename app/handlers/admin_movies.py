@@ -12,7 +12,7 @@ from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, number_ro
 from ..telegram import BadRequest, InputFile, TelegramError
 from ..texts import B, CATEGORIES, cat_icon, cat_name, title_icon
 from .audit import audit
-from ..utils import (entities_to_html, esc, extract_media, fmt_date, fmt_datetime, fmt_num, message_html, normalize, post_link,
+from ..utils import (short_desc_block, entities_to_html, esc, extract_media, fmt_date, fmt_datetime, fmt_num, message_html, normalize, post_link,
                      premium_html, truncate)
 from .contact import notify_requesters
 from .user import build_list, fmt_item, part_label, search_ids
@@ -1273,23 +1273,22 @@ def cb_add_movie(ctx: Ctx) -> None:
 # ═════════════════════════ 📢 Kanalga e'lon ═════════════════════════
 
 def announce_text(app, movie, parts: int) -> str:
-    """Kanal posti (premium dizayn): nom + yil, 2 qatorli ma'lumot, kod, reaksiya taklifi. Syujet kanalga qo'yilmaydi
-    (u botda va saytda); havolalar — pastdagi tugmalarda."""
+    """Kanal posti: nom, yorliqli ma'lumot qatorlari (🌍 Davlati, 📅 Yili, 🎭 Janri, 🗣 Tili, 🎞 Sifati, 🔢 Kodi), qisqa syujet va
+    reaksiya taklifi. Havolalar — pastdagi tugmalarda."""
     cat = movie["category"]
     music = cat == "music"
-    head = f"{title_icon(cat)} <b>{esc(movie['title'])}</b>"
-    blocks = [head]
-    info = [] if music else genres.card_lines(movie, parts)
-    if info:
-        blocks.append("\n".join(info))
-    tag = []
+    blocks = [f"{title_icon(cat)} <b>{esc(movie['title'])}</b>"]
+    rows = [] if music else genres.card_lines(movie, parts)
     if movie["code"] > 0:
-        tag.append(f"🔢 Kod: <code>{movie['code']}</code>")
+        rows.append(f"🔢 Kodi: <code>{movie['code']}</code>")
     if movie["is_premium"]:
-        tag.append("💎 <b>PREMIUM</b>")
-    if tag:
-        blocks.append("  ·  ".join(tag))
-    blocks.append("<i>❤️ Yoqsa, reaksiya qoldiring</i>")
+        rows.append("💎 Premium")
+    if rows:
+        blocks.append("\n".join(rows))
+    desc = "" if music else short_desc_block(movie, 180)
+    if desc:
+        blocks.append(desc)
+    blocks.append("❤️ Yoqsa, reaksiya qoldiring!")
     return "\n\n".join(blocks)
 
 

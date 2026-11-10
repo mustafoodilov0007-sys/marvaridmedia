@@ -245,26 +245,11 @@ def detect_lang(*texts: str) -> str:
 
 
 def card_lines(movie, parts: int = 0) -> list:
-    """Bot va kanal uchun ixcham ma'lumot: har qator belgi bilan (premium emoji ulangan bo'lsa, ular premium bo'lib chiqadi):
-    🌍 davlat · 📅 yil / 🎭 janrlar / 🗣 til · 🎞 sifat · 📺 qismlar."""
-    keys = movie.keys()
-    a, b, c = [], [], []
-    if "country" in keys and movie["country"] in COUNTRIES:
-        a.append("🌍 " + country_label(movie["country"]))
-    y = year_text(movie["year"], movie["year_end"] if "year_end" in keys else 0) if movie["year"] else ""
-    if y:
-        a.append("📅 " + y)
-    g = ", ".join(name(k) for k in parse(movie["genres"])[:3])
-    if g:
-        b.append("🎭 " + g)
-    if "lang" in keys and movie["lang"] in LANGS:
-        c.append("🗣 " + LANGS[movie["lang"]][1])
-    q = quality_text(movie["quality"]) if "quality" in keys else ""
-    if q:
-        c.append("🎞 " + q.replace(", ", " · ").replace(" va ", " · "))
+    """Bot va kanal uchun ma'lumot qatorlari (yorliqli, har biri o'z belgisi bilan — premium emoji ulangan bo'lsa shunday chiqadi)."""
+    lines = info_lines(movie)
     if parts > 1:
-        c.append(f"📺 {parts} qism")
-    return [x for x in ("  ·  ".join(a), "  ·  ".join(b), "  ·  ".join(c)) if x]
+        lines.append(f"📺 Qismlar: {parts} ta")
+    return lines
 
 
 def title_year(movie) -> str:
