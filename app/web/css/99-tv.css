@@ -59,7 +59,7 @@
 @media (min-width: 900px) {
   .tvcard { max-width: 760px; margin-left: auto; margin-right: auto; }
   .tvpage .tvlive { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
-  .tvpage .tvhero { height: 100%; aspect-ratio: auto; min-height: 340px; }
+
 }
 
 /* profil: «Sevimlilar» katagi tugma */
@@ -78,3 +78,14 @@
 .tvgo:disabled { opacity: .6; }
 .tvgo { flex: 1.6; white-space: nowrap; padding: 0 14px; }
 .tvgo svg, .tvmore svg { flex: none; }
+/* efir oynasi: treyler ekranda o'ynaydi */
+.tvstage { position: relative; }
+.tvplayer { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity .5s; pointer-events: none; overflow: hidden; }
+.tvplayer.on { opacity: 1; pointer-events: auto; }
+.tvplayer video, .tvplayer iframe { width: 100%; height: 100%; border: 0; object-fit: cover; display: block; }
+.tvpill { position: absolute; left: 12px; top: 12px; display: inline-flex; gap: 6px; align-items: center; padding: 4px 10px 4px 8px; border-radius: 8px;
+  background: rgba(0,0,0,.6); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .8px; pointer-events: none; }
+.tvpill i { width: 7px; height: 7px; border-radius: 50%; background: #e5342f; animation: tvblink 1.4s ease-in-out infinite; }
+.tvsound { position: absolute; right: 12px; bottom: 12px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(0,0,0,.6); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.tvsound svg { width: 20px; height: 20px; }
+@media (min-width: 900px) { .tvpage .tvstage .tvhero { height: 100%; aspect-ratio: auto; min-height: 340px; } }

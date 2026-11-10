@@ -79,6 +79,45 @@
     return box;
   }
 
+  // efir oynasi: treyleri bor kino efirda bo'lsa — treyler ekranda o'ynaydi (admin shorts videosi yoki YouTube), aks holda poster
+  function tvStage(it, st) {
+    var box = h("div", "tvstage");
+    var hero = posterNode(it, 720);
+    hero.classList.add("tvhero");
+    hero.onclick = function () { haptic(); openSheet(it); };
+    box.appendChild(hero);
+    var yid = !it.trailer && it.turl && typeof youtubeId === "function" ? youtubeId(it.turl) : null;
+    if (!st.live || !(it.trailer || yid)) return box;
+    var elapsed = Math.max(0, st.t - st.cur.s);
+    var wrap = h("div", "tvplayer");
+    if (it.trailer) {
+      var v = document.createElement("video");
+      v.muted = true; v.defaultMuted = true; v.loop = true; v.autoplay = true; v.playsInline = true;
+      v.setAttribute("playsinline", ""); v.setAttribute("muted", ""); v.preload = "auto";
+      v.src = "/media/short/" + it.trailer;
+      v.addEventListener("loadedmetadata", function () {        // «jonli» his: hamma efirning bir joyida turadi
+        if (v.duration && isFinite(v.duration)) { try { v.currentTime = elapsed % v.duration; } catch (e) {} }
+      });
+      v.addEventListener("playing", function () { wrap.classList.add("on"); });
+      v.addEventListener("error", function () { wrap.remove(); });     // treyler yuklanmasa — poster qoladi
+      var snd = h("button", "tvsound", [icon("mute")]);
+      snd.setAttribute("aria-label", "Ovoz");
+      snd.onclick = function (e) { e.stopPropagation(); haptic(); v.muted = !v.muted; snd.replaceChildren(icon(v.muted ? "mute" : "vol")); if (!v.muted) { var pr = v.play(); if (pr && pr.catch) pr.catch(function () {}); } };
+      wrap.appendChild(v); wrap.appendChild(snd);
+      var pl = v.play(); if (pl && pl.catch) pl.catch(function () {});
+    } else {
+      var fr = document.createElement("iframe");
+      fr.src = "https://www.youtube-nocookie.com/embed/" + yid + "?autoplay=1&mute=1&loop=1&playlist=" + yid + "&rel=0&playsinline=1&modestbranding=1";
+      fr.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; fr.allowFullscreen = true;
+      fr.setAttribute("title", it.title + " — treyler");
+      fr.onload = function () { wrap.classList.add("on"); };
+      wrap.appendChild(fr);
+    }
+    wrap.appendChild(h("span", "tvpill", [h("i"), "TREYLER"]));
+    box.appendChild(wrap);
+    return box;
+  }
+
   // TV sahifasi
   function renderTV(view, my) {
     var page = h("div", "page tvpage");
@@ -92,6 +131,7 @@
     live.appendChild(h("div", "tvsk"));
     view.replaceChildren(page);
     var scrolled = false, timer = null;
+    var stageNode = null, bodyNode = h("div", "tvbodywrap"), stageKey = "";
 
     function row(sl, st) {
       var it = sl.it, on = st && st.live && st.cur === sl, nx = st && st.next === sl;
@@ -128,6 +168,7 @@
       }
       var more = d.trial_days ? h("button", "tvmore", [icon("gem"), "Premium"]) : null;
       if (more) more.onclick = function () { haptic(); show("sub"); };
+      stageKey = ""; stageNode = null;
       live.replaceChildren(h("div", "tvlock", [h("span", "tvlogo big", [icon("live")]), h("h2", null, "Marvarid TV — Premium"), msg,
         h("div", "tvbtns", [act, more])]));
       prog.replaceChildren();
@@ -137,6 +178,7 @@
       if (tvLock) { lockView(); return; }
       var st = tvState();
       if (!st) {
+        stageKey = ""; stageNode = null;
         live.replaceChildren(emptyBox("tv", "Hozircha efir yo'q", "Kinolar qo'shilishi bilan jadval paydo bo'ladi."));
         prog.replaceChildren();
         return;
@@ -146,9 +188,6 @@
       go.onclick = function () { haptic(); watch(it, go); };
       var more = h("button", "tvmore", [icon("info"), "Film haqida"]);
       more.onclick = function () { haptic(); openSheet(it); };
-      var hero = posterNode(it, 720);
-      hero.classList.add("tvhero");
-      hero.onclick = function () { haptic(); openSheet(it); };
       var bar = h("div", "tvbar big", [h("i")]);
       bar.firstChild.style.width = pct + "%";
       var bits = [it.year ? yr(it) : "", it.genres && it.genres.length ? it.genres.slice(0, 2).map(gname).join(", ") : "",
@@ -159,7 +198,13 @@
         nextBox.type = "button";
         nextBox.onclick = function () { haptic(); openSheet(st.next.it); };
       }
-      live.replaceChildren(hero, h("div", "tvbody", [
+      var key = it.id + ":" + st.cur.s + ":" + (st.live ? 1 : 0);      // efir oynasi (video/iframe) faqat kino yoki holat o'zgarganda yangilanadi
+      if (key !== stageKey || !stageNode || stageNode.parentNode !== live) {
+        stageKey = key;
+        stageNode = tvStage(it, st);
+        live.replaceChildren(stageNode, bodyNode);
+      }
+      bodyNode.replaceChildren(h("div", "tvbody", [
         h("div", "tvkick", [st.live ? h("span", "tvtag live", [h("i"), "HOZIR EFIRDA"]) : h("span", "tvtag next", "TEZ ORADA"), h("span", null, st.cur.b)]),
         h("h2", null, it.title), h("div", "tvbits", bits),
         h("div", "tvtime", [h("span", null, tvHM(st.cur.s)), st.live ? bar : h("div", "tvbar big"), h("span", null, tvHM(st.cur.e))]),
