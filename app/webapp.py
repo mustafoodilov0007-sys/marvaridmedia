@@ -611,6 +611,7 @@ def _item(r, premium_on: bool, vip: bool) -> dict:
         "parts": r["parts"],
         "views": r["views"],
         "premium": bool(r["is_premium"]),
+        "free": premium_on and not r["is_premium"],        # «BEPUL» belgisi (Premium tizimi yoqilgan bo'lsa)
         "locked": bool(r["is_premium"]) and premium_on and not vip,
         "poster": _poster_key(r["poster_id"]),
         "glink": (r["group_link"] if "group_link" in keys else "") if r["category"] in ("serial", "cartoon") else "",

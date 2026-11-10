@@ -45,6 +45,7 @@
     var p = posterNode(it);
     if (it.parts > 1) p.appendChild(h("span", "tag l", it.parts + " qism"));
     if (it.premium) p.appendChild(h("span", "tag r", "PREMIUM"));
+    else if (it.free && it.cat !== "music") p.appendChild(h("span", "tag r free", "BEPUL"));
     var qlt = topQuality(it), lc = langCode(it);
     if (qlt) p.appendChild(h("span", "tag bl", qlt));
     if (lc) p.appendChild(h("span", "tag br", lc));

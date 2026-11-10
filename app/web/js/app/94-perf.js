@@ -1,3 +1,9 @@
+  // ───── ▦ kartalar: telefonda 2 ustun (katta poster) yoki 3 ustun ─────
+  (function colsInit() { try { if (localStorage.getItem("cols") === "3") document.documentElement.classList.add("cols3"); } catch (e) {} })();
+  function setCols(n) {
+    try { localStorage.setItem("cols", String(n)); } catch (e) {}
+    document.documentElement.classList.toggle("cols3", n === 3);
+  }
   // ───── ⚡ tezlik: sekin telefonlar uchun yengil rejim ─────
   // Qiymat: localStorage "perf" = "lite" (yoqilgan) | "full" (o'chiq) | bo'sh (avto: qurilma va haqiqiy tezlikka qarab)
   function liteInit() {

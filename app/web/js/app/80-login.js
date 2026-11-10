@@ -131,6 +131,18 @@
     });
     page.appendChild(h("h3", "group-title", "Mavzu"));
     page.appendChild(seg);
+    page.appendChild(h("h3", "group-title", "Kartalar"));
+    var cc = document.documentElement.classList.contains("cols3") ? 3 : 2;
+    var colSeg = h("div", "seg");
+    [[2, "2 ustun (katta)"], [3, "3 ustun"]].forEach(function (o) {
+      var b = h("button", o[0] === cc ? "on" : "", o[1]);
+      b.onclick = function () {
+        haptic(); setCols(o[0]);
+        colSeg.querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", x === b); });
+      };
+      colSeg.appendChild(b);
+    });
+    page.appendChild(colSeg);
     page.appendChild(h("h3", "group-title", "Tezlik"));
     var pf = ""; try { pf = localStorage.getItem("perf") || ""; } catch (e) {}
     var perf = h("div", "seg");
