@@ -339,3 +339,8 @@ Uni @BotFather → Edit Bot → **Edit Description Picture** orqali o'rnating. P
 - `app/web/js/app/NN-*.js` — asosiy ilova (bitta IIFE ning ketma-ket bo'laklari: core, icons, theme-storage, cards-hero, pages-motion, router, pages-misc, login, shorts, music, request-detail, comments, admin-edit, boot);
 - `app/web/js/i18n.js` — ruscha/inglizcha tarjima lug'ati va dvigateli.
 Server ularni `/assets/app.css`, `/assets/app.js`, `/assets/i18n.js` sifatida birlashtirib beradi (`?v=` — mazmun xeshi, bir yil keshlanadi, o'zgarsa avtomatik yangilanadi). Yangi bo'lak qo'shish: shunchaki yangi `NN-nom.js` fayl yarating (bo'laklar bitta IIFE ichida birlashtirilgani uchun faylning o'zi alohida ishga tushmaydi).
+
+## Kuzatish va zaxira
+- `/kuzatish` — foydalanuvchi janrlarni tanlaydi; shu janrda kino qo'shilsa bot xabar beradi (kuniga ko'pi bilan 3 ta). «📬 Haftalik tavsiya» yoqilsa, har dushanba 10:00 (Toshkent) ko'rgan janrlariga mos 3 ta kino keladi. O'chirish: `follow_notify` sozlamasi `0`.
+- Zaxira: har 24 soatda baza **siqilgan (`.db.gz`)** holda bosh adminlarga yuboriladi va serverda `data/backups/` ichida oxirgi 7 nusxa saqlanadi. Tiklash: admin panel → Zaxira → tiklash, `.gz` faylni o'zini yuboring.
+- Kutilmagan xato bo'lsa, bosh adminlarga qisqa ogohlantirish keladi (15 daqiqada bir marta).

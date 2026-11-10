@@ -104,6 +104,7 @@ HELP_TEXT = (
     "🔎 <b>Kino nomi</b> — nomini yozing, ro'yxatdagi raqamni tanlang.\n"
     "🎬 <b>/sorov</b> — izlagan kinongiz topilmasa, so'rang — qo'shamiz!\n"
     "🤝 <b>/taklif</b> — do'stlarni taklif qiling, har biri uchun +1 kun Premium oling\n"
+    "🔔 <b>/kuzatish</b> — sevimli janrlaringizda yangi kino chiqsa xabar olasiz\n"
     "🔎 Istalgan chatda <b>@bot_nomi kino nomi</b> deb yozib, kinoni ulashishingiz mumkin\n\n"
     "🔥 <b>Top kinolar</b> — eng ko'p ko'rilganlar\n"
     "🆕 <b>Yangi kinolar</b> — yangi qo'shilganlar\n"

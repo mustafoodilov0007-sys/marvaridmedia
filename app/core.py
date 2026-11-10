@@ -594,12 +594,31 @@ def process_update(app: App, update: dict) -> None:
             _special(app, ctx, "inline_query")
     except Exception:
         log.exception("Update #%s ni qayta ishlashda xatolik", update.get("update_id"))
+        _alert_owners(app, update)
         if ctx.chat_id and ctx.chat.get("type") == "private":
             app.bot.safe("sendMessage", {"chat_id": ctx.chat_id,
                                          "text": "⚠️ Kutilmagan xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring."})
     finally:
         if ctx.callback is not None and not ctx._answered:
             ctx.answer()
+
+
+_last_alert = [0.0]
+
+
+def _alert_owners(app: App, update: dict) -> None:
+    """Kutilmagan xatoda bosh adminlarga qisqa xabar (15 daqiqada ko'pi bilan bir marta — spam bo'lmasin)."""
+    import sys
+    t = time.time()
+    if t - _last_alert[0] < 900:
+        return
+    _last_alert[0] = t
+    exc = sys.exc_info()[1]
+    kind = next((k for k in ALLOWED_UPDATES if update.get(k)), "update")
+    text = (f"⚠️ <b>Botda kutilmagan xatolik</b>\n\n<code>{type(exc).__name__}</code>: {__import__('html').escape(str(exc)[:200]) if exc else '—'}\n"
+            f"Turi: {kind}\n\nBatafsil: /status va Railway loglari. Keyingi ogohlantirish 15 daqiqadan so'ng.")
+    for uid in app.config.owners:
+        app.bot.safe("sendMessage", {"chat_id": uid, "text": text, "parse_mode": "HTML"})
 
 
 def _special(app: App, ctx: Ctx, kind: str) -> None:

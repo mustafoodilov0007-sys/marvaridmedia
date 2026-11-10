@@ -858,6 +858,11 @@ def save_movie(ctx: Ctx, premium: bool) -> None:
     code = db.get_movie(movie_id)["code"]
     audit(ctx.app, ctx.user_id, "movie_add", f"{d['title']} (kod {code})")
     notified = notify_requesters(ctx.app, movie_id)
+    try:
+        from .follow import notify_followers
+        notify_followers(ctx.app, movie_id)         # janrni kuzatganlarga xabar (orqa fonda)
+    except Exception:  # noqa: BLE001 — bildirishnoma kino saqlanishiga xalaqit bermasin
+        log.exception("Kuzatuvchilarga xabar yuborib bo'lmadi")
     ctx.edit(f"🎉 <b>{cat_name(cat)} muvaffaqiyatli saqlandi!</b>\n\n"
              f"{cat_icon(cat)} <b>{esc(d['title'])}</b>\n"
              + (f"🔢 Kod: <code>{code}</code>\n" if code > 0 else "") +

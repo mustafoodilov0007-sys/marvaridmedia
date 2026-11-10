@@ -268,6 +268,14 @@ CREATE TABLE IF NOT EXISTS broadcasts (
     status      TEXT    NOT NULL DEFAULT 'running'
 );
 
+CREATE TABLE IF NOT EXISTS follows (
+    user_id INTEGER NOT NULL,
+    topic   TEXT    NOT NULL,
+    at      INTEGER NOT NULL,
+    PRIMARY KEY (user_id, topic)
+);
+CREATE INDEX IF NOT EXISTS idx_follows_topic ON follows(topic);
+
 CREATE TABLE IF NOT EXISTS comments (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     movie_id   INTEGER NOT NULL,
@@ -1521,6 +1529,33 @@ class Database:
                 scored.append((-sc, i, r))
         scored.sort(key=lambda x: (x[0], x[1]))
         return [r for _, _, r in scored[:limit]]
+
+    # ───────── 🔔 kuzatish: janrlar va haftalik tavsiya ─────────
+
+    def follow_toggle(self, uid: int, topic: str) -> bool:
+        """Obunani yoqadi/o'chiradi. Yoqilgan bo'lsa True."""
+        if self.val("SELECT COUNT(*) FROM follows WHERE user_id=? AND topic=?", (uid, topic)):
+            self.x("DELETE FROM follows WHERE user_id=? AND topic=?", (uid, topic))
+            return False
+        self.x("INSERT OR IGNORE INTO follows(user_id, topic, at) VALUES (?,?,?)", (uid, topic, now()))
+        return True
+
+    def user_follows(self, uid: int) -> set:
+        return {r[0] for r in self.q("SELECT topic FROM follows WHERE user_id=?", (uid,))}
+
+    def followers_of(self, topics) -> List[int]:
+        """Shu janrlardan birortasini kuzatayotgan (bloklamagan) foydalanuvchilar."""
+        topics = [t for t in topics if t]
+        if not topics:
+            return []
+        marks = ",".join("?" * len(topics))
+        return [r[0] for r in self.q(
+            f"SELECT DISTINCT f.user_id FROM follows f JOIN users u ON u.user_id=f.user_id"
+            f" WHERE u.is_blocked=0 AND f.topic IN ({marks}) ORDER BY f.user_id", topics)]
+
+    def weekly_subscribers(self) -> List[int]:
+        return [r[0] for r in self.q(
+            "SELECT f.user_id FROM follows f JOIN users u ON u.user_id=f.user_id WHERE u.is_blocked=0 AND f.topic='weekly' ORDER BY f.user_id")]
 
     def prune_searches(self, before: int) -> None:
         self.x("DELETE FROM searches WHERE created_at<?", (before,))

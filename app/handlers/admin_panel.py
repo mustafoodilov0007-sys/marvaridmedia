@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import gzip
 import logging
 import re
 import sqlite3
+import time
 from pathlib import Path
 
 from ..core import Ctx, router
@@ -281,6 +283,12 @@ def st_restore(ctx: Ctx) -> None:
     target = Path(str(path) + "-wal") if is_wal else path
     if not _download(ctx, doc, target):
         return
+    if name.endswith(".gz") and not is_wal:                 # siqilgan zaxira (.db.gz) — ochamiz
+        try:
+            target.write_bytes(gzip.decompress(target.read_bytes()))
+        except (OSError, EOFError, gzip.BadGzipFile) as exc:
+            ctx.send(f"❌ .gz faylni ochib bo'lmadi: {esc(str(exc))}", cancel_kb())
+            return
     has_main = path.exists()
     has_wal = Path(str(path) + "-wal").exists()
     ctx.set_state("db:restore", started=True)
@@ -313,18 +321,31 @@ def send_backup(ctx: Ctx) -> None:
             tmp.unlink()
         except OSError:
             pass
+    data = gzip.compress(data, 6)                       # siqilgan: 3–5 baravar kichik
     if len(data) > 49 * 1024 * 1024:
-        ctx.send("⚠️ Baza hajmi 50 MB dan katta — Telegram orqali yuborib bo'lmaydi. "
+        ctx.send("⚠️ Baza hajmi (siqilganda ham) 50 MB dan katta — Telegram orqali yuborib bo'lmaydi. "
                  "Serverdagi <code>data/bot.db</code> faylidan nusxa oling.")
         return
-    name = f"marvarid_backup_{fmt_datetime(now()).replace(' ', '_').replace(':', '-')}.db"
+    name = f"marvarid_backup_{fmt_datetime(now()).replace(' ', '_').replace(':', '-')}.db.gz"
     try:
         ctx.bot.send_document(ctx.chat_id, file=InputFile(name, data),
-                              caption="💾 <b>Ma'lumotlar bazasi zaxira nusxasi</b>\n\n"
-                                      "Tiklash uchun: botni to'xtating va faylni <code>data/bot.db</code> "
-                                      "nomi bilan almashtiring.")
+                              caption="💾 <b>Ma'lumotlar bazasi zaxira nusxasi</b> (siqilgan)\n\n"
+                                      "Tiklash uchun: admin panel → Zaxira → «tiklash» — shu <code>.gz</code> faylni o'zini yuboring "
+                                      "(ochish shart emas).")
     except TelegramError as exc:
         ctx.send(f"❌ Zaxira nusxani yuborib bo'lmadi: {esc(exc.description)}")
+
+
+def _keep_local(db, data: bytes, keep: int = 7) -> None:
+    """Siqilgan zaxirani serverdagi data/backups/ ichida ham saqlaydi (oxirgi 7 kun). Telegramga yuborilmay qolsa ham nusxa bor."""
+    try:
+        folder = db.path.parent / "backups"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / f"auto_{time.strftime('%Y%m%d_%H%M')}.db.gz").write_bytes(data)
+        for old in sorted(folder.glob("auto_*.db.gz"))[:-keep]:
+            old.unlink(missing_ok=True)
+    except OSError:
+        log.warning("Mahalliy zaxirani saqlab bo'lmadi", exc_info=True)
 
 
 @router.task
@@ -357,6 +378,8 @@ def _auto_backup(app) -> None:
             except OSError:
                 pass
         db.set_setting("last_auto_backup", str(int(time.time())))
+        data = gzip.compress(data, 6)
+        _keep_local(db, data)
         if len(data) > 49 * 1024 * 1024:
             for uid in app.config.owners:
                 app.bot.safe("sendMessage", {"chat_id": uid, "parse_mode": "HTML",
@@ -365,7 +388,7 @@ def _auto_backup(app) -> None:
                                                      "Serverdagi <code>data/bot.db</code> faylidan nusxa oling yoki "
                                                      "Railway Volume zaxirasini yoqing."})
             continue
-        name = f"marvarid_avto_{fmt_datetime(now()).replace(' ', '_').replace(':', '-')}.db"
+        name = f"marvarid_avto_{fmt_datetime(now()).replace(' ', '_').replace(':', '-')}.db.gz"
         for uid in app.config.owners:
             try:
                 app.bot.send_document(uid, file=InputFile(name, data),

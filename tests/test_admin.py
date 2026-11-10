@@ -359,6 +359,64 @@ class AddFlow(AdminCase):
         self.msg(1, "/animatsiya")
         self.assertTrue("4 ta posterli" in self.last(1) or "o'rnatilmagan" in self.last(1))
 
+    def test_follow_genres_notify_and_weekly(self):
+        from app.handlers import follow
+        db = self.app.db
+        db.upsert_user({"id": 77, "first_name": "Sardor", "username": "sardor"})
+        self.msg(77, "/kuzatish")
+        self.assertIn("Yangi kinolardan xabardor", self.last(77))
+        self.press(77, "fw:g:action")
+        self.press(77, "fw:w")
+        self.assertEqual(db.user_follows(77), {"action", "weekly"})
+        mid = db.add_movie(40, "Jangari kino", "", "POSTER1", False, 1, "F", "video", "movie", genre_keys=["action"])
+        follow._sent_today.clear()
+        import threading
+        follow.notify_followers(self.app, mid)
+        for t in threading.enumerate():
+            if t.name == "follow-notify":
+                t.join(5)
+        got = [a[0] for n, a, k in self.app.bot.sent if n == "sendPhoto" and a and isinstance(a[0], dict) and a[0].get("chat_id") == 77 and a[0].get("photo") == "POSTER1"]
+        self.assertTrue(got and "Jangari kino" in got[0]["caption"])
+        self.assertTrue(follow.send_weekly(self.app, 77))                  # haftalik tavsiya yuboriladi
+        self.assertIn("Bu hafta siz uchun", self.last(77))
+        self.press(77, "fw:woff")
+        self.assertEqual(db.user_follows(77), {"action"})
+
+    def test_backup_is_gzipped_local_copies_and_restorable(self):
+        import gzip
+        import os
+        import tempfile
+        from pathlib import Path
+        from app.handlers import admin_panel
+        db = self.app.db
+        add_movie(self.app, 61, "Zaxira kino")
+        tmp = Path(tempfile.mkdtemp()) / "b.db"
+        db.backup_to(tmp)
+        data = gzip.compress(tmp.read_bytes())
+        self.assertLess(len(data), tmp.stat().st_size)                       # siqilgan
+        out = Path(tempfile.mkdtemp()) / "x.db"
+        out.write_bytes(gzip.decompress(data))
+        self.assertGreaterEqual(admin_panel.inspect_db(out)[0], 1)           # ochilgach baza o'qiladi
+        for i in range(9):
+            admin_panel._keep_local(db, data + bytes([i]), keep=7)
+        folder = db.path.parent / "backups"
+        self.assertLessEqual(len(list(folder.glob("auto_*.db.gz"))), 7)      # eski nusxalar o'chiriladi
+        self.msg(1, "/status")
+        self.assertIn("zaxira", self.last(1).lower())
+
+    def test_error_alert_to_owners_is_rate_limited(self):
+        from app import core
+        core._last_alert[0] = 0
+        n0 = len([1 for n, a, k in self.app.bot.sent if n == "sendMessage"])
+        try:
+            raise ValueError("sinov <xato>")
+        except ValueError:
+            core._alert_owners(self.app, {"message": {"from": {"id": 1}}})
+            core._alert_owners(self.app, {"message": {"from": {"id": 1}}})      # ikkinchisi — 15 daqiqa ichida, yuborilmaydi
+        sent = [a[0] for n, a, k in self.app.bot.sent if n == "sendMessage" and a and isinstance(a[0], dict) and "kutilmagan xatolik" in str(a[0].get("text"))]
+        self.assertEqual(len(sent), 1)
+        self.assertIn("&lt;xato&gt;", sent[0]["text"])
+
     def test_year_range_typed(self):
         from app import genres
         self.assertEqual(genres.parse_years("2012-2015"), (2012, 2015))
