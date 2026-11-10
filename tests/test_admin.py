@@ -583,6 +583,21 @@ class AddFlow(AdminCase):
         notify_requesters(app, mid)                                                  # ikkinchi marta yuborilmaydi
         self.assertEqual(len(app.bot.texts(601)), n)
 
+    def test_premium_emoji_pairs_with_equals(self):
+        from app.handlers.admin_emoji import parse_pairs
+        t = "🥲=⭐ 😂＝⭐\n👨‍👩‍👧 = ⭐ ❤️=⭐ ⭐"
+        ents, idx = [], 0
+        for cid in "12345":
+            idx = t.index("⭐", idx)
+            ents.append({"type": "custom_emoji", "custom_emoji_id": cid, "offset": len(t[:idx].encode("utf-16-le")) // 2, "length": 1})
+            idx += 1
+        got = parse_pairs(t, ents)
+        self.assertEqual(got["🥲"], "1")
+        self.assertEqual(got["😂"], "2")
+        self.assertEqual(got["👨‍👩‍👧"], "3")
+        self.assertEqual(got["❤"], "4")
+        self.assertEqual(got["⭐"], "5")                       # «=» yo'q — premium emojining o'z ko'rinishi (eski usul)
+
     def test_marvarid_tv_empty_and_deleted_movie(self):
         from app import tv, webapp
         tv._mem.clear()

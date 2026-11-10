@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 from ..core import Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb
@@ -19,6 +20,28 @@ log = logging.getLogger("admin.emoji")
 
 # Botda eng ko'p ishlatiladigan emojilar (mijoz ko'p ko'radiganlari oldinda)
 STARTER = "🎬 📺 🧸 🎵 🎭 🌍 📅 🗣 🎞 🔢 📝 👁 💎 🤖 🌐 🔥 🆕 🎲 👍 👎 ✅ ❌ 👇 🍿 ⭐ 📚 🔎 🎉 📤 ⚡"
+
+
+_EMOJI_CH = (r"(?:[\U0001F1E6-\U0001F1FF]{2}|[#*0-9]\ufe0f?\u20e3|"
+             r"[\U0001F000-\U0001FAFF\u2190-\u21FF\u2300-\u23FF\u2460-\u24FF\u25A0-\u27BF\u2900-\u297F\u2B00-\u2BFF"
+             r"\u3030\u303D\u3297\u3299\u00A9\u00AE\u203C\u2049\u2122\u2139][\ufe0f\U0001F3FB-\U0001F3FF]*"
+             r"(?:\u200d[\U0001F000-\U0001FAFF\u2190-\u27BF\u2B00-\u2BFF][\ufe0f\U0001F3FB-\U0001F3FF]*)*)")
+_PAIR_RE = re.compile(r"(" + _EMOJI_CH + r")\s*[=＝:]\s*$")
+
+
+def parse_pairs(text: str, ents: list) -> dict:
+    """Premium emojilarni juftlab oladi: «🥲=<premium emoji>» — chapdagi oddiy emoji kalit bo'ladi (aniq va xatosiz).
+    «=» yozilmagan bo'lsa — premium emojining o'z oddiy ko'rinishi kalit bo'ladi (eski usul)."""
+    raw = (text or "").encode("utf-16-le")
+    found = {}
+    for e in sorted((x for x in ents if x.get("type") == "custom_emoji" and x.get("custom_emoji_id")), key=lambda x: x["offset"]):
+        before = raw[:e["offset"] * 2].decode("utf-16-le", errors="ignore")
+        line = before.rsplit("\n", 1)[-1]
+        m = _PAIR_RE.search(line)
+        key = emoji_key(m.group(1)) if m else emoji_key(entity_text(text, e))
+        if key:
+            found[key] = e["custom_emoji_id"]
+    return found
 
 
 def status_view(ctx: Ctx):
@@ -37,8 +60,9 @@ def status_view(ctx: Ctx):
                      "(bunda xabar oddiy emoji bilan yuborilgan).")
     lines += ["", "<b>Qanday ulanadi?</b>",
               "1. «➕ Emoji ulash» ni bosing.",
-              "2. Premium emojilarni <b>bitta xabarda</b> yuboring (masalan premium 🎬 🎭 🌍 ...).",
-              "3. Bot har birini o'zining oddiy emojisiga bog'laydi — shundan so'ng bot hamma joyda shuni ishlatadi.",
+              "2. Har birini <b>juft qilib</b> yozing: <code>oddiy emoji = premium emoji</code>, masalan <code>🥲=</code> va yoniga premium emoji. "
+              "Bir xabarga bir nechta juft yozish mumkin.",
+              "3. Bot oddiy emojini premium emojiga bog'laydi — shundan so'ng botda shu emoji har doim premium bo'lib chiqadi.",
               "",
               "💡 Botda eng ko'p ishlatiladiganlari:", STARTER,
               "",
@@ -67,8 +91,11 @@ def cb_replace(ctx: Ctx) -> None:
         ctx.answer()
         ctx.set_state("pe:wait", ttl=3600)
         ctx.send("💎 <b>Premium emojilarni yuboring</b>\n\n"
-                 "Bitta xabarga bir nechta premium emoji yozishingiz mumkin. Bot har birini uning oddiy "
-                 "ko'rinishiga bog'laydi (premium 🎬 → oddiy 🎬 o'rniga).\n\n"
+                 "Juft qilib yozing: <code>🥲=</code> va yoniga premium emojini qo'ying. Bot oddiy 🥲 ni shu premium emojiga bog'laydi "
+                 "va hamma xabarda shuni ishlatadi. Bir xabarga bir nechta juft yozish mumkin, masalan:\n"
+                 "<code>🎬=[premium] 🎭=[premium] 🌍=[premium]</code>\n\n"
+                 "(Faqat premium emoji yuborsangiz, bot uni o'zining oddiy ko'rinishiga bog'laydi — bu ba'zan noto'g'ri chiqadi, "
+                 "shuning uchun «=» bilan yozing.)\n\n"
                  f"💡 Avval shularni ulang:\n{STARTER}\n\n"
                  "Tugatgach «✅ Tayyor» ni bosing.", ikb([btn("✅ Tayyor", "pe:done", style=SUCCESS)],
                                                       [btn("❌ Bekor qilish", "cancel", style=DANGER)]))
@@ -111,12 +138,7 @@ def st_replace(ctx: Ctx) -> None:
     msg = ctx.message
     text = msg.get("text") or msg.get("caption") or ""
     ents = msg.get("entities") or msg.get("caption_entities") or []
-    found = {}
-    for e in ents:
-        if e.get("type") == "custom_emoji" and e.get("custom_emoji_id"):
-            key = emoji_key(entity_text(text, e))
-            if key:
-                found[key] = e["custom_emoji_id"]
+    found = parse_pairs(text, ents)
     if not found:
         ctx.send("❗️ Xabarda premium emoji topilmadi. Premium emojilarni yuboring yoki «✅ Tayyor» ni bosing.",
                  ikb([btn("✅ Tayyor", "pe:done", style=SUCCESS)]))
