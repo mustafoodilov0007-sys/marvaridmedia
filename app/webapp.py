@@ -1322,6 +1322,19 @@ self.addEventListener("fetch", (e) => {
 """
 
 
+def _moved_to(app: App, host: str, path: str) -> str:
+    """Sayt o'z domenida (WEBAPP_URL) bo'lsa, eski *.railway.app manzilidagi sahifa so'rovlarini shu yerga o'tkazadi.
+    API, media va healthz ga tegmaydi (eski ilovalar va Railway tekshiruvi buzilmasin). Bo'sh qator — o'tkazish shart emas."""
+    base = (app.config.webapp_url or "").rstrip("/")
+    if not base or path == "/healthz" or path.startswith(("/api/", "/pub/", "/media/")):
+        return ""
+    host = host.split(":")[0].lower()
+    want = urllib.parse.urlsplit(base).hostname or ""
+    if not want or host == want or not host.endswith(".railway.app"):
+        return ""
+    return base
+
+
 def _site_base(handler, app: App) -> str:
     if app.config.webapp_url:
         return app.config.webapp_url.rstrip("/")
@@ -1555,6 +1568,14 @@ def make_handler(app: App):
             path = url.path
             qs = dict(urllib.parse.parse_qsl(url.query))
             try:
+                moved = _moved_to(app, self.headers.get("Host", ""), path)
+                if moved:   # eski railway.app manzili → yangi domen (SEO uchun doimiy yo'naltirish)
+                    self.send_response(301)
+                    self.send_header("Location", moved + self.path)
+                    self.send_header("Cache-Control", "public, max-age=86400")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
                 if path in ("/", "/index.html"):
                     return self._index(qs, None)
                 if path == "/yandex_ad2be0e9bc24166d.html":       # Yandex Reklama tarmog'i: sayt egaligini tasdiqlash fayli

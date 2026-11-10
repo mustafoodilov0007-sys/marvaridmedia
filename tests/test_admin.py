@@ -660,6 +660,16 @@ class AddFlow(AdminCase):
         self.assertEqual([r["id"] for r in self.app.db.movie_shorts(mid)], [good])
         self.app.bot.call = real
 
+    def test_old_railway_host_redirects_to_custom_domain(self):
+        from app import webapp
+        self.app.config.webapp_url = "https://marvarid.uz"
+        mv = lambda host, path: webapp._moved_to(self.app, host, path)
+        self.assertEqual(mv("marvaridmedia-production.up.railway.app", "/kino/5"), "https://marvarid.uz")
+        self.assertEqual(mv("marvaridmedia-production.up.railway.app", "/api/me"), "")      # API ga tegmaydi
+        self.assertEqual(mv("marvaridmedia-production.up.railway.app", "/healthz"), "")
+        self.assertEqual(mv("marvarid.uz", "/kino/5"), "")                                  # allaqachon yangi domen
+        self.assertEqual(mv("127.0.0.1:8770", "/"), "")
+
     def test_trailer_link_bot_and_site(self):
         from app import webapp
         mid = add_movie(self.app, 950, "Treylerli kino")
