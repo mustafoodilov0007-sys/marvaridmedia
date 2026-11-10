@@ -336,6 +336,10 @@ class AddFlow(AdminCase):
         r = webapp.api_collection(self.app, {"id": 0}, {"id": "g_action"})
         self.assertEqual((r["title"], len(r["items"])), ("Jangari", 4))
 
+    def test_animation_command_needs_posters(self):
+        self.msg(1, "/animatsiya")
+        self.assertTrue("4 ta posterli" in self.last(1) or "o'rnatilmagan" in self.last(1))
+
     def test_year_range_typed(self):
         from app import genres
         self.assertEqual(genres.parse_years("2012-2015"), (2012, 2015))

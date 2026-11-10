@@ -328,3 +328,7 @@ Profil → «Interfeys tili» (yoki kirish sahifasi) orqali O'zbek / Русск�
 Telegram ichida standart til — o'zbekcha; oddiy brauzerda brauzer tili rus/ingliz bo'lsa shu til avtomatik tanlanadi.
 Tarjima lug'ati `app/web/index.html` ichidagi i18n blokida (`var D`). Kino nomlari va izohlar tarjima qilinmaydi. Bot interfeysi faqat o'zbekcha.
 Google tugmasi chiqishi uchun Railway'da `GOOGLE_CLIENT_ID` o'rnatilgan bo'lishi shart.
+
+## Botning ochilish animatsiyasi (/animatsiya)
+Admin `/animatsiya` yozsa, bot bazadagi eng ko'p ko'rilgan **haqiqiy posterlardan** kollajli 8 soniyalik MP4 (640×360) yasab yuboradi.
+Uni @BotFather → Edit Bot → **Edit Description Picture** orqali o'rnating. Pillow va ffmpeg kerak (Dockerfile'da ffmpeg o'rnatiladi).

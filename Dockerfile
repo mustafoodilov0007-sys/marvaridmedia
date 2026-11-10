@@ -5,6 +5,9 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONIOENCODING=utf-8
 
+# ffmpeg — ixtiyoriy: /animatsiya buyrug'i botning ochilish animatsiyasini (MP4) yasaydi
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/* || true
+
 WORKDIR /app
 COPY requirements.txt .
 # Pillow — ixtiyoriy (poster kichik nusxalari); o'rnatilmasa bot baribir ishlaydi
