@@ -16,7 +16,7 @@ from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, nav_row, 
 from ..subscription import all_joined, channel_statuses, gate_view, needs_gate
 from ..telegram import BadRequest, TelegramError
 from ..texts import B, HELP_TEXT, cat_icon, cat_name
-from ..utils import (esc, fmt_datetime, fmt_num, fuzzy_match, normalize, now, render,
+from ..utils import (esc, fmt_datetime, fmt_num, fuzzy_match, normalize, now, phonetic, render,
                      truncate, visible_len)
 
 log = logging.getLogger("user")
@@ -361,7 +361,22 @@ def search_ids(app, norm: str, scope: Optional[str] = None, fuzzy_ok: bool = Tru
         return [x[3] for x in scored[:MAX_RESULTS]], False
     if not fuzzy_ok:
         return [], False
-    titles = [(r["id"], r["norm_title"]) for r in app.db.all_titles(scope)]
+    rows_all = list(app.db.all_titles(scope))
+    pq = phonetic(norm)                                 # imlo variantlari: Titanic/Titanik/Титаник, Joker/Джокер
+    if len(pq) >= 3:
+        ph = []
+        for r in rows_all:
+            pt = phonetic(r["norm_title"])
+            if pt == pq:
+                ph.append((0, r["id"]))
+            elif pt.startswith(pq):
+                ph.append((1, r["id"]))
+            elif len(pq) >= 5 and pq in pt:
+                ph.append((2, r["id"]))
+        if ph:
+            ph.sort()
+            return [i for _, i in ph[:MAX_RESULTS]], True
+    titles = [(r["id"], r["norm_title"]) for r in rows_all]
     return fuzzy_match(norm, titles, limit=30), True
 
 

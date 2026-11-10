@@ -15,6 +15,7 @@ import logging
 import os
 import re
 import threading
+import html
 import time
 import urllib.parse
 import urllib.request
@@ -266,6 +267,46 @@ def api_comments(app: App, user: dict, qs: dict) -> dict:
     return out
 
 
+_reply_notified: dict = {}
+
+
+def _notify_reply(app: App, par, user: dict, movie, text: str) -> None:
+    """Izohga javob yozilganda izoh egasiga (Telegram akkaunt bo'lsa) botdan xabar boradi. Soatiga ko'pi bilan 5 ta."""
+    try:
+        target = int(par["user_id"])
+    except (TypeError, ValueError, KeyError):
+        return
+    if target <= 0 or target == user["id"]:
+        return
+    u = app.db.get_user(target)
+    if not u or u["is_blocked"]:
+        return
+    hour = int(time.time() // 3600)
+    key = (target, hour)
+    if _reply_notified.get(key, 0) >= 5:
+        return
+    _reply_notified[key] = _reply_notified.get(key, 0) + 1
+    for k in [k for k in _reply_notified if k[1] != hour]:
+        _reply_notified.pop(k, None)
+    name = html.escape((user.get("first_name") or "Foydalanuvchi")[:40])
+    snippet = html.escape(text[:160] + ("…" if len(text) > 160 else ""))
+    msg = (f"💬 <b>{name}</b> izohingizga javob yozdi\n🎬 {html.escape(movie['title'][:80])}\n\n«{snippet}»")
+    base = (app.config.webapp_url or "").rstrip("/")
+    markup = None
+    if base and movie["code"] > 0:
+        markup = {"inline_keyboard": [[{"text": "💬 Javobni ko'rish", "url": f"{base}/kino/{movie['code']}"}]]}
+
+    def work() -> None:
+        try:
+            app.bot.send_message(target, msg, markup)
+        except Forbidden:
+            app.db.set_blocked(target, True)
+        except TelegramError as exc:
+            log.debug("Javob xabari yetmadi (%s): %s", target, exc)
+
+    threading.Thread(target=work, name="reply-notify", daemon=True).start()
+
+
 def api_comment_post(app: App, user: dict, body: dict) -> dict:
     from . import comments
     m = _comment_movie(app, body.get("id"))
@@ -287,6 +328,8 @@ def api_comment_post(app: App, user: dict, body: dict) -> dict:
     if reason:
         return {"ok": False, "reason": reason, "msg": comments.REASONS.get(reason, "")}
     cid = app.db.add_comment(m["id"], uid, text, parent)
+    if body.get("parent"):
+        _notify_reply(app, par, user, m, text)
     row = app.db.q1(app.db._COMMENT_SQL + " WHERE c.id=?", (uid, cid))
     it = comments.item(app, row, uid)
     it["replies"] = []
@@ -904,35 +947,47 @@ except Exception:                   # noqa: BLE001
 _poster_fail: dict = {}             # yuklanmagan posterni 60 soniya qayta so'ramaymiz (Telegramga yuklama tushmasin)
 
 
-def _thumb(data: bytes, width: int) -> bytes:
+def _webp_ok() -> bool:
+    try:
+        from PIL import features
+        return bool(_PIL is not None and features.check("webp"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _thumb(data: bytes, width: int, webp: bool = False) -> bytes:
     import io
     try:
         im = _PIL.open(io.BytesIO(data))
-        if im.width <= width:
+        if im.width <= width and not webp:
             return data
         im = im.convert("RGB")
-        im.thumbnail((width, width * 2))
+        if im.width > width:
+            im.thumbnail((width, width * 2))
         out = io.BytesIO()
-        im.save(out, "JPEG", quality=80, optimize=True, progressive=True)
+        if webp:                      # WebP: JPEG ga qaraganda ~30% kichik — sahifa tezroq ochiladi
+            im.save(out, "WEBP", quality=78, method=4)
+        else:
+            im.save(out, "JPEG", quality=80, optimize=True, progressive=True)
         return out.getvalue()
     except Exception:               # noqa: BLE001 — buzuq rasm: asl nusxa qaytadi
         return data
 
 
-def poster_bytes(app: App, movie_id: int, cache_dir: Path, width: int = 0) -> Optional[bytes]:
+def poster_bytes(app: App, movie_id: int, cache_dir: Path, width: int = 0, webp: bool = False) -> Optional[bytes]:
     movie = app.db.get_movie(movie_id)
     if not movie or not movie["poster_id"]:
         return None
     key = _poster_key(movie["poster_id"])
     path = cache_dir / f"{movie_id}_{key}.jpg"
     if width and _PIL is not None:
-        small = cache_dir / f"{movie_id}_{key}_{width}.jpg"
+        small = cache_dir / f"{movie_id}_{key}_{width}.{'webp' if webp else 'jpg'}"
         if small.exists():
             return small.read_bytes()
         full = poster_bytes(app, movie_id, cache_dir, 0)
         if full is None:
             return None
-        data = _thumb(full, width)
+        data = _thumb(full, width, webp)
         cache_dir.mkdir(parents=True, exist_ok=True)
         tmp = small.with_suffix(f".{threading.get_ident()}.tmp")
         tmp.write_bytes(data)
@@ -950,7 +1005,7 @@ def poster_bytes(app: App, movie_id: int, cache_dir: Path, width: int = 0) -> Op
         _poster_fail[movie_id] = time.time()
         return None
     cache_dir.mkdir(parents=True, exist_ok=True)
-    for old in cache_dir.glob(f"{movie_id}_*.jpg"):
+    for old in list(cache_dir.glob(f"{movie_id}_*.jpg")) + list(cache_dir.glob(f"{movie_id}_*.webp")):
         try:
             old.unlink()
         except OSError:
@@ -1518,10 +1573,12 @@ def make_handler(app: App):
                     if self._limited(api_user, api_ip):
                         return
                     width = int(qs["w"]) if qs.get("w") in ("360", "720") else 0
-                    data = poster_bytes(app, int(m.group(1)), cache_dir, width)
+                    webp = bool(width) and "image/webp" in self.headers.get("Accept", "") and _webp_ok()
+                    data = poster_bytes(app, int(m.group(1)), cache_dir, width, webp)
                     if data is None:
                         return self._send(404, b"", "text/plain")
-                    return self._send(200, data, "image/jpeg", "public, max-age=604800, immutable")
+                    return self._send(200, data, "image/webp" if webp else "image/jpeg", "public, max-age=604800, immutable",
+                                      {"Vary": "Accept"})
                 m = re.fullmatch(r"/media/short/(\d+)", path)
                 if m:
                     f = short_file(app, int(m.group(1)), shorts_dir)

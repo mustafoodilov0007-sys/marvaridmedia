@@ -417,6 +417,46 @@ class AddFlow(AdminCase):
         self.assertEqual(len(sent), 1)
         self.assertIn("&lt;xato&gt;", sent[0]["text"])
 
+    def test_missing_data_tool(self):
+        db = self.app.db
+        db.add_movie(80, "Bo'sh kino", "", None, False, 1, "F", "video", "movie", genre_keys=[], year=0, country="", lang="")
+        db.add_movie(81, "To'liq kino", "Tavsif bor", "P", False, 1, "F", "video", "movie", genre_keys=["drama"], year=2020, country="us", lang="uz")
+        c = db.missing_counts()
+        self.assertGreaterEqual(c["poster"], 1)
+        self.assertGreaterEqual(c["genre"], 1)
+        self.msg(1, "🧰 Vositalar") if False else None
+        from app.handlers import audit
+        class C:  # kichik soxta ctx
+            pass
+        ctx = C(); ctx.db = db
+        text, kb = audit.missing_view(ctx)
+        self.assertIn("Posteri yo'q", text)
+        text2, kb2 = audit.missing_list_view(ctx, "poster", 0)
+        self.assertIn("Bo'sh kino", str(kb2))
+        self.assertNotIn("To'liq kino", str(kb2))
+
+    def test_phonetic_search_and_webp_and_reply_notice(self):
+        from app.utils import normalize, phonetic
+        from app.handlers.user import search_ids
+        mid = add_movie(self.app, 90, "Titanik")
+        ids, approx = search_ids(self.app, normalize("Титаник 2"), scope="video") if False else search_ids(self.app, normalize("Titanic"), scope="video")
+        self.assertIn(mid, ids)                                              # Titanic ≈ Titanik
+        ids2, _ = search_ids(self.app, normalize("Титаник"), scope="video")
+        self.assertIn(mid, ids2)                                             # кирилл ≈ lotin
+        self.assertEqual(phonetic(normalize("Джокер")), phonetic(normalize("Joker")))
+        # javob bildirishnomasi: izoh egasiga bot xabar yuboradi
+        from app import webapp
+        self.app.db.upsert_user({"id": 51, "first_name": "Ali"})
+        self.app.db.upsert_user({"id": 52, "first_name": "Vali"})
+        top = webapp.api_comment_post(self.app, {"id": 51, "first_name": "Ali"}, {"id": mid, "body": "Zo'r kino ekan!"})["item"]
+        self.app.db.x("UPDATE comments SET created_at=created_at-3600")
+        webapp.api_comment_post(self.app, {"id": 52, "first_name": "Vali"}, {"id": mid, "body": "Rostdan ham zo'r", "parent": top["id"]})
+        import threading
+        for th in threading.enumerate():
+            if th.name == "reply-notify":
+                th.join(5)
+        self.assertIn("izohingizga javob yozdi", " ".join(self.app.bot.texts(51)))
+
     def test_year_range_typed(self):
         from app import genres
         self.assertEqual(genres.parse_years("2012-2015"), (2012, 2015))

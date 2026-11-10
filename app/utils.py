@@ -238,6 +238,20 @@ def normalize(text: str) -> str:
     return " ".join(s.split())
 
 
+_PHON = (("sch", "sh"), ("tch", "ch"), ("ch", "@"), ("sh", "$"), ("zh", "j"), ("kh", "g"), ("ts", "s"), ("dj", "j"), ("ph", "f"),
+         ("ck", "k"), ("qu", "kv"), ("x", "ks"))
+
+
+def phonetic(norm: str) -> str:
+    """Tovush bo'yicha kalit: «Titanic» = «Titanik» = «Титаник», «Джокер» = «Joker», «Harry Potter» = «Гарри Поттер».
+    normalize() dan keyin ishlatiladi; imlo variantlarini (c/k, w/v, y/i, h/g, qo'sh harflar) tenglashtiradi."""
+    s = norm or ""
+    for a, b in _PHON:
+        s = s.replace(a, b)
+    s = s.replace("c", "k").replace("w", "v").replace("q", "k").replace("y", "i").replace("h", "g").replace("@", "ch").replace("$", "sh")
+    return re.sub(r"(.)\1+", r"\1", s)
+
+
 def escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 

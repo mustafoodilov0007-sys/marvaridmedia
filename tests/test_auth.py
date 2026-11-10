@@ -148,6 +148,21 @@ class Ads(AuthCase):
         self.assertIn(":root", urllib.request.urlopen(self.web.base + urls[0], timeout=15).read().decode())
         self.assertTrue(urllib.request.urlopen(self.web.base + [u for u in urls if "app.js" in u][0], timeout=15).read().decode().rstrip().endswith("})();"))
 
+    def test_poster_thumb_webp_smaller(self):
+        import io
+        from PIL import Image
+        from app import webapp
+        if not webapp._webp_ok():
+            self.skipTest("Pillow WebP yo'q")
+        im = Image.effect_noise((900, 1350), 40).convert("RGB")
+        b = io.BytesIO()
+        im.save(b, "JPEG", quality=90)
+        jpg = webapp._thumb(b.getvalue(), 360)
+        webp = webapp._thumb(b.getvalue(), 360, webp=True)
+        self.assertEqual(webp[:4], b"RIFF")
+        self.assertEqual(webp[8:12], b"WEBP")
+        self.assertLess(len(webp), len(jpg))
+
     def test_legal_pages(self):
         import urllib.request
         for path, word in (("/shartlar", "Foydalanish shartlari"), ("/maxfiylik", "Maxfiylik siyosati")):

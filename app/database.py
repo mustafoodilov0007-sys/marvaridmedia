@@ -1530,6 +1530,25 @@ class Database:
         scored.sort(key=lambda x: (x[0], x[1]))
         return [r for _, _, r in scored[:limit]]
 
+    # ───────── 🧩 yetishmayotgan ma'lumotlar (admin uchun) ─────────
+
+    MISSING = {
+        "poster": ("🖼 Posteri yo'q", "(m.poster_id IS NULL OR m.poster_id='')"),
+        "genre": ("🎭 Janri yo'q", "m.genres=''"),
+        "year": ("📅 Yili yo'q", "m.year=0"),
+        "country": ("🌍 Davlati yo'q", "m.country=''"),
+        "desc": ("📝 Tavsifi yo'q", "TRIM(m.description)=''"),
+    }
+
+    def missing_counts(self) -> Dict[str, int]:
+        return {k: self.val(f"SELECT COUNT(*) FROM movies m WHERE m.category<>'music' AND {cond}")
+                for k, (_, cond) in self.MISSING.items()}
+
+    def missing_list(self, kind: str, limit: int = 8, offset: int = 0) -> List[sqlite3.Row]:
+        cond = self.MISSING[kind][1]
+        return self.q(f"SELECT m.id, m.code, m.title, m.category FROM movies m WHERE m.category<>'music' AND {cond}"
+                      " ORDER BY m.views DESC, m.id DESC LIMIT ? OFFSET ?", (limit, offset))
+
     # ───────── 🔔 kuzatish: janrlar va haftalik tavsiya ─────────
 
     def follow_toggle(self, uid: int, topic: str) -> bool:

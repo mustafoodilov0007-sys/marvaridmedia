@@ -70,7 +70,7 @@ def tools_menu(ctx: Ctx):
         [btn("📈 Tahlil", "tl:an", style=PRIMARY), btn("🩺 Bot holati", "tl:st", style=PRIMARY)],
         [btn("📅 Kun kinosi", "tl:kk", style=PRIMARY), btn("🌐 Sayt posti", "tl:sp", style=PRIMARY)],
         [btn("♻️ Chiqindi qutisi", "tl:tr", style=SUCCESS), btn("✉️ Yuborilgan xabarlar", "tl:bc", style=SUCCESS)],
-        [btn("💬 Izohlar (moderatsiya)", "tl:cm", style=PRIMARY)],
+        [btn("💬 Izohlar (moderatsiya)", "tl:cm", style=PRIMARY), btn("🧩 To'ldirish kerak", "tl:mi", style=SUCCESS)],
     ]
     if ctx.is_owner:
         rows.append([btn("🧾 Admin jurnali", "tl:jr", style=DANGER)])
@@ -133,6 +133,62 @@ def cb_tools(ctx: Ctx) -> None:
         ctx.edit(*broadcasts_view(ctx))
     elif action == "cm":
         ctx.edit(*comments_view(ctx))
+    elif action == "mi":
+        ctx.edit(*missing_view(ctx))
+    elif action == "ml" and len(ctx.data.split(":")) > 3:
+        parts = ctx.data.split(":")
+        ctx.edit(*missing_list_view(ctx, parts[2], int(parts[3]) if parts[3].isdigit() else 0))
+    elif action == "mo" and len(ctx.data.split(":")) > 2 and ctx.data.split(":")[2].isdigit():
+        from .admin_movies import send_manage
+        movie = ctx.db.get_movie(int(ctx.data.split(":")[2]))
+        if movie:
+            send_manage(ctx, movie)
+        else:
+            ctx.send("😔 Kino topilmadi.")
+
+
+def missing_view(ctx: Ctx):
+    """🧩 Qaysi kinolarda ma'lumot yetishmayotgani: turlari bo'yicha sonlar."""
+    counts = ctx.db.missing_counts()
+    total = sum(counts.values())
+    lines = ["🧩 <b>To'ldirish kerak bo'lgan ma'lumotlar</b>", ""]
+    rows = []
+    for k, (label, _) in ctx.db.MISSING.items():
+        n = counts[k]
+        lines.append(f"{label}: <b>{n}</b>" + (" ✅" if not n else ""))
+        if n:
+            rows.append([btn(f"{label} ({n})", f"tl:ml:{k}:0", style=PRIMARY)])
+    lines.append("")
+    lines.append("Hammasi to'liq 🎉" if not total else "Kerakli bo'limni tanlang — kino ro'yxati chiqadi, bosganda tahrirlash oynasi ochiladi. "
+                 "💡 Tahrirlash oynasida «🌐 TMDB dan avtomatik to'ldirish» tugmasi bor.")
+    rows.append([btn("⬅️ Orqaga", "tl:menu", style=DANGER)])
+    return "\n".join(lines), ikb(*rows)
+
+
+def missing_list_view(ctx: Ctx, kind: str, page: int):
+    if kind not in ctx.db.MISSING:
+        return missing_view(ctx)
+    per = 8
+    total = ctx.db.missing_counts()[kind]
+    page = max(0, min(page, max(0, (total - 1) // per)))
+    rows_db = ctx.db.missing_list(kind, per, page * per)
+    label = ctx.db.MISSING[kind][0]
+    lines = [f"{label} — <b>{total}</b> ta (eng ko'p ko'rilganlari oldin)", ""]
+    kb = []
+    for r in rows_db:
+        code = f" • kod {r['code']}" if r["code"] > 0 else ""
+        kb.append([btn(truncate(f"{r['title']}{code}", 48), f"tl:mo:{r['id']}", style=PRIMARY)])
+    if not rows_db:
+        lines.append("Bu bo'limda hammasi to'liq 🎉")
+    nav = []
+    if page > 0:
+        nav.append(btn("⬅️", f"tl:ml:{kind}:{page - 1}", style=PRIMARY))
+    if (page + 1) * per < total:
+        nav.append(btn("➡️", f"tl:ml:{kind}:{page + 1}", style=PRIMARY))
+    if nav:
+        kb.append(nav)
+    kb.append([btn("⬅️ Orqaga", "tl:mi", style=DANGER)])
+    return "\n".join(lines), ikb(*kb)
 
 
 def _h(norm: str) -> str:
