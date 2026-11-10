@@ -76,11 +76,11 @@ SITE_ON = False
 
 def user_menu(is_admin: bool, premium_on: bool, site: Optional[bool] = None) -> dict:
     site = SITE_ON if site is None else site
-    # qisqa menyu: qolgan bo'limlar (serial, musiqa, top, yangi, premium, sayt) buyruqlar va saytda
+    # qisqa va toza menyu; serial, musiqa, top, yangi, sayt — /buyruqlar va saytda; murojaat — /murojaat, /sorov
     rows = [
         [rbtn(B.SEARCH, PRIMARY), rbtn(B.RANDOM, SUCCESS)],
         [rbtn(B.MOVIES, SUCCESS), rbtn(B.CARTOONS, PRIMARY)],
-        [rbtn(B.DONATE, DANGER), rbtn(B.CONTACT, PRIMARY)],
+        [rbtn(B.DONATE, DANGER), rbtn(B.PREMIUM, SUCCESS)] if premium_on else [rbtn(B.DONATE, DANGER)],
     ]
     if is_admin:
         rows.append([rbtn(B.ADMIN, DANGER)])
