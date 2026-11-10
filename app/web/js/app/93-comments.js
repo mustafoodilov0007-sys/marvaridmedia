@@ -300,6 +300,7 @@
       } else { s.style.transition = ""; s.style.opacity = ""; }
     }
     sheetOpen = true;
+    lockSwipes(true);
     stopHero();
     document.querySelectorAll(".short video").forEach(function (v) { v.pause(); });
     updateBack();
@@ -323,6 +324,7 @@
     $("veil").classList.remove("on");
     $("sheet").classList.remove("on");
     sheetOpen = false;
+    lockSwipes(false);
     setTimeout(flushUnsaved, 260);              // sevimlilardan olib tashlangan kartalar oyna yopilgach so'nadi
     hideMain();
     if (HIST && fromPop !== true) {

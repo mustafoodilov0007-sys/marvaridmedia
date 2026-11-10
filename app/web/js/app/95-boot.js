@@ -1,5 +1,15 @@
   // ───── sarlavha, navigatsiya ─────
-  function onScroll() { $("top").classList.toggle("solid", current !== "home" || window.scrollY > 40); }
+  var lastScrollY = 0;
+  function onScroll() {
+    var top = $("top"), y = window.scrollY;
+    top.classList.toggle("solid", current !== "home" || y > 40);
+    var d = y - lastScrollY;                       // pastga aylantirganda sarlavha yashirinadi, tepaga — paydo bo'ladi (faqat telefonda)
+    if (Math.abs(d) > 6) {
+      top.classList.toggle("hide", d > 0 && y > 120 && !sheetOpen && current !== "shorts" && window.innerWidth < 900);
+      lastScrollY = y;
+    }
+    if (y < 8) top.classList.remove("hide");
+  }
   window.addEventListener("scroll", onScroll, { passive: true });
   $("bSearch").appendChild(icon("search"));
   $("bSupport").appendChild(icon("heart"));

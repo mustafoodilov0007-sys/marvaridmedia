@@ -50,8 +50,10 @@
     if (first) requestAnimationFrame(function () { requestAnimationFrame(function () { ind.classList.remove("first"); }); });
   }
   window.addEventListener("resize", function () { var i = document.querySelector(".nav .navind"); if (i) { i.classList.add("first"); moveNavInd(); requestAnimationFrame(function () { i.classList.remove("first"); }); } });
+  var curOpts = {};
   function show(name, opts) {
     opts = opts || {};
+    curOpts = opts;
     if (name === "catalog") name = "video";          // «Katalog» tugmasi — barcha turlar (tepada tur tablari bor)
     if (!opts.nopush) pushView(name, opts);
     current = name;

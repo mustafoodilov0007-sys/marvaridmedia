@@ -119,7 +119,7 @@
           if (media.paused) { media.play(); el.classList.remove("is-paused"); }
           else { media.pause(); el.classList.add("is-paused"); }
         };
-        media.onclick = media._toggle;
+        media.onclick = function (e) { tapShort(e, el, media._toggle, function () { return likeB; }); };
         media.addEventListener("loadedmetadata", function () {
           if (media.videoWidth) { el._vw = media.videoWidth; el._vh = media.videoHeight; fit(el); }
         });
@@ -138,6 +138,7 @@
         el.classList.add("is-loading");
       }
       frame.appendChild(media);
+      if (!isVideo) media.onclick = function (e) { tapShort(e, el, null, function () { return likeB; }); };
       frame.appendChild(h("div", "fade"));
       frame.appendChild(h("div", "paused", [icon("play")]));
       frame.appendChild(h("div", "sspin"));
