@@ -295,11 +295,13 @@
     }
     var parts = [
       h("div", "sheet-top", topKids),
-      h("div", "sheet-main", [posterNode(it, 720), h("div", "info", [h("h3", null, it.title), metaLine, ratingBadges(it), chips, stats.childNodes.length ? stats : null])]),
-      acts,
-      me.admin ? adminBar(it) : null,
-      tabsEl
-    ].concat(panels);
+      h("div", "sbody", [      // poster joyida turadi, shu qism (matn, tugmalar, yorliqlar) surilganda uning ustiga chiqadi
+        h("div", "sheet-main", [posterNode(it, 720), h("div", "info", [h("h3", null, it.title), metaLine, ratingBadges(it), chips, stats.childNodes.length ? stats : null])]),
+        acts,
+        me.admin ? adminBar(it) : null,
+        tabsEl
+      ].concat(panels).filter(Boolean))
+    ];
     var bar = (hasMain || it.cat === "music") ? null : stickyBar(it, acts);
     if (bar) parts.push(bar);
     s.replaceChildren.apply(s, parts.filter(Boolean));          // null qiymatlar «null» matni bo'lib chiqmasin
@@ -321,7 +323,7 @@
     if (url) { s.style.transition = "none"; s.style.opacity = "0"; }       // oyna o'z joyida paydo bo'ladi, poster «uchib» keladi
     $("veil").classList.add("on");
     s.classList.add("on");
-    s.scrollTop = 0;
+    s.scrollTop = 0; s.style.setProperty("--sdim", "0");
     if (url) {
       var tp = flyTarget(s), sr = srcPoster.getBoundingClientRect(), tr = tp ? tp.getBoundingClientRect() : null;
       if (tr && inView(sr) && tr.width > 8) {

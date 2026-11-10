@@ -65,9 +65,7 @@ DEFAULT_TEXTS = {
         "Botdan to'liq foydalanish uchun kanalimizga obuna bo'ling va pastdagi tugmani bosing 👇"
     ),
     "caption_footer": (
-        "━━━━━━━━━━━━━━━\n"
-        "💎 <b>{brand}</b> — eng sara tarjima kinolar\n"
-        "🤖 @{bot}"
+        "💎 <b>{brand}</b>  ·  @{bot}"
     ),
     "donate_text": (
         "💝 <b>{brand} loyihasini qo'llab-quvvatlang!</b>\n\n"

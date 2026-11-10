@@ -1273,23 +1273,23 @@ def cb_add_movie(ctx: Ctx) -> None:
 # ═════════════════════════ 📢 Kanalga e'lon ═════════════════════════
 
 def announce_text(app, movie, parts: int) -> str:
-    """Kanal posti: sarlavha → ma'lumot qatorlari → reaksiya taklifi. Syujet kanalga qo'yilmaydi (u botda va saytda);
-    havolalar — pastdagi tugmalarda."""
+    """Kanal posti (premium dizayn): nom + yil, 2 qatorli ma'lumot, kod, reaksiya taklifi. Syujet kanalga qo'yilmaydi
+    (u botda va saytda); havolalar — pastdagi tugmalarda."""
     cat = movie["category"]
     music = cat == "music"
-    head = f"{cat_icon(cat)} <b>{esc(movie['title'])}</b>"
-    rows = [] if music else genres.info_lines(movie)
-    if parts > 1:
-        rows.append(f"📺 Qismlar: {parts} ta")
-    if movie["code"] > 0:
-        rows.append(f"🔢 Kodi: <code>{movie['code']}</code>")
-    if movie["is_premium"]:
-        rows.append("💎 Premium")
-    tail = "❤️ Yoqsa, reaksiya qoldiring!"
+    head = f"{cat_icon(cat)} <b>{esc(movie['title'])}</b>" + ("" if music else genres.title_year(movie))
     blocks = [head]
-    if rows:
-        blocks.append("\n".join(rows))
-    blocks.append(tail)
+    info = [] if music else genres.card_lines(movie, parts)
+    if info:
+        blocks.append("\n".join(info))
+    tag = []
+    if movie["code"] > 0:
+        tag.append(f"🔢 <code>{movie['code']}</code>")
+    if movie["is_premium"]:
+        tag.append("💎 <b>PREMIUM</b>")
+    if tag:
+        blocks.append("  ·  ".join(tag))
+    blocks.append("<i>❤️ Yoqsa, reaksiya qoldiring</i>")
     return "\n\n".join(blocks)
 
 

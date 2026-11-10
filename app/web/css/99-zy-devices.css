@@ -16,7 +16,7 @@
 /* 3) Z Fold ochilgan (taxminan 560–899 px, deyarli kvadrat) va planshetlar: tarkib markazda, muqova past */
 @media (min-width: 560px) and (max-width: 899px) {
   .sheet-top { height: 46vh; height: 46dvh; min-height: 300px; }
-  .sheet-main { margin-top: -120px; }
+  .sbody { --hero-overlap: 120px; }
   .sheet-main, .sheet .actions, .stabs, .spanel, .sdetails { max-width: 720px; margin-left: auto; margin-right: auto; }
   .sheet .actions, .stabs, .sdetails { width: calc(100% - 32px); }
 }
@@ -24,7 +24,7 @@
 /* 4) Past ekran (Z Flip tashqi ekrani, telefon gorizontal): muqova ekranning ko'p qismini egallamasin */
 @media (max-height: 520px) and (max-width: 899px) {
   .sheet-top { height: 70vh; height: 70dvh; min-height: 220px; }
-  .sheet-main { margin-top: -100px; }
+  .sbody { --hero-overlap: 100px; }
   .sheet-main h3 { font-size: 22px; }
 }
 

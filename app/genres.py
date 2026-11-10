@@ -244,6 +244,32 @@ def detect_lang(*texts: str) -> str:
     return ""
 
 
+def card_lines(movie, parts: int = 0) -> list:
+    """Bot va kanal uchun ixcham, chiroyli ma'lumot: 2 qator (davlat · janrlar / til · sifat · qismlar)."""
+    keys = movie.keys()
+    a, b = [], []
+    if "country" in keys and movie["country"] in COUNTRIES:
+        a.append(country_label(movie["country"]))
+    g = " · ".join(name(k) for k in parse(movie["genres"])[:3])
+    if g:
+        a.append("🎭 " + g)
+    if "lang" in keys and movie["lang"] in LANGS:
+        b.append("🗣 " + LANGS[movie["lang"]][1])
+    q = quality_text(movie["quality"]) if "quality" in keys else ""
+    if q:
+        b.append("🎞 " + q.replace(", ", " · ").replace(" va ", " · "))
+    if parts > 1:
+        b.append(f"📺 {parts} qism")
+    return [x for x in ("  ·  ".join(a), "  ·  ".join(b)) if x]
+
+
+def title_year(movie) -> str:
+    """« <i>(2015)</i>» — nomning yonida kichik yil (bo'lmasa bo'sh)."""
+    keys = movie.keys()
+    y = year_text(movie["year"], movie["year_end"] if "year_end" in keys else 0) if movie["year"] else ""
+    return f"  <i>({y})</i>" if y else ""
+
+
 def info_lines(movie) -> list:
     """Kino ma'lumotlari: davlat, yil, janr, til — xabar va e'lonlarda bir xil ko'rinishda."""
     keys = movie.keys()
