@@ -99,8 +99,9 @@
     // kirish animatsiyasi faqat BIR MARTA: qurilma xotirasi (kesh) tozalanmaguncha qayta chiqmaydi
     var force = false;
     try { force = new URLSearchParams(location.search).get("welcome") === "1"; } catch (e) {}   // ?welcome=1 — qayta ko'rish (sinov uchun)
-    if (!force && (link || reduce || store.get("wt"))) { el.remove(); return; }
-    store.set("wt", "1");
+    // wt2: kalit yangilandi — animatsiya hamma qurilmada yana bir marta chiqadi (harakatni kamaytirish yoqilgan bo'lsa ham)
+    if (!force && (link || store.get("wt2"))) { el.remove(); return; }
+    store.set("wt2", "1");
     var user = !PUB && tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
     var first = user && user.first_name ? String(user.first_name).trim().slice(0, 18) : "";
     var openGate;

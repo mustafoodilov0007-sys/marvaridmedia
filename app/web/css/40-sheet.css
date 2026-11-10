@@ -141,7 +141,6 @@
     opacity: 0; animation: w-float linear infinite; }
   @keyframes w-float { 0% { opacity: 0; transform: translate(0, 0); } 15% { opacity: .9; } 85% { opacity: .5; }
     100% { opacity: 0; transform: translate(var(--dx, 20px), -105vh); } }
-  @media (prefers-reduced-motion: reduce) { #welcome { display: none !important; } }
   /*/WELCOME*/
 /*REDESIGN*/
   :root { --pad: 16px; }
