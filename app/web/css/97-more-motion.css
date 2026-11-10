@@ -1,0 +1,30 @@
+/* ✨ Yana mayda animatsiyalar: bildirishnoma, tanlangan chip, kino oynasidagi chiplar */
+
+/* 2) Bildirishnoma (toast): pastdan prujinadek chiqadi, tagida vaqt chizig'i kamayib boradi, chiqib ketayotganda pastga sirpanadi */
+.toast { transform: translate(-50%, 28px) scale(.94); transition: opacity .22s ease, transform .22s ease; backdrop-filter: none !important; overflow: hidden; }
+.toast.on { transform: translate(-50%, 0) scale(1); transition: opacity .2s ease, transform .42s cubic-bezier(.2, 1.35, .4, 1); }
+.toast::after { content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--grad, #e9c46a); transform-origin: left; transform: scaleX(0); opacity: .9; }
+.toast.on::after { animation: toastBar 2.6s linear forwards; }
+@keyframes toastBar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* 4) Tanlangan chip / tugma «qo'nadi» */
+@keyframes chipLand { 0% { transform: scale(.88); } 55% { transform: scale(1.08); } 100% { transform: scale(1); } }
+.gchip.on, .fpill.on, .ctab.on { animation: chipLand .38s cubic-bezier(.2, 1.4, .4, 1); }
+
+/* 8) Kino oynasi ochilganda chiplar (janr, davlat, til...) birin-ketin chiqadi */
+@keyframes chipIn { from { opacity: 0; transform: translateY(8px) scale(.92); } to { opacity: 1; transform: none; } }
+.sheet .chips > .chip { animation: chipIn .38s cubic-bezier(.2, .8, .2, 1) both; animation-delay: 120ms; }
+.sheet .chips > .chip:nth-child(2) { animation-delay: 165ms; }
+.sheet .chips > .chip:nth-child(3) { animation-delay: 210ms; }
+.sheet .chips > .chip:nth-child(4) { animation-delay: 255ms; }
+.sheet .chips > .chip:nth-child(5) { animation-delay: 300ms; }
+.sheet .chips > .chip:nth-child(6) { animation-delay: 345ms; }
+.sheet .chips > .chip:nth-child(7) { animation-delay: 390ms; }
+.sheet .chips > .chip:nth-child(8) { animation-delay: 435ms; }
+.sheet .chips > .chip:nth-child(9) { animation-delay: 480ms; }
+.sheet .chips > .chip:nth-child(10) { animation-delay: 525ms; }
+.sheet .chips > .chip:nth-child(11) { animation-delay: 570ms; }
+.sheet .chips > .chip:nth-child(12) { animation-delay: 615ms; }
+.sheet .chips > .chip:nth-child(n+13) { animation-delay: 700ms; }
+
+html.lite .toast::after, html.lite .gchip.on, html.lite .fpill.on, html.lite .ctab.on, html.lite .sheet .chips > .chip { animation: none !important; }

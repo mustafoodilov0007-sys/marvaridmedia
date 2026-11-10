@@ -70,7 +70,8 @@
   function notify(kind) { try { tg.HapticFeedback.notificationOccurred(kind); } catch (e) {} }
   var toastT;
   function toast(text) {
-    var t = $("toast"); t.textContent = text; t.classList.add("on");
+    var t = $("toast"); t.textContent = text;
+    t.classList.remove("on"); void t.offsetWidth; t.classList.add("on");          // har safar animatsiya va vaqt chizig'i qaytadan boshlanadi
     clearTimeout(toastT); toastT = setTimeout(function () { t.classList.remove("on"); }, 2600);
   }
   var kidsMode = false;
