@@ -527,6 +527,31 @@ class AddFlow(AdminCase):
         self.assertGreater(db.premium_until(401), until1)
         self.assertIn("avtomatik yangilandi", " ".join(self.app.bot.texts(401)))
 
+    def test_contest_cancel_restart_and_reannounce(self):
+        from app.handlers import contest
+        self.app.set_setting("post_channel", "-100777")
+        self.msg(1, "/musobaqa")
+        self.press(1, "cn:tog")                                                    # boshlandi (xato sozlamalar bilan)
+        self.assertTrue(contest.enabled(self.app))
+        self.assertEqual(self.app.setting("contest_ann"), "-100777:7")             # e'lon xabari eslab qolindi
+        self.press(1, "cn:cx")                                                     # bekor qilish — avval tasdiq so'raydi
+        self.assertTrue(contest.enabled(self.app))
+        self.assertIn("bekor qilasizmi", self.last(1))
+        self.press(1, "cn:cxy")
+        self.assertFalse(contest.enabled(self.app))
+        dels = [a for nme, a, k in self.app.bot.sent if nme == "deleteMessage"]
+        self.assertTrue(dels)                                                      # kanaldagi e'lon o'chirildi
+        self.press(1, "cn:l:5")
+        self.press(1, "cn:tog")                                                    # to'g'ri sozlamalar bilan qayta boshlash
+        n_ann = len([1 for nme, a, k in self.app.bot.sent if nme == "send_message" and a and a[0] == "-100777"])
+        self.press(1, "cn:ann")                                                    # qayta e'lon: eskisini o'chirib, yangisini yuboradi
+        n_ann2 = len([1 for nme, a, k in self.app.bot.sent if nme == "send_message" and a and a[0] == "-100777"])
+        self.assertEqual(n_ann2, n_ann + 1)
+        self.press(1, "cn:rs")                                                     # eskisini bekor qilib, yangidan boshlash
+        self.assertTrue(contest.enabled(self.app))
+        start, end = contest.active_period(self.app)
+        self.assertEqual(end - start, 5 * 86400)
+
     def _make_referrals(self, start, spec, base=600):
         db = self.app.db
         n = base

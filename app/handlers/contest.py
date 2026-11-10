@@ -185,12 +185,27 @@ def announce_text(app) -> str:
     return "\n".join(lines)
 
 
+def delete_announcement(app) -> bool:
+    """Kanaldagi oldingi «musobaqa boshlandi» e'lonini o'chiradi (xato kiritilgan bo'lsa yoki qayta e'lon qilinayotganda)."""
+    ref = app.setting("contest_ann")
+    app.set_setting("contest_ann", "")
+    if ":" not in ref:
+        return False
+    chat, _, mid = ref.rpartition(":")
+    if not mid.isdigit():
+        return False
+    return bool(app.bot.safe("deleteMessage", {"chat_id": chat, "message_id": int(mid)}))
+
+
 def announce_contest(app):
     channel = app.setting("post_channel")
     if not channel:
         return False, "E'lon kanali belgilanmagan (Matnlar → 📣 E'lon kanali)."
+    delete_announcement(app)                              # eski e'lon qolib ketmasin — yangisi uning o'rnida chiqadi
     try:
-        app.bot.send_message(channel, announce_text(app), _channel_kb(app))
+        sent = app.bot.send_message(channel, announce_text(app), _channel_kb(app))
+        if isinstance(sent, dict) and sent.get("message_id"):
+            app.set_setting("contest_ann", f"{channel}:{sent['message_id']}")
         return True, ""
     except TelegramError as exc:
         log.error("Musobaqa e'loni kanalga yuborilmadi: %s", exc)
@@ -265,10 +280,12 @@ def award_period(app, start: int, end: int) -> list:
 
 
 def finish_contest(app, award: bool = True) -> list:
-    """Faol musobaqani tugatadi. award=True — g'oliblarni mukofotlaydi; False — bekor qilish (mukofotsiz)."""
+    """Faol musobaqani tugatadi. award=True — g'oliblarni mukofotlaydi; False — bekor qilish (mukofotsiz, kanaldagi e'lon ham o'chiriladi)."""
     per = active_period(app)
     if not per:
         return []
+    if not award:
+        delete_announcement(app)
     start, end = per[0], min(per[1], now())
     app.set_setting("contest_on", "0")
     app.set_setting("contest_last_start", str(per[0]))
@@ -305,8 +322,9 @@ def _admin_view(app):
             "aniqlanadi: Premium avtomatik beriladi, pul mukofoti bo'yicha sizga hisobot keladi (pulni o'zingiz to'laysiz).")
     rows = []
     if per:
-        rows.append([btn("🏁 Hozir yakunlash va mukofotlash", "cn:fin", style=SUCCESS), btn("❌ Bekor qilish", "cn:tog", style=DANGER)])
-        rows.append([btn("📣 Kanalga qayta e'lon qilish", "cn:ann", style=PRIMARY)])
+        rows.append([btn("🏁 Yakunlash (mukofotlash)", "cn:fin", style=SUCCESS), btn("❌ Bekor qilish", "cn:cx", style=DANGER)])
+        rows.append([btn("🔄 Qayta boshlash (eskisi bekor)", "cn:rs", style=PRIMARY)])
+        rows.append([btn("📣 Kanalga qayta e'lon qilish", "cn:ann", style=PRIMARY), btn("🗑 Kanaldagi e'lonni o'chirish", "cn:dann", style=DANGER)])
     else:
         rows.append([btn(f"▶️ Boshlash ({human_len(ln)}) va kanalga e'lon qilish", "cn:tog", style=SUCCESS)])
     rows.append([btn(("✅ " if ln == d else "") + human_len(d), f"cn:l:{d}", style=SUCCESS if ln == d else PRIMARY) for d in LEN_PRESETS])
@@ -336,7 +354,26 @@ def cb_contest(ctx: Ctx) -> None:
     parts = ctx.data.split(":")
     act = parts[1] if len(parts) > 1 else ""
     pz = prizes(app)
-    if act == "tog":
+    if act == "cx":                                    # bekor qilish — avval tasdiq so'raladi
+        ctx.answer()
+        ctx.edit("❌ <b>Musobaqani bekor qilasizmi?</b>\n\nMukofot berilmaydi, kanaldagi «boshlandi» e'loni o'chiriladi. "
+                 "Keyin to'g'ri sozlamalar bilan qaytadan boshlashingiz mumkin.",
+                 ikb([btn("✅ Ha, bekor qilish", "cn:cxy", style=DANGER), btn("⬅️ Yo'q", "cn:back", style=PRIMARY)]))
+        return
+    if act == "cxy":
+        finish_contest(app, award=False)
+        ctx.answer("❌ Bekor qilindi")
+    elif act == "rs":                                  # eskisini bekor qilib, hozirgi sozlamalar bilan yangidan boshlash
+        if enabled(app):
+            finish_contest(app, award=False)
+        ok, why = start_contest(app)
+        ctx.answer("🔄 Qayta boshlandi" + (" va kanalga yangi e'lon chiqdi" if ok else ""))
+        if not ok:
+            ctx.send(f"⚠️ Musobaqa qayta boshlandi, lekin e'lon yuborilmadi: {esc(why)}")
+    elif act == "dann":
+        ctx.answer("🗑 E'lon o'chirildi" if delete_announcement(app) else "E'lon topilmadi (allaqachon o'chirilgan)", alert=True)
+        return
+    elif act == "tog":
         if enabled(app):
             finish_contest(app, award=False)
             ctx.answer("❌ Bekor qilindi (mukofotsiz)")
