@@ -18,7 +18,7 @@ USER_COMMANDS = [
     {"command": "new", "description": "🆕 Yangi kinolar"},
     {"command": "sorov", "description": "🎬 Kino so'rash (topilmasa)"},
     {"command": "premium", "description": "💎 Premium obuna"},
-    {"command": "reyting", "description": "🏆 Oylik taklif musobaqasi"},
+    {"command": "reyting", "description": "🏆 Taklif musobaqasi va reyting"},
     {"command": "tekshir", "description": "🔎 Musobaqa natijasini tekshirish"},
     {"command": "sorovlar", "description": "🗳 Eng ko'p so'ralgan kinolar — ovoz bering"},
     {"command": "til", "description": "🌐 Til / Язык / Language"},

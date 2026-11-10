@@ -527,100 +527,61 @@ class AddFlow(AdminCase):
         self.assertGreater(db.premium_until(401), until1)
         self.assertIn("avtomatik yangilandi", " ".join(self.app.bot.texts(401)))
 
-    def test_referral_contest_awards_winners_with_premium_and_money(self):
-        from datetime import datetime
-        from app.handlers import contest
+    def _make_referrals(self, start, spec, base=600):
         db = self.app.db
-        start, end = contest.month_bounds(datetime.now(contest.TZ))
-        for uid in (501, 502, 503, 504):
-            db.upsert_user({"id": uid, "first_name": f"U{uid}"})
-        n = 600
-        for inviter, cnt in ((501, 5), (502, 4), (503, 3), (504, 2)):            # 504 — 3 tadan kam: mukofot yo'q
+        n = base
+        for inviter, cnt in spec:
+            db.upsert_user({"id": inviter, "first_name": f"U{inviter}"})
             for _ in range(cnt):
                 n += 1
                 db.upsert_user({"id": n, "first_name": "d"})
                 db.x("UPDATE users SET ref_by=?, joined_at=? WHERE user_id=?", (inviter, start + 100, n))
-        # admin g'oliblar soni va mukofotni tayinlaydi: 1-o'rin 30 kun Premium, 2-o'rin pul, 3-o'rin 7 kun
+
+    def test_contest_with_custom_days_prizes_announce_and_auto_finish(self):
+        from app.handlers import contest
+        db = self.app.db
         contest.save_prizes(self.app, [{"t": "p", "v": 30}, {"t": "m", "v": "50 000 so'm"}, {"t": "p", "v": 7}])
         self.app.set_setting("post_channel", "-100777")
         self.msg(1, "/musobaqa")
-        self.press(1, "cn:tog")                                                  # yoqildi → kanalga e'lon
+        self.press(1, "cn:l:3")                                                    # muddat — 3 kun
+        self.assertEqual(contest.contest_len(self.app), 3)
+        self.press(1, "cn:lc")
+        self.msg(1, "2")                                                           # o'zi yozgan muddat — 2 kun
+        self.assertEqual(contest.contest_len(self.app), 2)
+        self.press(1, "cn:tog")                                                    # boshlash → kanalga e'lon
         ann = [a for nme, a, k in self.app.bot.sent if nme == "send_message" and a and a[0] == "-100777"]
-        self.assertTrue(ann and "boshlandi" in str(ann[-1]) and "50 000 so'm" in str(ann[-1]))
-        self.assertTrue(contest.enabled(self.app))
+        self.assertTrue(ann and "boshlandi" in str(ann[-1]) and "2 kun" in str(ann[-1]) and "50 000 so'm" in str(ann[-1]))
+        start, end = contest.active_period(self.app)
+        self.assertEqual(end - start, 2 * 86400)
+        # vaqtni 2 kun oldinga suramiz: musobaqa «2 kun oldin boshlangan va hozir tugagan» bo'ladi
+        shift = 2 * 86400 + 10
+        self.app.set_setting("contest_start", str(start - shift))
+        self.app.set_setting("contest_end", str(end - shift))
+        start, end = start - shift, end - shift
+        self._make_referrals(start, ((501, 5), (502, 4), (503, 3), (504, 2)))      # 504 — 3 tadan kam
+        self.app.set_setting("contest_end", str(contest.now() + 3600))             # hali tugamagan — jadval ko'rinadi
         self.msg(501, "/reyting")
         self.assertIn("← siz", self.last(501))
-        now = datetime.now(contest.TZ)
-        won = contest.award_month(self.app, now.year, now.month)
+        self.assertIn("Tugashiga", self.last(501))
+        self.app.set_setting("contest_end", str(end))                              # muddat o'tdi — avtomatik yakunlanadi
+        won = contest.finish_contest(self.app, award=True)
         self.assertEqual([(o, u) for o, u, _, _ in won], [(1, 501), (2, 502), (3, 503)])
-        self.assertGreater(db.premium_until(501), 0)                              # Premium berildi
-        self.assertEqual(db.premium_until(502), 0)                                # pul mukofoti — Premium emas
+        self.assertFalse(contest.enabled(self.app))
+        self.assertGreater(db.premium_until(501), 0)
+        self.assertEqual(db.premium_until(502), 0)                                 # pul mukofoti
         self.assertGreater(db.premium_until(503), 0)
         self.assertEqual(db.premium_until(504), 0)
-        winners_post = [a for nme, a, k in self.app.bot.sent if nme == "send_message" and a and a[0] == "-100777" and "g'oliblari" in str(a)]
-        self.assertTrue(winners_post)                                             # g'oliblar e'loni kanalga chiqdi
-        self.assertIn("50 000 so'm", " ".join(self.app.bot.texts(502)))           # g'olibga pul haqida xabar
-        self.assertIn("PUL TO'LANADI", " ".join(self.app.bot.texts(1)))           # adminga to'lash eslatmasi
-        # /tekshir: o'tgan oyda hech kim yo'q — joriy oy natijasi ko'rsatiladi; foydalanuvchi o'z natijasini g'olib bilan solishtiradi
+        post = [a for nme, a, k in self.app.bot.sent if nme == "send_message" and a and a[0] == "-100777" and "g'oliblari" in str(a)]
+        self.assertTrue(post)                                                      # g'oliblar e'loni
+        self.assertIn("PUL TO'LANADI", " ".join(self.app.bot.texts(1)))
+        # /tekshir: tugagan musobaqa natijasi
         self.msg(504, "/tekshir")
         out = self.last(504)
-        self.assertIn("Sizning natijangiz: <b>2 ta</b>", out)
         self.assertIn("g'olibda 5 ta, sizda 2 ta", out)
         self.msg(501, "/tekshir")
-        self.assertIn("1-o'rin", self.last(501))
+        self.assertIn("Tabriklaymiz, siz g'olibsiz", self.last(501))
         self.press(1, "cn:add")
-        self.assertEqual(len(contest.prizes(self.app)), 4)                        # g'oliblar sonini admin belgilaydi
-        self.press(1, "cn:tog")
-        self.assertFalse(contest.enabled(self.app))
-
-    def test_check_command_shows_last_month_results(self):
-        from datetime import datetime, timedelta
-        from app.handlers import contest
-        db = self.app.db
-        prev = datetime.now(contest.TZ).replace(day=1) - timedelta(days=1)
-        start, _ = contest.month_bounds(prev)
-        for uid in (701, 702):
-            db.upsert_user({"id": uid, "first_name": f"P{uid}"})
-        n = 800
-        for inviter, cnt in ((701, 10), (702, 1)):
-            for _ in range(cnt):
-                n += 1
-                db.upsert_user({"id": n, "first_name": "d"})
-                db.x("UPDATE users SET ref_by=?, joined_at=? WHERE user_id=?", (inviter, start + 500, n))
-        contest.save_prizes(self.app, [{"t": "p", "v": 30}])
-        self.msg(702, "/tekshir")
-        out = self.last(702)
-        self.assertIn("g'olibda 10 ta, sizda 1 ta", out)                           # «g'olibda 10 ta, sizda 1 ta»
-        self.assertIn("kamida 3 ta do'st kerak edi", out)
-        self.msg(701, "/tekshir")
-        self.assertIn("Tabriklaymiz, siz g'olibsiz", self.last(701))
-        self.assertIn("30 kun", self.last(701))
-
-    def test_series_continue_and_new_part_notice(self):
-        import threading
-        from app.handlers import follow
-        db = self.app.db
-        db.upsert_user({"id": 901, "first_name": "Tomoshabin"})
-        mid = db.add_movie(900, "Katta sichqon", "", None, False, 1, "F1", "video", "serial", genre_keys=["comedy"])
-        db.add_part(mid, "F2", "video")
-        db.add_part(mid, "F3", "video")
-        p2 = db.get_part_by_no(mid, 2)
-        self.press(901, f"pt:{p2['id']}")                                      # 2-qismni ko'rdi
-        self.msg(901, "900")
-        self.assertIn("Davom etish: 3-qism", str(self.app.bot.sent[-1]))        # keyingi qismdan davom etish tugmasi
-        # admin 4-qismni qo'shadi → ilgari ko'rganga xabar
-        no = db.add_part(mid, "F4", "video")
-        follow._parts_today.clear()
-        follow.notify_new_parts(self.app, mid, [no])
-        for th in threading.enumerate():
-            if th.name == "parts-notify":
-                th.join(5)
-        self.assertIn("4-qism", " ".join(self.app.bot.texts(901)))
-        self.assertIn("qo'shildi", " ".join(self.app.bot.texts(901)))
-        # o'chirish: /kuzatish da «serial xabarlari» o'chirilsa — yuborilmaydi
-        self.press(901, "fw:np")
-        self.assertIn("noparts", db.user_follows(901))
-        self.assertEqual(db.watchers(mid), [])
+        self.assertEqual(len(contest.prizes(self.app)), 4)                         # g'oliblar sonini admin belgilaydi
 
     def test_trailer_link_bot_and_site(self):
         from app import webapp

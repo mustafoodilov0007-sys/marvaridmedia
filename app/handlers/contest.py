@@ -1,10 +1,11 @@
-"""🏆 Oylik referal musobaqasi: eng ko'p do'st taklif qilgan 3 kishi oy oxirida Premium oladi. /reyting — jadval, /musobaqa — sozlash (admin)."""
+"""🏆 Taklif musobaqasi: admin muddatni (1/2/3/7 kun, 1 oy yoki o'zi yozgan), g'oliblar sonini va mukofotni (Premium yoki pul) tayinlaydi.
+Yoqilganda kanalga e'lon boradi; muddat tugagach g'oliblar o'zi mukofotlanadi. /reyting — jadval, /tekshir — natija, /musobaqa — sozlash."""
 
 from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from ..core import Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, ikb
@@ -16,22 +17,19 @@ log = logging.getLogger("contest")
 MEDALS = ["🥇", "🥈", "🥉"]
 MIN_REFS = 3                       # mukofot uchun kamida shuncha do'st (soxta akkauntlardan himoya)
 MAX_PLACES = 10
+MAX_DAYS = 90
+LEN_PRESETS = [1, 2, 3, 7, 30]
 DEFAULT_PRIZES = [{"t": "p", "v": 30}, {"t": "p", "v": 14}, {"t": "p", "v": 7}]
 
 
-def month_bounds(dt: datetime):
-    start = datetime(dt.year, dt.month, 1, tzinfo=TZ)
-    nxt = datetime(dt.year + (dt.month == 12), dt.month % 12 + 1, 1, tzinfo=TZ)
-    return int(start.timestamp()), int(nxt.timestamp())
-
+# ───── mukofotlar ─────
 
 def prizes(app) -> list:
-    """G'oliblar mukofoti ro'yxati: [{"t": "p", "v": kun}] — Premium, [{"t": "m", "v": "50 000 so'm"}] — pul. Uzunligi = g'oliblar soni."""
+    """[{"t": "p", "v": kun}] — Premium, [{"t": "m", "v": "50 000 so'm"}] — pul. Ro'yxat uzunligi = g'oliblar soni."""
     raw = app.setting("contest_prizes")
     if raw:
         try:
-            data = json.loads(raw)
-            out = [x for x in data if isinstance(x, dict) and x.get("t") in ("p", "m")][:MAX_PLACES]
+            out = [x for x in json.loads(raw) if isinstance(x, dict) and x.get("t") in ("p", "m")][:MAX_PLACES]
             if out:
                 return out
         except ValueError:
@@ -51,39 +49,74 @@ def place_mark(i: int) -> str:
     return MEDALS[i] if i < 3 else f"{i + 1}-o'rin"
 
 
-def enabled(app) -> bool:
-    return app.setting("contest_on") == "1"
-
-
-def _name(r) -> str:
-    n = (r["first_name"] or "Foydalanuvchi")[:18]
-    return esc(n)
-
-
 def prize_lines(app) -> list:
     return [f"{place_mark(i)} {prize_text(pz)}" for i, pz in enumerate(prizes(app))]
 
 
+def _name(r) -> str:
+    return esc((r["first_name"] or "Foydalanuvchi")[:18])
+
+
+# ───── muddat ─────
+
+def contest_len(app) -> int:
+    raw = app.setting("contest_len")
+    return max(1, min(MAX_DAYS, int(raw))) if raw.isdigit() else 30
+
+
+def human_len(days: int) -> str:
+    return "1 oy" if days == 30 else f"{days} kun"
+
+
+def enabled(app) -> bool:
+    return app.setting("contest_on") == "1"
+
+
+def active_period(app):
+    """Hozirgi musobaqaning (boshlanishi, tugashi) — faol bo'lmasa None."""
+    if not enabled(app):
+        return None
+    s, e = app.setting("contest_start"), app.setting("contest_end")
+    return (int(s), int(e)) if s.isdigit() and e.isdigit() else None
+
+
+def last_period(app):
+    s, e = app.setting("contest_last_start"), app.setting("contest_last_end")
+    return (int(s), int(e)) if s.isdigit() and e.isdigit() else None
+
+
+def fmt_dt(ts: int) -> str:
+    return datetime.fromtimestamp(ts, TZ).strftime("%d.%m.%Y %H:%M")
+
+
+def left_text(end: int) -> str:
+    sec = max(0, end - now())
+    d, h, m = sec // 86400, sec % 86400 // 3600, sec % 3600 // 60
+    if d:
+        return f"{d} kun {h} soat"
+    return f"{h} soat {m} daqiqa" if h else f"{m} daqiqa"
+
+
+# ───── jadval va natija ─────
+
 def standings_text(app, uid: int) -> str:
-    start, end = month_bounds(datetime.now(TZ))
+    per = active_period(app)
     pz = prizes(app)
+    lines = ["🏆 <b>Taklif musobaqasi</b>", ""]
+    if not per:
+        lines.append("Hozir musobaqa yo'q." + (" So'nggi natija: /tekshir" if last_period(app) else ""))
+        return "\n".join(lines)
+    start, end = per
     rows = app.db.top_referrers(start, end, max(5, len(pz)))
-    left = (datetime.fromtimestamp(end, TZ) - datetime.now(TZ)).days
-    lines = ["🏆 <b>Oylik taklif musobaqasi</b>", ""]
-    if enabled(app):
-        lines.append(f"Oy oxirigacha eng ko'p do'st taklif qilgan <b>{len(pz)} kishi</b> mukofot oladi:")
-        lines += ["   " + x for x in prize_lines(app)]
-        lines.append(f"(mukofot uchun kamida {MIN_REFS} ta do'st kerak)")
-    else:
-        lines.append("Musobaqa hozir o'chiq.")
-    lines.append("")
+    lines.append(f"Eng ko'p do'st taklif qilgan <b>{len(pz)} kishi</b> mukofot oladi:")
+    lines += ["   " + x for x in prize_lines(app)]
+    lines.append(f"(mukofot uchun kamida {MIN_REFS} ta do'st kerak)")
+    lines += ["", f"⏳ Tugashiga: <b>{left_text(end)}</b> ({fmt_dt(end)})", ""]
     if not rows:
         lines.append("Hali hech kim do'st taklif qilmagan — birinchi bo'ling! 🚀")
     for i, r in enumerate(rows):
         lines.append(f"{MEDALS[i] if i < 3 else f'{i + 1}.'} {_name(r)} — <b>{r['n']}</b> ta" + (" ← siz" if r["uid"] == uid else ""))
-    mine = app.db.referral_count_between(uid, start, end)
-    lines += ["", f"👥 Sizning bu oydagi takliflaringiz: <b>{mine}</b>", f"⏳ Oy tugashiga: {max(0, left)} kun", "",
-              "Do'stlarni taklif qilish: /taklif"]
+    lines += ["", f"👥 Sizning takliflaringiz: <b>{app.db.referral_count_between(uid, start, end)}</b>", "", "Do'stlarni taklif qilish: /taklif"]
     return "\n".join(lines)
 
 
@@ -93,41 +126,37 @@ def cmd_rating(ctx: Ctx) -> None:
 
 
 def check_text(app, uid: int) -> str:
-    """/tekshir: o'tgan oy musobaqa natijasi (g'oliblar va foydalanuvchining o'z natijasi). O'tgan oyda ishtirokchi bo'lmasa — joriy oy."""
-    now_dt = datetime.now(TZ)
-    prev = now_dt.replace(day=1) - timedelta(days=1)
-    start, end = month_bounds(prev)
+    """/tekshir: faol musobaqa bo'lsa — hozirgi holat, aks holda so'nggi tugagan musobaqa natijasi (g'oliblar va foydalanuvchining o'z natijasi)."""
+    per = active_period(app)
+    final = per is None
+    per = per or last_period(app)
     pz = prizes(app)
+    if not per:
+        return "🔎 Hozircha musobaqa o'tkazilmagan. Yangisi boshlanganda e'lon qilamiz!"
+    start, end = per
     rows = app.db.top_referrers(start, end, max(len(pz), 5))
-    final = bool(rows)
-    if not final:
-        start, end = month_bounds(now_dt)
-        rows = app.db.top_referrers(start, end, max(len(pz), 5))
-    period = datetime.fromtimestamp(start, TZ).strftime("%m.%Y")
-    lines = [f"🔎 <b>Musobaqa natijalari</b> ({period})" + ("" if final else " — <i>davom etmoqda</i>"), ""]
+    lines = [f"🔎 <b>Musobaqa natijalari</b> ({fmt_dt(start)[:10]} — {fmt_dt(end)[:10]})" + ("" if final else " — <i>davom etmoqda</i>"), ""]
     if not rows:
-        lines.append("Hali hech kim do'st taklif qilmagan. Birinchi bo'ling: /taklif 🚀")
+        lines.append("Hech kim do'st taklif qilmagan. Keyingisida birinchi bo'ling: /taklif 🚀")
         return "\n".join(lines)
     best = rows[0]["n"]
     for i, r in enumerate(rows[:max(len(pz), 3)]):
-        prize = ""
-        if i < len(pz) and r["n"] >= MIN_REFS:
-            prize = " → " + prize_text(pz[i])
+        prize = " → " + prize_text(pz[i]) if i < len(pz) and r["n"] >= MIN_REFS else ""
         lines.append(f"{place_mark(i)} {_name(r)} — <b>{r['n']}</b> ta{prize}" + ("  ← siz" if r["uid"] == uid else ""))
     mine = app.db.referral_count_between(uid, start, end)
     rank = app.db.referral_rank(uid, start, end)
     lines.append("")
     if not mine:
-        lines.append(f"Sizning natijangiz: <b>0 ta</b> (g'olibda {best} ta). Keyingi oy qatnashing: /taklif")
+        lines.append(f"Sizning natijangiz: <b>0 ta</b> (g'olibda {best} ta). Keyingisida qatnashing: /taklif")
     else:
         won = rank and rank <= len(pz) and mine >= MIN_REFS
         lines.append(f"Sizning natijangiz: <b>{mine} ta</b> — {rank}-o'rin" + (f" (g'olibda {best} ta, sizda {mine} ta)" if rank > 1 else " 🏆"))
         if final and won:
             lines.append(f"🎉 <b>Tabriklaymiz, siz g'olibsiz!</b> Mukofot: {prize_text(pz[rank - 1])}")
         elif mine < MIN_REFS:
-            lines.append(f"Mukofot uchun kamida {MIN_REFS} ta do'st kerak edi.")
+            lines.append(f"Mukofot uchun kamida {MIN_REFS} ta do'st kerak{' edi' if final else ''}.")
         elif final:
-            lines.append("Keyingi oy yana urinib ko'ring: /taklif 💪")
+            lines.append("Keyingisida yana urinib ko'ring: /taklif 💪")
     return "\n".join(lines)
 
 
@@ -136,25 +165,40 @@ def cmd_check(ctx: Ctx) -> None:
     ctx.send(check_text(ctx.app, ctx.user_id))
 
 
-# ───── kanalga e'lon ─────
+# ───── kanalga e'lonlar ─────
+
+def _channel_kb(app):
+    return ikb([{"text": "🤖 Botda qatnashish", "url": f"https://t.me/{app.bot_username}?start=taklif"}])
+
 
 def announce_text(app) -> str:
-    start, end = month_bounds(datetime.now(TZ))
-    last = datetime.fromtimestamp(end - 1, TZ).strftime("%d.%m.%Y")
-    lines = ["🏆 <b>Oylik taklif musobaqasi boshlandi!</b>", "",
-             f"Do'stlaringizni botimizga taklif qiling — <b>{last}</b> gacha eng ko'p taklif qilgan <b>{len(prizes(app))} kishi</b> mukofot oladi:", ""]
-    lines += [f"{x}" for x in prize_lines(app)]
-    lines += ["", "<b>Qanday qatnashiladi?</b>",
-              f"1️⃣ Botni oching: @{app.bot_username}", "2️⃣ /taklif buyrug'ini yuboring va shaxsiy havolangizni oling",
+    per = active_period(app) or (now(), now() + contest_len(app) * 86400)
+    lines = ["🏆 <b>Taklif musobaqasi boshlandi!</b>", "",
+             f"Do'stlaringizni botimizga taklif qiling — <b>{fmt_dt(per[1])}</b> gacha ({human_len(contest_len(app))}) eng ko'p taklif qilgan "
+             f"<b>{len(prizes(app))} kishi</b> mukofot oladi:", ""]
+    lines += prize_lines(app)
+    lines += ["", "<b>Qanday qatnashiladi?</b>", f"1️⃣ Botni oching: @{app.bot_username}",
+              "2️⃣ /taklif buyrug'ini yuboring va shaxsiy havolangizni oling",
               "3️⃣ Havolani do'stlaringizga yuboring — har biri botga kirsa, sizga ham, unga ham +1 kun Premium sovg'a 🎁", "",
               "📊 Hozirgi reyting: /reyting", f"(mukofot uchun kamida {MIN_REFS} ta do'st taklif qilish kerak)", "",
-              "G'oliblar har oyning 1-kuni e'lon qilinadi. Omad! 🍀"]
+              "G'oliblar muddat tugashi bilan e'lon qilinadi. Omad! 🍀"]
     return "\n".join(lines)
 
 
-def announce_winners_text(app, year: int, month: int, won: list, names: dict) -> str:
-    months = ["", "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktyabr", "Noyabr", "Dekabr"]
-    lines = [f"🏆 <b>{months[month]} oyi musobaqasi g'oliblari!</b>", ""]
+def announce_contest(app):
+    channel = app.setting("post_channel")
+    if not channel:
+        return False, "E'lon kanali belgilanmagan (Matnlar → 📣 E'lon kanali)."
+    try:
+        app.bot.send_message(channel, announce_text(app), _channel_kb(app))
+        return True, ""
+    except TelegramError as exc:
+        log.error("Musobaqa e'loni kanalga yuborilmadi: %s", exc)
+        return False, exc.description
+
+
+def announce_winners_text(app, start: int, end: int, won: list, names: dict) -> str:
+    lines = [f"🏆 <b>Musobaqa g'oliblari!</b> ({fmt_dt(start)[:10]} — {fmt_dt(end)[:10]})", ""]
     for o, u, n, p in won:
         lines.append(f"{place_mark(o - 1)} <b>{_name(names[u])}</b> — {n} ta do'st → {prize_text(p)}")
     lines += ["", "Tabriklaymiz! 🎉 Mukofotlar g'oliblarga yuborildi.", "",
@@ -162,51 +206,114 @@ def announce_winners_text(app, year: int, month: int, won: list, names: dict) ->
     return "\n".join(lines)
 
 
-def announce_winners(app, year: int, month: int, won: list, names: dict) -> bool:
-    """G'oliblar e'lonini kanalga yuboradi (kanal belgilangan bo'lsa)."""
+def announce_winners(app, start: int, end: int, won: list, names: dict) -> bool:
     channel = app.setting("post_channel")
     if not channel or app.setting("contest_post_winners") == "0":
         return False
-    kb = ikb([{"text": "🤖 Botda qatnashish", "url": f"https://t.me/{app.bot_username}?start=taklif"}])
     try:
-        app.bot.send_message(channel, announce_winners_text(app, year, month, won, names), kb)
+        app.bot.send_message(channel, announce_winners_text(app, start, end, won, names), _channel_kb(app))
         return True
     except TelegramError as exc:
         log.error("G'oliblar e'loni kanalga yuborilmadi: %s", exc)
         return False
 
 
-def announce_contest(app):
-    """E'lonni kanalga yuboradi. (True, "") yoki (False, sabab)."""
-    channel = app.setting("post_channel")
-    if not channel:
-        return False, "E'lon kanali belgilanmagan (Matnlar → 📣 E'lon kanali)."
-    kb = ikb([{"text": "🤖 Botda qatnashish", "url": f"https://t.me/{app.bot_username}?start=taklif"}])
-    try:
-        app.bot.send_message(channel, announce_text(app), kb)
-        return True, ""
-    except TelegramError as exc:
-        log.error("Musobaqa e'loni kanalga yuborilmadi: %s", exc)
-        return False, exc.description
+# ───── boshlash / yakunlash ─────
+
+def start_contest(app):
+    t = now()
+    app.set_setting("contest_start", str(t))
+    app.set_setting("contest_end", str(t + contest_len(app) * 86400))
+    app.set_setting("contest_on", "1")
+    return announce_contest(app)
+
+
+def award_period(app, start: int, end: int) -> list:
+    """[start, end) oralig'idagi g'oliblarni mukofotlaydi: Premium — darhol, pul — adminga hisobot. [(o'rin, uid, soni, mukofot)]."""
+    pz = prizes(app)
+    rows = [r for r in app.db.top_referrers(start, end, len(pz)) if r["n"] >= MIN_REFS]
+    won = []
+    for i, r in enumerate(rows):
+        p = pz[i]
+        won.append((i + 1, r["uid"], r["n"], p))
+        if p["t"] == "p":
+            app.db.grant_premium(r["uid"], int(p["v"]))
+            body = f"💎 Sizga <b>{int(p['v'])} kun Premium</b> sovg'a qilindi. Rahmat! 🙏"
+        else:
+            body = f"💵 Mukofotingiz: <b>{esc(p['v'])}</b>. Administrator tez orada siz bilan bog'lanadi. Rahmat! 🙏"
+        try:
+            app.bot.send_message(r["uid"], f"{place_mark(i)} <b>Tabriklaymiz!</b> Siz taklif musobaqasida <b>{i + 1}-o'rin</b>ni "
+                                           f"egalladingiz ({r['n']} ta do'st).\n\n{body}")
+        except Forbidden:
+            app.db.set_blocked(r["uid"], True)
+        except TelegramError as exc:
+            log.warning("G'olibga xabar yetmadi (%s): %s", r["uid"], exc)
+    names = {r["uid"]: r for r in rows}
+    if won:
+        lines = [f"🏆 <b>Musobaqa yakunlandi</b> ({fmt_dt(start)[:10]} — {fmt_dt(end)[:10]})", ""]
+        for o, u, n, p in won:
+            lines.append(f"{place_mark(o - 1)} {_name(names[u])} (<code>{u}</code>) — {n} ta do'st → "
+                         + ("Premium berildi: " if p["t"] == "p" else "<b>⚠️ PUL TO'LANADI:</b> ") + prize_text(p))
+        if any(p["t"] == "m" for _, _, _, p in won):
+            lines += ["", "💵 Pul mukofotlarini o'zingiz to'lab, g'oliblar bilan bog'laning (foydalanuvchi nomi/ID yuqorida)."]
+    else:
+        lines = [f"🏆 Musobaqa ({fmt_dt(start)[:10]} — {fmt_dt(end)[:10]}): mukofotga arzigulik (kamida {MIN_REFS} ta do'st) ishtirokchi bo'lmadi."]
+    app.notify_admins("\n".join(lines))
+    if won:
+        announce_winners(app, start, end, won, names)
+    return won
+
+
+def finish_contest(app, award: bool = True) -> list:
+    """Faol musobaqani tugatadi. award=True — g'oliblarni mukofotlaydi; False — bekor qilish (mukofotsiz)."""
+    per = active_period(app)
+    if not per:
+        return []
+    start, end = per[0], min(per[1], now())
+    app.set_setting("contest_on", "0")
+    app.set_setting("contest_last_start", str(per[0]))
+    app.set_setting("contest_last_end", str(end))
+    return award_period(app, start, end) if award else []
+
+
+@router.task
+def _contest_watch(app) -> None:
+    """Har daqiqada: muddati tugagan musobaqani o'zi yakunlaydi va g'oliblarni mukofotlaydi."""
+    while not app.stopping.is_set():
+        per = active_period(app)
+        if per and now() >= per[1]:
+            try:
+                finish_contest(app, award=True)
+            except Exception:  # noqa: BLE001
+                log.exception("Musobaqani yakunlashda xatolik")
+        if app.stopping.wait(60):
+            return
 
 
 # ───── admin sozlamasi ─────
 
 def _admin_view(app):
-    on = enabled(app)
+    per = active_period(app)
     pz = prizes(app)
-    text = ("🏆 <b>Oylik taklif musobaqasi</b>\n\n"
-            f"Holati: <b>{'yoqilgan ✅' if on else 'o‘chiq ❌'}</b>\n"
+    ln = contest_len(app)
+    state = (f"yoqilgan ✅ — tugashi: <b>{fmt_dt(per[1])}</b> (qoldi {left_text(per[1])})" if per else "o‘chiq ❌")
+    text = ("🏆 <b>Taklif musobaqasi</b>\n\n"
+            f"Holati: <b>{state}</b>\n"
+            f"Davomiyligi: <b>{human_len(ln)}</b>\n"
             f"G'oliblar soni: <b>{len(pz)}</b>\n" + "\n".join(f"   {x}" for x in prize_lines(app)) + "\n\n"
-            f"Kamida {MIN_REFS} ta do'st kerak. Oy oxirida (1-kuni 10:00) g'oliblarga mukofot beriladi: Premium — o'zi, "
-            "pul mukofoti — sizga hisobot keladi, o'zingiz to'laysiz.\n\n"
-            "Yoqsangiz — «Musobaqa boshlandi» e'loni kanalga avtomatik yuboriladi.")
-    rows = [[btn("⏸ O'chirish" if on else "▶️ Yoqish va kanalga e'lon qilish", "cn:tog", style=DANGER if on else SUCCESS)],
-            [btn("➖ O'rin", "cn:del", style=PRIMARY), btn(f"{len(pz)} ta g'olib", "cn:noop", style=PRIMARY), btn("➕ O'rin", "cn:add", style=PRIMARY)]]
+            f"Kamida {MIN_REFS} ta do'st kerak. Yoqsangiz — «Musobaqa boshlandi» e'loni kanalga yuboriladi; muddat tugagach g'oliblar o'zi "
+            "aniqlanadi: Premium avtomatik beriladi, pul mukofoti bo'yicha sizga hisobot keladi (pulni o'zingiz to'laysiz).")
+    rows = []
+    if per:
+        rows.append([btn("🏁 Hozir yakunlash va mukofotlash", "cn:fin", style=SUCCESS), btn("❌ Bekor qilish", "cn:tog", style=DANGER)])
+        rows.append([btn("📣 Kanalga qayta e'lon qilish", "cn:ann", style=PRIMARY)])
+    else:
+        rows.append([btn(f"▶️ Boshlash ({human_len(ln)}) va kanalga e'lon qilish", "cn:tog", style=SUCCESS)])
+    rows.append([btn(("✅ " if ln == d else "") + human_len(d), f"cn:l:{d}", style=SUCCESS if ln == d else PRIMARY) for d in LEN_PRESETS])
+    rows.append([btn("✏️ Boshqa muddat (kun)", "cn:lc", style=PRIMARY)])
+    rows.append([btn("➖ O'rin", "cn:del", style=PRIMARY), btn(f"{len(pz)} ta g'olib", "cn:noop", style=PRIMARY), btn("➕ O'rin", "cn:add", style=PRIMARY)])
     for i, p in enumerate(pz):
         rows.append([btn(f"✏️ {place_mark(i)}: {prize_text(p)}", f"cn:e:{i}", style=SUCCESS)])
-    if on:
-        rows.append([btn("📣 Kanalga qayta e'lon qilish", "cn:ann", style=PRIMARY)])
     return text, ikb(*rows)
 
 
@@ -214,6 +321,13 @@ def _admin_view(app):
 def cmd_contest_admin(ctx: Ctx) -> None:
     ctx.send(standings_text(ctx.app, ctx.user_id))
     ctx.send(*_admin_view(ctx.app))
+
+
+def _set_len(app, days: int) -> None:
+    app.set_setting("contest_len", str(days))
+    per = active_period(app)
+    if per:                                              # faol musobaqa bo'lsa — tugash vaqti ham yangilanadi
+        app.set_setting("contest_end", str(per[0] + days * 86400))
 
 
 @router.callback("cn", owner=True)
@@ -224,19 +338,30 @@ def cb_contest(ctx: Ctx) -> None:
     pz = prizes(app)
     if act == "tog":
         if enabled(app):
-            app.set_setting("contest_on", "0")
-            ctx.answer("⏸ O'chirildi")
+            finish_contest(app, award=False)
+            ctx.answer("❌ Bekor qilindi (mukofotsiz)")
         else:
-            app.set_setting("contest_on", "1")
-            ok, why = announce_contest(app)
-            ctx.answer("▶️ Yoqildi" + (" va kanalga e'lon qilindi" if ok else ""))
+            ok, why = start_contest(app)
+            ctx.answer("▶️ Boshlandi" + (" va kanalga e'lon qilindi" if ok else ""))
             if not ok:
-                ctx.send(f"⚠️ Musobaqa yoqildi, lekin e'lon kanalga yuborilmadi: {esc(why)}")
+                ctx.send(f"⚠️ Musobaqa boshlandi, lekin e'lon kanalga yuborilmadi: {esc(why)}")
+    elif act == "fin":
+        won = finish_contest(app, award=True)
+        ctx.answer(f"🏁 Yakunlandi: {len(won)} ta g'olib", alert=True)
     elif act == "ann":
         ok, why = announce_contest(app)
         ctx.answer("📣 Yuborildi" if ok else "⚠️ Yuborilmadi", alert=not ok)
         if not ok:
             ctx.send(f"⚠️ E'lon yuborilmadi: {esc(why)}")
+        return
+    elif act == "l" and len(parts) > 2 and parts[2].isdigit() and 1 <= int(parts[2]) <= MAX_DAYS:
+        _set_len(app, int(parts[2]))
+        ctx.answer(f"⏱ {human_len(int(parts[2]))}")
+    elif act == "lc":
+        ctx.answer()
+        ctx.set_state("cn:len")
+        ctx.send(f"✏️ Musobaqa muddatini <b>kun</b> bilan yuboring (1 dan {MAX_DAYS} gacha), masalan <code>5</code>.",
+                 ikb([btn("❌ Bekor qilish", "cancel", style=DANGER)]))
         return
     elif act == "add" and len(pz) < MAX_PLACES:
         pz.append({"t": "p", "v": 3})
@@ -260,12 +385,24 @@ def cb_contest(ctx: Ctx) -> None:
                "Pul mukofoti matnini yuboring (masalan <code>50 000 so'm</code> yoki <code>$10</code>).")
         ctx.send(f"✏️ <b>{place_mark(int(parts[2]))}</b>: {ask}", ikb([btn("❌ Bekor qilish", "cancel", style=DANGER)]))
         return
-    elif act == "noop":
-        ctx.answer()
-        return
     else:
         ctx.answer()
     ctx.edit(*_admin_view(app))
+
+
+@router.state("cn:len", admin=True)
+def st_len_input(ctx: Ctx) -> None:
+    if not ctx.is_owner:
+        ctx.clear_state()
+        return
+    text = ctx.text.strip()
+    if not text.isdigit() or not 1 <= int(text) <= MAX_DAYS:
+        ctx.send(f"❗️ 1 dan {MAX_DAYS} gacha kun sonini yuboring.")
+        return
+    _set_len(ctx.app, int(text))
+    ctx.clear_state()
+    ctx.send("✅ Saqlandi.")
+    ctx.send(*_admin_view(ctx.app))
 
 
 @router.state("cn:in", admin=True)
@@ -294,59 +431,3 @@ def st_prize_input(ctx: Ctx) -> None:
     ctx.clear_state()
     ctx.send("✅ Saqlandi.")
     ctx.send(*_admin_view(app))
-
-
-# ───── oy oxirida mukofotlash ─────
-
-def award_month(app, year: int, month: int) -> list:
-    """O'tgan oy g'oliblarini mukofotlaydi: Premium — darhol, pul — adminga hisobot. [(o'rin, uid, taklif soni, mukofot)] qaytaradi."""
-    start, end = month_bounds(datetime(year, month, 15, tzinfo=TZ))
-    pz = prizes(app)
-    rows = [r for r in app.db.top_referrers(start, end, len(pz)) if r["n"] >= MIN_REFS]
-    won = []
-    for i, r in enumerate(rows):
-        p = pz[i]
-        won.append((i + 1, r["uid"], r["n"], p))
-        if p["t"] == "p":
-            app.db.grant_premium(r["uid"], int(p["v"]))
-            body = f"💎 Sizga <b>{int(p['v'])} kun Premium</b> sovg'a qilindi. Rahmat! 🙏"
-        else:
-            body = f"💵 Mukofotingiz: <b>{esc(p['v'])}</b>. Administrator tez orada siz bilan bog'lanadi. Rahmat! 🙏"
-        try:
-            app.bot.send_message(r["uid"], f"{place_mark(i)} <b>Tabriklaymiz!</b> Siz oylik taklif musobaqasida <b>{i + 1}-o'rin</b>ni "
-                                           f"egalladingiz ({r['n']} ta do'st).\n\n{body}")
-        except Forbidden:
-            app.db.set_blocked(r["uid"], True)
-        except TelegramError as exc:
-            log.warning("G'olibga xabar yetmadi (%s): %s", r["uid"], exc)
-    if won:
-        names = {r["uid"]: r for r in rows}
-        lines = [f"🏆 <b>Musobaqa yakunlandi</b> ({month:02d}.{year})", ""]
-        for o, u, n, p in won:
-            who = f"{_name(names[u])} (<code>{u}</code>)"
-            lines.append(f"{place_mark(o - 1)} {who} — {n} ta do'st → " + ("Premium berildi: " if p["t"] == "p" else "<b>⚠️ PUL TO'LANADI:</b> ") + prize_text(p))
-        if any(p["t"] == "m" for _, _, _, p in won):
-            lines += ["", "💵 Pul mukofotlarini o'zingiz to'lab, g'oliblar bilan bog'laning (foydalanuvchi nomi/ID yuqorida)."]
-    else:
-        lines = [f"🏆 Musobaqa ({month:02d}.{year}): mukofotga arzigulik (kamida {MIN_REFS} ta do'st) ishtirokchi bo'lmadi."]
-    app.notify_admins("\n".join(lines))
-    if won:
-        announce_winners(app, year, month, won, {r["uid"]: r for r in rows})
-    return won
-
-
-@router.task
-def _contest_award(app) -> None:
-    """Har oyning 1-kuni 10:00 (Toshkent) o'tgan oy g'oliblarini mukofotlaydi."""
-    while not app.stopping.is_set():
-        dt = datetime.now(TZ)
-        key = f"{dt.year}-{dt.month:02d}"
-        if dt.day == 1 and dt.hour >= 10 and app.setting("last_contest_award") != key and enabled(app):
-            app.set_setting("last_contest_award", key)
-            prev = dt.replace(day=1) - timedelta(days=1)
-            try:
-                award_month(app, prev.year, prev.month)
-            except Exception:  # noqa: BLE001
-                log.exception("Musobaqa mukofotlashda xatolik")
-        if app.stopping.wait(1800):
-            return
