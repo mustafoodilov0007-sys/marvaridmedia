@@ -336,6 +336,25 @@ class AddFlow(AdminCase):
         r = webapp.api_collection(self.app, {"id": 0}, {"id": "g_action"})
         self.assertEqual((r["title"], len(r["items"])), ("Jangari", 4))
 
+    def test_start_welcome_stats_and_media(self):
+        add_movie(self.app, 5, "Avatar")
+        self.msg(1, "/start")
+        self.assertIn("kino olamiga xush kelibsiz", self.last(1))
+        self.assertIn("1</b> kino", self.last(1))                          # jonli statistika
+        self.msg(1, "/startmedia")                                         # admin GIF/rasm qo'yadi
+        m = message(1, "")
+        m["message"].pop("text")
+        m["message"]["animation"] = {"file_id": "ANIM1"}
+        self.run_update(self.app, m)
+        self.assertEqual(self.app.setting("start_media"), "animation:ANIM1")
+        sent = [(n, a) for n, a, k in self.app.bot.sent if n == "call" or n == "sendAnimation"]
+        calls = [a[0] for n, a, k in self.app.bot.sent if n == "sendAnimation"]
+        self.assertTrue(calls and calls[-1]["animation"] == "ANIM1" and "kino olamiga" in calls[-1]["caption"])
+        self.assertIn("reply_markup", calls[-1])                           # pastki menyu media bilan birga
+        self.msg(1, "/startmedia")
+        self.press(1, "sm:off")
+        self.assertEqual(self.app.setting("start_media"), "")
+
     def test_animation_command_needs_posters(self):
         self.msg(1, "/animatsiya")
         self.assertTrue("4 ta posterli" in self.last(1) or "o'rnatilmagan" in self.last(1))

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .. import trailer_anim, webapp
 from ..core import Ctx, router
+from ..keyboards import SUCCESS, btn, ikb
 from ..telegram import InputFile, TelegramError
 
 log = logging.getLogger("botanim")
@@ -44,12 +45,17 @@ def cmd_animation(ctx: Ctx) -> None:
                 out = os.path.join(tmp, "marvarid_start.mp4")
                 trailer_anim.build(posters, out)
                 data = Path(out).read_bytes()
-            app.bot.call("sendVideo", {"chat_id": chat, "width": 640, "height": 360, "duration": 8, "supports_streaming": True,
-                                       "caption": ("🎬 <b>Tayyor!</b>\n\n@BotFather → /mybots → botingiz → Edit Bot → "
-                                                   "<b>Edit Description Picture</b> → shu videoni yuboring (forward qiling).\n"
-                                                   "Videoni telefoningizga saqlab, BotFather'ga fayl sifatida ham yuborishingiz mumkin."),
-                                       "parse_mode": "HTML"},
-                         files={"video": InputFile("marvarid_start.mp4", data, "video/mp4")})
+            sent = app.bot.call("sendAnimation", {"chat_id": chat, "width": 640, "height": 360, "duration": 8,
+                                                  "caption": ("🎬 <b>Tayyor!</b>\n\n"
+                                                              "1️⃣ Pastdagi tugma bilan /start xabariga qo'ying.\n"
+                                                              "2️⃣ @BotFather → /mybots → botingiz → Edit Bot → <b>Edit Description Picture</b> → "
+                                                              "shu videoni yuboring (forward qiling)."),
+                                                  "parse_mode": "HTML",
+                                                  "reply_markup": ikb([btn("✅ /start ga qo'yish", "sm:set", style=SUCCESS)])},
+                                files={"animation": InputFile("marvarid_start.mp4", data, "video/mp4")})
+            fid = ((sent or {}).get("animation") or {}).get("file_id")
+            if fid:
+                app.set_setting("_anim_pending", f"animation:{fid}")
         except (TelegramError, RuntimeError, ValueError, OSError) as exc:
             log.exception("Animatsiya yasab bo'lmadi")
             app.bot.safe("sendMessage", {"chat_id": chat, "text": f"❌ Animatsiya yasab bo'lmadi: {str(exc)[:200]}"})

@@ -417,6 +417,10 @@ def api_rate(app: App, user: dict, body: dict) -> dict:
     return dict(app.db.rating(movie_id, user["id"]), ok=True)
 
 
+class _Server(ThreadingHTTPServer):
+    request_queue_size = 256          # standart 5 — birdaniga ko'p odam kirsa ulanishlar rad etilardi
+
+
 def api_collections(app: App, user: dict) -> dict:
     out = []
     for c in app.db.list_collections():
@@ -522,6 +526,19 @@ def _item(r, premium_on: bool, vip: bool) -> dict:
 
 
 def api_home(app: App, user: dict) -> dict:
+    """Bosh sahifa. Mehmonlar uchun 15 soniya keshlanadi (ko'p odam birdaniga kirganda baza bo'shashmaydi)."""
+    if user["id"]:
+        return _api_home(app, user)
+    cache = app.__dict__.setdefault("_home_cache", {})
+    hit = cache.get("guest")
+    if hit and time.time() - hit[0] < 15:
+        return hit[1]
+    data = _api_home(app, user)
+    cache["guest"] = (time.time(), data)
+    return data
+
+
+def _api_home(app: App, user: dict) -> dict:
     """Bosh sahifa: almashib turadigan yangi kinolar (hero) va bo'limlar."""
     _, vip = _user_flags(app, user["id"])
     premium_on = app.setting_bool("premium_enabled")
@@ -1434,6 +1451,10 @@ def make_handler(app: App):
                     return self._index(qs, None)
                 if path == "/yandex_ad2be0e9bc24166d.html":       # Yandex Reklama tarmog'i: sayt egaligini tasdiqlash fayli
                     return self._send(200, YANDEX_VERIFY.encode(), "text/html; charset=utf-8", "public, max-age=3600")
+                if path in ("/shartlar", "/maxfiylik"):
+                    from . import legal
+                    html_page = legal.page("terms" if path == "/shartlar" else "privacy", app.brand, app.bot_username, _site_base(self, app))
+                    return self._send(200, html_page.encode("utf-8"), "text/html; charset=utf-8", "public, max-age=3600")
                 if path == "/robots.txt":
                     return self._send(200, seo.robots(_site_base(self, app)).encode(), "text/plain; charset=utf-8", "public, max-age=3600")
                 if path == "/sitemap.xml":
@@ -1645,7 +1666,7 @@ def start_web(app: App) -> None:
         log.info("🌐 Sayt o'chiq (WEBAPP_URL yoki PORT sozlanmagan)")
         return
     try:
-        server = ThreadingHTTPServer(("0.0.0.0", cfg.web_port), make_handler(app))
+        server = _Server(("0.0.0.0", cfg.web_port), make_handler(app))
     except OSError as exc:
         log.error("🌐 Saytni ishga tushirib bo'lmadi (port %s): %s", cfg.web_port, exc)
         return

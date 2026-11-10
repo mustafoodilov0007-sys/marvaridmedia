@@ -132,6 +132,13 @@ class GoogleLogin(AuthCase):
 
 
 class Ads(AuthCase):
+    def test_legal_pages(self):
+        import urllib.request
+        for path, word in (("/shartlar", "Foydalanish shartlari"), ("/maxfiylik", "Maxfiylik siyosati")):
+            with urllib.request.urlopen(self.web.base + path, timeout=15) as r:
+                self.assertEqual(r.status, 200)
+                self.assertIn(word, r.read().decode())
+
     def test_yandex_verification_file(self):
         import urllib.request
         with urllib.request.urlopen(self.web.base + "/yandex_ad2be0e9bc24166d.html", timeout=15) as r:

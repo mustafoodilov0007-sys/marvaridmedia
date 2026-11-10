@@ -56,10 +56,13 @@ def cat_name(category: str) -> str:
 # {card} — karta raqami, {holder} — karta egasi.
 DEFAULT_TEXTS = {
     "start_text": (
-        "👋 Assalomu alaykum, <b>{name}</b>!\n\n"
-        "💎 <b>{brand}</b> rasmiy kino botiga xush kelibsiz!\n\n"
-        "🎬 Kino <b>nomini</b> yozing yoki 🔢 <b>kodini</b> yuboring — bir zumda topib beraman! ⚡️\n"
-        "😔 Izlagan kinongiz topilmasa — /sorov buyrug'i bilan so'rang, tez orada qo'shamiz.\n\n"
+        "✨ <b>{brand}</b> — kino olamiga xush kelibsiz, <b>{name}</b>!\n\n"
+        "🎬 <b>{movies}</b> kino  •  📺 <b>{serials}</b> serial  •  🧸 <b>{cartoons}</b> multfilm  •  🎵 <b>{music}</b> qo'shiq\n\n"
+        "<b>Qanday ishlaydi?</b>\n"
+        "1️⃣ Kino <b>nomini</b> yozing yoki 🔢 <b>kodini</b> yuboring\n"
+        "2️⃣ Yoki pastdagi tugmalardan tanlang\n"
+        "3️⃣ Kino bir zumda chatingizga keladi ⚡️\n\n"
+        "😔 Topilmasa — /sorov bilan so'rang, tez orada qo'shamiz.\n"
         "🍿 Yoqimli hordiq tilaymiz!"
     ),
     "sub_text": (
@@ -94,7 +97,7 @@ DEFAULT_TEXTS = {
 
 # Matnlar bo'limidagi nomlar va o'zgaruvchilar
 TEXT_TITLES = {
-    "start_text": ("👋 Start xabari", "{name} — ism, {brand} — brend, {bot} — bot useri"),
+    "start_text": ("👋 Start xabari", "{name} — ism, {brand} — brend, {bot} — bot useri, {movies} {serials} {cartoons} {music} — kinolar soni"),
     "sub_text": ("📢 Obuna xabari", "{name} — ism, {brand} — brend"),
     "caption_footer": ("🎬 Kino izohi", "{brand} — brend, {bot} — bot useri"),
     "donate_text": ("💝 Donat matni", "{card} — karta raqami, {holder} — karta egasi, {brand} — brend"),

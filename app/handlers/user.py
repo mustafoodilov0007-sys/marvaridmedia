@@ -14,7 +14,7 @@ from .. import genres
 from ..core import Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, nav_row, number_rows, user_menu
 from ..subscription import all_joined, channel_statuses, gate_view, needs_gate
-from ..telegram import BadRequest
+from ..telegram import BadRequest, TelegramError
 from ..texts import B, HELP_TEXT, cat_icon, cat_name
 from ..utils import (esc, fmt_datetime, fmt_num, fuzzy_match, normalize, now, render,
                      truncate, visible_len)
@@ -36,10 +36,22 @@ _reported_parts = set()
 # ═════════════════════════ start / yordam ═════════════════════════
 
 def send_welcome(ctx: Ctx) -> None:
+    """/start: chiroyli salom. Admin «/startmedia» orqali rasm/GIF/video qo'ygan bo'lsa — o'sha bilan birga (bitta xabar)."""
     app = ctx.app
+    c = ctx.db.count_by_category()
     text = render(app.setting("start_text"), name=esc(ctx.user.get("first_name") or "do'stim"),
-                  brand=esc(app.brand), bot=app.bot_username)
-    ctx.send(text, user_menu(ctx.is_admin, app.setting_bool("premium_enabled")))
+                  brand=esc(app.brand), bot=app.bot_username,
+                  movies=fmt_num(c["movie"]), serials=fmt_num(c["serial"]), cartoons=fmt_num(c["cartoon"]), music=fmt_num(c["music"]))
+    kb = user_menu(ctx.is_admin, app.setting_bool("premium_enabled"))
+    kind, _, file_id = (app.setting("start_media") or "").partition(":")
+    method = {"photo": "sendPhoto", "animation": "sendAnimation", "video": "sendVideo"}.get(kind)
+    if method and file_id and len(text) <= 1024:
+        try:
+            ctx.bot.call(method, {"chat_id": ctx.chat_id, kind: file_id, "caption": text, "parse_mode": "HTML", "reply_markup": kb})
+            return
+        except TelegramError as exc:           # fayl o'chgan/yaroqsiz — oddiy matn bilan davom etamiz
+            log.warning("Start media yuborilmadi: %s", exc)
+    ctx.send(text, kb)
 
 
 SPECIAL_RE = re.compile(r"sorov|premium|promo|taklif|donat|r\d{1,12}")  # /start dagi maxsus havolalar
