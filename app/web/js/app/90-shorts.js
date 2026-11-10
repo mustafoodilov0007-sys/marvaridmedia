@@ -95,6 +95,15 @@
       });
     }, { root: feed, rootMargin: "120% 0px" });
 
+    // yuklanmagan short oqimni to'xtatib qo'ymasin: keyingisiga o'tadi (qayta urinish tugmasi qoladi)
+    function failShort(el) {
+      var H = feed.clientHeight;
+      if (!H || Math.round(feed.scrollTop / H) !== +el.dataset.idx) return;
+      var next = feed.children[+el.dataset.idx + 1];
+      if (next && next.querySelector("video, .pic")) setTimeout(function () {
+        if (el.classList.contains("is-error") && Math.round(feed.scrollTop / H) === +el.dataset.idx) step(1);
+      }, 1200);
+    }
     function item(it, idx) {
       var el = h("section", "short");
       el.dataset.idx = idx;
@@ -125,7 +134,11 @@
         });
         media.addEventListener("waiting", function () { el.classList.add("is-loading"); });
         ["playing", "canplay"].forEach(function (ev) { media.addEventListener(ev, function () { el.classList.remove("is-loading", "is-error"); }); });
-        media.addEventListener("error", function () { el.classList.remove("is-loading"); el.classList.add("is-error"); });
+        media.addEventListener("error", function () {
+          el.classList.remove("is-loading"); el.classList.add("is-error");
+          if (media.src && !el._failed) { el._failed = 1; setTimeout(function () { try { media.load(); } catch (e) {} }, 1500); return; }   // bir marta o'zi qayta urinadi
+          failShort(el);
+        });
         media.addEventListener("timeupdate", function () {
           if (media.duration) prog.firstChild.style.width = (media.currentTime / media.duration * 100) + "%";
         });

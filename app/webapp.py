@@ -1075,7 +1075,8 @@ def short_file(app: App, short_id: int, folder: Path) -> Optional[Path]:
             info = app.bot.call("getFile", {"file_id": short["file_id"]})
             data = app.bot.download_file(info["file_path"])
         except (TelegramError, KeyError) as exc:
-            log.warning("Shorts yuklanmadi (%s): %s", short_id, exc)
+            log.warning("Shorts yuklanmadi (%s, %s): %r — Telegram fayl bermadi (20 MB dan katta yoki file_id boshqa botniki)",
+                        short_id, short["kind"], exc)
             return None
         folder.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(f".{threading.get_ident()}.tmp")

@@ -210,6 +210,9 @@ def announce_contest(app):
     except TelegramError as exc:
         log.error("Musobaqa e'loni kanalga yuborilmadi: %s", exc)
         return False, exc.description
+    except Exception as exc:  # noqa: BLE001 — tarmoq xatosi musobaqa boshlanishini buzmasin
+        log.exception("Musobaqa e'loni yuborilmadi")
+        return False, str(exc)[:200]
 
 
 def announce_winners_text(app, start: int, end: int, won: list, names: dict) -> str:
@@ -374,6 +377,9 @@ def cb_contest(ctx: Ctx) -> None:
         ctx.answer("🗑 E'lon o'chirildi" if delete_announcement(app) else "E'lon topilmadi (allaqachon o'chirilgan)", alert=True)
         return
     elif act == "tog":
+        per = active_period(app)
+        if per and now() >= per[1]:                    # muddati o'tgan, lekin hali yakunlanmagan — avval mukofotlab yakunlaymiz
+            finish_contest(app, award=True)
         if enabled(app):
             finish_contest(app, award=False)
             ctx.answer("❌ Bekor qilindi (mukofotsiz)")
