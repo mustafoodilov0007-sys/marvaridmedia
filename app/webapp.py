@@ -1132,6 +1132,32 @@ def _trim_cache(folder: Path) -> None:
 _gz_cache: dict = {}
 
 
+# 📦 Sayt fayllari bo'laklarga ajratilgan: css/*.css va js/app/*.js tartib bo'yicha birlashtirilib beriladi
+# (bo'laklar bitta IIFE ichida — umumiy o'zgaruvchilar saqlanadi). Versiya (?v=) — mazmun xeshi: o'zgarsa brauzer yangisini oladi.
+_ASSETS = {
+    "app.css": ("css", "*.css", "text/css; charset=utf-8"),
+    "app.js": ("js/app", "*.js", "text/javascript; charset=utf-8"),
+    "i18n.js": ("js", "i18n.js", "text/javascript; charset=utf-8"),
+}
+_asset_cache: dict = {}
+
+
+def web_asset(name: str):
+    """(bayt, mazmun turi, versiya) yoki None. Fayllar o'zgarsa (mtime) avtomatik qayta yig'iladi."""
+    spec = _ASSETS.get(name)
+    if not spec:
+        return None
+    files = sorted((WEB_DIR / spec[0]).glob(spec[1]))
+    key = tuple((f.name, f.stat().st_mtime_ns) for f in files)
+    hit = _asset_cache.get(name)
+    if hit and hit[0] == key:
+        return hit[1]
+    body = "\n".join(f.read_text(encoding="utf-8") for f in files).encode("utf-8")
+    res = (body, spec[2], hashlib.sha1(body).hexdigest()[:10])
+    _asset_cache[name] = (key, res)
+    return res
+
+
 def _gzip_cached(body: bytes) -> bytes:
     """Sayt sahifasi (katta va o'zgarmas) — bir marta siqiladi; JSON javoblar har safar tez siqiladi."""
     import gzip
@@ -1195,7 +1221,7 @@ STATIC_FILES = {
 }
 
 SERVICE_WORKER = r"""// Marvarid Media — xizmat ishchisi: sahifa tezroq ochiladi, internet uzilsa ham ilova qobig'i chiqadi
-const V = "mm-v2", IMG = "mm-img-v1";
+const V = "mm-v3", IMG = "mm-img-v1";
 self.addEventListener("install", (e) => { self.skipWaiting(); e.waitUntil(caches.open(V).then((c) => c.add("/"))); });
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V && k !== IMG).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
@@ -1209,7 +1235,7 @@ self.addEventListener("fetch", (e) => {
       .catch(() => caches.match("/")));
     return;
   }
-  if (/^\/(api\/poster\/|icon-|og\.png|apple-touch|fonts\/)/.test(u.pathname)) {   // posterlar va ikonkalar: avval saqlangan
+  if (/^\/(api\/poster\/|icon-|og\.png|apple-touch|fonts\/|assets\/)/.test(u.pathname)) {   // posterlar va ikonkalar: avval saqlangan
     e.respondWith(caches.open(IMG).then((c) => c.match(r).then((hit) => hit || fetch(r).then((res) => { if (res.ok) { c.put(r, res.clone()); trim(IMG, 250); } return res; }))));
   }
 });
@@ -1339,7 +1365,7 @@ def make_handler(app: App):
         def _send(self, status: int, body: bytes, ctype: str, cache: str = "no-store", extra: Optional[dict] = None) -> None:
             self.send_response(status)
             self.send_header("Content-Type", ctype)
-            if len(body) > 800 and ctype.startswith(("text/html", "application/json", "text/javascript", "application/xml")):
+            if len(body) > 800 and ctype.startswith(("text/html", "application/json", "text/javascript", "application/xml", "text/css")):
                 self.send_header("Vary", "Accept-Encoding")
                 if "gzip" in self.headers.get("Accept-Encoding", ""):
                     body = _gzip_cached(body)  # 4 baravar kichik: tezroq ochiladi, trafik tejaladi
@@ -1362,6 +1388,8 @@ def make_handler(app: App):
         def _index(self, qs: dict, page: Optional[dict], status: int = 200) -> None:
             """Asosiy sahifa (SPA); SEO ma'lumotlari bilan boyitiladi (kino/ro'yxat sahifalari, ?k= havolalari)."""
             html_text = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+            for tok, name in (("__CSS__", "app.css"), ("__I18N__", "i18n.js"), ("__JS__", "app.js")):
+                html_text = html_text.replace(tok, web_asset(name)[2])
             base = _site_base(self, app)
             if page is None and re.fullmatch(r"\d{1,9}", qs.get("k", "")):       # eski ko'rinishdagi havola: ?k=15
                 page = seo.movie_page(app, base, int(qs["k"]), _poster_key)
@@ -1451,6 +1479,10 @@ def make_handler(app: App):
                     return self._index(qs, None)
                 if path == "/yandex_ad2be0e9bc24166d.html":       # Yandex Reklama tarmog'i: sayt egaligini tasdiqlash fayli
                     return self._send(200, YANDEX_VERIFY.encode(), "text/html; charset=utf-8", "public, max-age=3600")
+                m = re.fullmatch(r"/assets/([a-z0-9.-]+)", path)
+                if m and m.group(1) in _ASSETS:
+                    body, ctype, _v = web_asset(m.group(1))
+                    return self._send(200, body, ctype, "public, max-age=31536000, immutable")
                 if path in ("/shartlar", "/maxfiylik"):
                     from . import legal
                     html_page = legal.page("terms" if path == "/shartlar" else "privacy", app.brand, app.bot_username, _site_base(self, app))

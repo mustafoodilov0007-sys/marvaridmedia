@@ -132,6 +132,22 @@ class GoogleLogin(AuthCase):
 
 
 class Ads(AuthCase):
+    def test_assets_split_and_versioned(self):
+        import re
+        import urllib.request
+        with urllib.request.urlopen(self.web.base + "/", timeout=15) as r:
+            html = r.read().decode()
+        self.assertNotIn("__JS__", html)
+        urls = re.findall(r'/assets/[a-z0-9.]+\?v=[0-9a-f]{10}', html)
+        self.assertEqual(len(urls), 3)
+        for u in urls:
+            with urllib.request.urlopen(self.web.base + u, timeout=15) as r:
+                body = r.read().decode()
+                self.assertIn("immutable", r.headers["Cache-Control"])
+                self.assertGreater(len(body), 1000)
+        self.assertIn(":root", urllib.request.urlopen(self.web.base + urls[0], timeout=15).read().decode())
+        self.assertTrue(urllib.request.urlopen(self.web.base + [u for u in urls if "app.js" in u][0], timeout=15).read().decode().rstrip().endswith("})();"))
+
     def test_legal_pages(self):
         import urllib.request
         for path, word in (("/shartlar", "Foydalanish shartlari"), ("/maxfiylik", "Maxfiylik siyosati")):

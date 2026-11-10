@@ -332,3 +332,10 @@ Google tugmasi chiqishi uchun Railway'da `GOOGLE_CLIENT_ID` o'rnatilgan bo'lishi
 ## Botning ochilish animatsiyasi (/animatsiya)
 Admin `/animatsiya` yozsa, bot bazadagi eng ko'p ko'rilgan **haqiqiy posterlardan** kollajli 8 soniyalik MP4 (640×360) yasab yuboradi.
 Uni @BotFather → Edit Bot → **Edit Description Picture** orqali o'rnating. Pillow va ffmpeg kerak (Dockerfile'da ffmpeg o'rnatiladi).
+
+## Sayt fayllari tuzilmasi
+`app/web/index.html` — faqat sahifa skeleti. Stil va skriptlar bo'laklarga ajratilgan:
+- `app/web/css/NN-*.css` — stillar (tartib raqam bo'yicha; keyingisi oldingisini bekor qiladi);
+- `app/web/js/app/NN-*.js` — asosiy ilova (bitta IIFE ning ketma-ket bo'laklari: core, icons, theme-storage, cards-hero, pages-motion, router, pages-misc, login, shorts, music, request-detail, comments, admin-edit, boot);
+- `app/web/js/i18n.js` — ruscha/inglizcha tarjima lug'ati va dvigateli.
+Server ularni `/assets/app.css`, `/assets/app.js`, `/assets/i18n.js` sifatida birlashtirib beradi (`?v=` — mazmun xeshi, bir yil keshlanadi, o'zgarsa avtomatik yangilanadi). Yangi bo'lak qo'shish: shunchaki yangi `NN-nom.js` fayl yarating (bo'laklar bitta IIFE ichida birlashtirilgani uchun faylning o'zi alohida ishga tushmaydi).

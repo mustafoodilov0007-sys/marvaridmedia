@@ -1,0 +1,75 @@
+  :root {
+    --bg: #0b0a0d;
+    --bg-soft: #121016;
+    --surface: #18161c;
+    --surface-2: #221f27;
+    --line: rgba(255, 236, 196, .08);
+    --text: #f6f2ea;
+    --muted: #9b958c;
+    --accent: #d9a943;
+    --accent-2: #e9c46a;
+    --on-grad: #1d1405;
+    --glow: rgba(217, 169, 67, .38);
+    --grad: linear-gradient(135deg, #f8e3a0 0%, #e2b450 45%, #b07c2a 100%);
+    --gold: #f1cf7a;
+    --green: #2fd17c;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .45);
+    --nav-h: 64px;
+    --r: 16px;
+  }
+  :root[data-theme="light"] {
+    --bg: #f8f5ef;
+    --bg-soft: #efe9de;
+    --surface: #ffffff;
+    --surface-2: #f1ebe0;
+    --line: rgba(60, 40, 10, .1);
+    --text: #1b1610;
+    --muted: #655a4a;
+    --accent-2: #86590e;
+    --shadow: 0 10px 28px rgba(30, 36, 70, .14);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { -webkit-font-smoothing: antialiased; margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden;
+    font: 15px/1.4 "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); transition: background .25s; touch-action: manipulation; }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
+  svg { width: 22px; height: 22px; flex: none; stroke: currentColor; fill: none; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round; }
+  .hidden { display: none !important; }
+
+  /* ───── header ───── */
+  .top { position: fixed; inset: 0 0 auto; z-index: 30; display: flex; align-items: center; gap: 7px;
+    padding: 12px 16px; transition: background .25s, box-shadow .25s; }
+  .top.solid { background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px); box-shadow: 0 1px 0 var(--line); }
+  .logo { display: flex; align-items: center; gap: 9px; margin-right: auto; min-width: 0; }
+  .emblem { width: 42px; height: 42px; flex: none; filter: drop-shadow(0 4px 12px rgba(214,170,80,.35)); }
+  .emblem svg { width: 100%; height: 100%; display: block; }
+  .word { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+  .word .w1 { font: 700 18px/1 "Cinzel", Georgia, serif; letter-spacing: 1.4px; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; max-width: 100%;
+    background: linear-gradient(180deg, #fff1c2 0%, #f0cf7a 40%, #b98a33 75%, #e8c56f 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,.45)); }
+  .word .w2 { display: flex; align-items: center; gap: 5px; font: 600 9.5px/1 "Cinzel", Georgia, serif;
+    letter-spacing: 3.4px; margin-top: 4px; color: #e2bf6c; }
+  .word .w2::before, .word .w2::after { content: ""; width: 12px; height: 1px;
+    background: linear-gradient(90deg, transparent, #d9b35e); }
+  .word .w2::after { transform: scaleX(-1); }
+  :root[data-theme="light"] .top.solid .word .w1 { background-image: linear-gradient(180deg, #c99a3c 0%, #8a6220 100%);
+    filter: none; }
+  :root[data-theme="light"] .top.solid .word .w2 { color: #7a5718; }
+  .ibtn { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none;
+    background: rgba(18, 16, 20, .55); color: #fff; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.08); transition: transform .15s; }
+  .top.solid .ibtn { background: var(--surface); color: var(--text); border-color: var(--line); }
+  .ibtn.gold { color: var(--gold); }
+  .top.solid .ibtn.gold { color: var(--gold); }
+  :root[data-theme="light"] .top.solid .ibtn.gold { color: #8a6220; }
+  @media (max-width: 520px) { .top.adm #bTheme { display: none; } }  /* admin: joy yetishi uchun (mavzu profilda ham bor) */
+  .ibtn:active { transform: scale(.92); }
+  .ibtn svg { width: 20px; height: 20px; }
+  .avatar { width: 40px; height: 40px; border-radius: 12px; flex: none; overflow: hidden; display: grid;
+    place-items: center; background: var(--grad); color: var(--on-grad); font-weight: 800; font-size: 15px; }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
+
