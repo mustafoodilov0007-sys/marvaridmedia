@@ -162,14 +162,7 @@
         var opts = (filters && filters[fl[0]]) || [];
         if (!opts.length) return;
         shown++;
-        var sel = document.createElement("select");
-        sel.setAttribute("aria-label", fl[1]);
-        sel.appendChild(new Option(fl[1] + ": hammasi", ""));
-        opts.forEach(function (o) { sel.appendChild(new Option(o.label + " (" + o.n + ")", o.key)); });
-        sel.value = f[fl[0]] || "";
-        var box = h("label", "fpill" + (f[fl[0]] ? " on" : ""), [sel]);
-        sel.onchange = function () { var c = {}; c[fl[0]] = sel.value; go(c); };
-        selRow.appendChild(box);
+        selRow.appendChild(filterDrop(fl, opts, f[fl[0]] || "", function (k) { var c = {}; c[fl[0]] = k; go(c); }));
       });
       if (any) {
         var reset = h("button", "fpill reset", "✕ Tozalash");

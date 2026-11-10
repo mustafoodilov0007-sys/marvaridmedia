@@ -43,11 +43,14 @@
     clear.type = "button"; clear.setAttribute("aria-label", "Tozalash");
     var results = h("div");
     var scopeRow = h("div", "gchips");
-    var sortSel = document.createElement("select");
-    sortSel.setAttribute("aria-label", "Saralash");
-    [["new", "↕ Yangi"], ["top", "↕ Top"], ["rating", "↕ Reyting"]].forEach(function (o) { sortSel.appendChild(new Option(o[1], o[0])); });
-    sortSel.value = searchSort;
-    var filters = h("div", "sfilters", [scopeRow, h("label", "fpill", [sortSel])]);
+    var sortHost = h("span", "sorthost");
+    function paintSort() {
+      sortHost.replaceChildren(filterDrop(["sort", "↕ Saralash", "sort"],
+        [{ key: "new", label: "Yangi" }, { key: "top", label: "Top" }, { key: "rating", label: "Reyting" }], searchSort,
+        function (k) { searchSort = k; paintSort(); run(); }));
+    }
+    paintSort();
+    var filters = h("div", "sfilters", [scopeRow, sortHost]);
     var page = h("div", "page", [h("h1", null, "Qidiruv"), h("label", "searchbox", [icon("search"), input, clear]), filters, results]);
     view.replaceChildren(page);
     if (!searchQ) setTimeout(function () { input.focus(); }, 250);
@@ -152,7 +155,6 @@
       else if (e.key === "Escape") { input.value = ""; run(); }
     });
     clear.onclick = function () { input.value = ""; run(); input.focus(); };
-    sortSel.onchange = function () { searchSort = sortSel.value; run(); };
     run();
   }
 

@@ -26,6 +26,7 @@
     lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    check: '<path d="m5 12 5 5 9-10"/>',
     clap: '<path d="M4 11v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8z"/><path d="m4 11-.9-3.6a1 1 0 0 1 .7-1.2L17 3l1 4z"/><path d="m8.5 4.8 2.4 3.7M13.4 3.9l2.4 3.7"/>',
     vol: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
     mute: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6M16 9l6 6"/>',
