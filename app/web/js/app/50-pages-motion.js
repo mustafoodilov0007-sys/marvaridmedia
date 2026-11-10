@@ -137,11 +137,25 @@
       (it.genres || []).slice(0, 3).forEach(function (g) { gp.appendChild(h("span", "gpill", gname(g))); });
       var t = h("button", "cft", [it.title, icon("chev")]);
       t.type = "button"; t.onclick = function () { openSheet(it, false, cf.querySelector(".cfc.on .poster")); };
-      inner.replaceChildren(t, metaNode(it), ratingBadges(it), gp.childNodes.length ? gp : null, actionRow(it, false));
+      var cx = h("button", "cfx", [icon("x")]);
+      cx.type = "button"; cx.setAttribute("aria-label", "Yopish"); cx.onclick = function (e) { e.stopPropagation(); setOpen(false); };
+      inner.replaceChildren(cx, t, metaNode(it), ratingBadges(it), gp.childNodes.length ? gp : null, actionRow(it, false));
     }
+    function place() {         // ma'lumot oynasi aynan o'rtadagi poster ustida turadi
+      var c = cf.children[curG], pe = c && c.querySelector(".poster");
+      if (!pe) return;
+      var wr = info.parentNode.getBoundingClientRect(), pr = pe.getBoundingClientRect();
+      var w = Math.min(wr.width - 16, Math.max(pr.width + 56, 252));
+      info.style.width = w + "px";
+      info.style.left = Math.round(pr.left - wr.left + pr.width / 2 - w / 2) + "px";
+      info.style.top = Math.round(pr.top - wr.top) + "px";
+      info.style.minHeight = Math.round(pr.height) + "px";
+    }
+    info.onclick = function (e) { if (!e.target.closest("button, a")) setOpen(false); };
+    window.addEventListener("resize", function () { if (open) setOpen(false); });
     function setOpen(v) {
       open = v;
-      if (v) build(items[cur]);
+      if (v) { build(items[cur]); place(); }
       info.classList.toggle("open", v);
       if (cf.children[curG]) cf.children[curG].setAttribute("aria-expanded", v ? "true" : "false");
     }
@@ -165,8 +179,7 @@
     l.setAttribute("aria-label", "Oldingi"); rr.setAttribute("aria-label", "Keyingi");
     l.onclick = function () { setOpen(false); step(-1); };
     rr.onclick = function () { setOpen(false); step(1); };
-    sec.appendChild(h("div", "cfwrap", [cf, l, rr]));
-    sec.appendChild(info);
+    sec.appendChild(h("div", "cfwrap", [cf, l, rr, info]));
     function bestChild() {
       var cr = cf.getBoundingClientRect(), cx = cr.left + cr.width / 2, best = 0, bd = 1e9;
       Array.prototype.forEach.call(cf.children, function (c, i) {

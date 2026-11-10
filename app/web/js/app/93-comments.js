@@ -229,9 +229,9 @@
     if (it.quality) chips.appendChild(h("span", "chip", "🎞 " + it.quality));
     if (it.premium) chips.appendChild(h("span", "chip gold", "PREMIUM"));
     var stats = h("div", "stats");
-    if (it.views > 0) stats.appendChild(h("span", null, "👁 " + fmt(it.views) + " ko'rilgan"));
+    if (it.views > 0) { var sv = h("span"); countUp(sv, "👁 ", it.views, fmt, " ko'rilgan"); stats.appendChild(sv); }
     var sc = score(it);
-    if (sc !== null) stats.appendChild(h("span", null, "👍 " + sc + "% yoqdi"));
+    if (sc !== null) { var ss = h("span"); countUp(ss, "👍 ", sc, String, "% yoqdi"); stats.appendChild(ss); }
     if (it.added) stats.appendChild(h("span", null, "📅 " + fmtDate(it.added) + " qo'shilgan"));
     var desc = null;
     if (it.desc) {
@@ -323,6 +323,7 @@
     $("veil").classList.remove("on");
     $("sheet").classList.remove("on");
     sheetOpen = false;
+    setTimeout(flushUnsaved, 260);              // sevimlilardan olib tashlangan kartalar oyna yopilgach so'nadi
     hideMain();
     if (HIST && fromPop !== true) {
       try { if (history.state && history.state.sheet) { skipPop++; history.back(); } } catch (e) {}

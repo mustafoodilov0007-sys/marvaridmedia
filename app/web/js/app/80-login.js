@@ -120,7 +120,7 @@
     [["dark", "🌙 Qorong'i"], ["light", "☀️ Yorug'"]].forEach(function (o) {
       var b = h("button", o[0] === theme ? "on" : "", o[1]);
       b.onclick = function () {
-        haptic(); theme = o[0]; store.set("theme", theme); applyTheme(theme);
+        haptic(); themeFx(); theme = o[0]; store.set("theme", theme); applyTheme(theme);
         seg.querySelectorAll("button").forEach(function (x) { x.classList.toggle("on", x === b); });
       };
       seg.appendChild(b);

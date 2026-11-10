@@ -12,7 +12,7 @@
   }
   var theme = store.get("theme") || (!PUB && tg && tg.colorScheme === "light" ? "light" : "dark");
   applyTheme(theme);
-  $("bTheme").onclick = function () { haptic(); theme = theme === "dark" ? "light" : "dark"; store.set("theme", theme); applyTheme(theme); };
+  $("bTheme").onclick = function () { haptic(); themeFx(); theme = theme === "dark" ? "light" : "dark"; store.set("theme", theme); applyTheme(theme); };
   // Telegram mavzusi o'zgarsa (va foydalanuvchi o'zi tanlamagan bo'lsa) — shunga moslashamiz
   if (!PUB && tg && tg.onEvent) {
     try { tg.onEvent("themeChanged", function () {
@@ -85,8 +85,10 @@
       delete saved[key];
       if (cloud) cloud.removeItem(key);
       toast("Saqlanganlardan olib tashlandi");
+      savedGone(it, true);
     } else {
       saved[key] = snap(it);
+      savedGone(it, false);
       if (cloud) cloud.setItem(key, JSON.stringify(saved[key]).slice(0, 4000));
       toast("🔖 Saqlanganlarga qo'shildi");
     }
