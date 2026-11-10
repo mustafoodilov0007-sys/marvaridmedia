@@ -218,7 +218,7 @@
       toBot.onclick = function (e) { e.stopPropagation(); watch(it, toBot); };
       row.appendChild(toBot);
     }
-    if (it.trailer) {      // treyler — faqat admin shorts (video) qo'shgan bo'lsa
+    if (it.trailer || it.turl) {      // treyler — admin shorts (video) yoki YouTube havolasini qo'shgan bo'lsa
       var tr = h("button", "btn soft", [icon("clap"), "Treyler"]);
       tr.onclick = function (e) { e.stopPropagation(); openTrailer(it); };
       row.appendChild(tr);

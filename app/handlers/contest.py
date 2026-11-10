@@ -152,6 +152,30 @@ def announce_text(app) -> str:
     return "\n".join(lines)
 
 
+def announce_winners_text(app, year: int, month: int, won: list, names: dict) -> str:
+    months = ["", "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktyabr", "Noyabr", "Dekabr"]
+    lines = [f"🏆 <b>{months[month]} oyi musobaqasi g'oliblari!</b>", ""]
+    for o, u, n, p in won:
+        lines.append(f"{place_mark(o - 1)} <b>{_name(names[u])}</b> — {n} ta do'st → {prize_text(p)}")
+    lines += ["", "Tabriklaymiz! 🎉 Mukofotlar g'oliblarga yuborildi.", "",
+              f"Keyingi musobaqaga qatnashing: @{app.bot_username} → /taklif", "📊 Natijani tekshirish: /tekshir"]
+    return "\n".join(lines)
+
+
+def announce_winners(app, year: int, month: int, won: list, names: dict) -> bool:
+    """G'oliblar e'lonini kanalga yuboradi (kanal belgilangan bo'lsa)."""
+    channel = app.setting("post_channel")
+    if not channel or app.setting("contest_post_winners") == "0":
+        return False
+    kb = ikb([{"text": "🤖 Botda qatnashish", "url": f"https://t.me/{app.bot_username}?start=taklif"}])
+    try:
+        app.bot.send_message(channel, announce_winners_text(app, year, month, won, names), kb)
+        return True
+    except TelegramError as exc:
+        log.error("G'oliblar e'loni kanalga yuborilmadi: %s", exc)
+        return False
+
+
 def announce_contest(app):
     """E'lonni kanalga yuboradi. (True, "") yoki (False, sabab)."""
     channel = app.setting("post_channel")
@@ -306,6 +330,8 @@ def award_month(app, year: int, month: int) -> list:
     else:
         lines = [f"🏆 Musobaqa ({month:02d}.{year}): mukofotga arzigulik (kamida {MIN_REFS} ta do'st) ishtirokchi bo'lmadi."]
     app.notify_admins("\n".join(lines))
+    if won:
+        announce_winners(app, year, month, won, {r["uid"]: r for r in rows})
     return won
 
 

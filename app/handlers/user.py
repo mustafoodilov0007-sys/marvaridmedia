@@ -778,6 +778,11 @@ def open_movie(ctx: Ctx, movie, extra_rows=None) -> None:
     if len(parts) == 1:
         send_part(ctx, movie, parts[0], 1, extra_rows)
     else:
+        last = ctx.db.last_part(ctx.user_id, movie["id"]) if ctx.user_id else None
+        if last:                                         # serial: oxirgi ko'rilgan qismdan davom etish
+            nxt = ctx.db.get_part_by_no(movie["id"], last["part_no"] + 1) or last
+            label = f"▶️ Davom etish: {nxt['part_no']}-qism" if nxt["id"] != last["id"] else f"▶️ Qayta ko'rish: {last['part_no']}-qism"
+            extra_rows = [[btn(label, f"pt:{nxt['id']}", style=SUCCESS)]] + list(extra_rows or [])
         send_parts_list(ctx, movie, parts, 0, extra_rows)
 
 
@@ -840,6 +845,9 @@ def part_kb(app, movie, part, total: int, extra_rows=None) -> dict:
     if movie["category"] != "music":
         last.append(btn("🎭 O'xshashlari", f"sim:{movie['id']}", style=SUCCESS))
     rows.append(last)
+    tu = (movie["trailer_url"] if "trailer_url" in movie.keys() else "") or ""
+    if tu.startswith("http") and movie["category"] != "music":
+        rows.append([btn("🎞 Treyler", url=tu, style=PRIMARY)])
     site = (app.config.webapp_url or "").rstrip("/")
     if site and movie["category"] != "music" and movie["code"] > 0:      # bot → sayt ko'prigi: izohlar, poster, o'xshashlar
         rows.append([{"text": "💬 Izohlar va batafsil", "web_app": {"url": f"{site}/?k={movie['code']}"}, "style": PRIMARY}])
@@ -875,7 +883,7 @@ def send_part(ctx: Ctx, movie, part, total: int, extra_rows=None) -> None:
         return
     ctx.db.inc_views(movie["id"], part["id"])
     if movie["category"] != "music" and ctx.user_id:
-        ctx.db.touch_history(ctx.user_id, movie["id"])
+        ctx.db.touch_history(ctx.user_id, movie["id"], part["id"] if total > 1 else 0)
         if random.random() < 0.01:
             ctx.db.prune_history()
             ctx.db.prune_views()
@@ -895,11 +903,13 @@ def parts_view(movie, parts, page: int, extra_rows=None):
     if pages > 1:
         lines.append(f"📄 Sahifa: <b>{page + 1}/{pages}</b>")
     lines.append("👇 Kerakli qism raqamini tanlang:")
-    rows = number_rows(nums)
+    first = extra_rows[0] if extra_rows and ("Davom etish" in str(extra_rows[0]) or "Qayta ko'rish" in str(extra_rows[0])) else None
+    rows = [first] if first else []                      # «▶️ Davom etish» tugmasi ro'yxat tepasida
+    rest = list(extra_rows[1:]) if first else list(extra_rows or [])
+    rows += number_rows(nums)
     if pages > 1:
         rows.append(nav_row(f"pl:{movie['id']}", page, pages))
-    if extra_rows:
-        rows.extend(extra_rows)
+    rows.extend(rest)
     rows.append([btn("❌ Yopish", "x", style=DANGER)])
     return "\n".join(lines), {"inline_keyboard": rows}
 

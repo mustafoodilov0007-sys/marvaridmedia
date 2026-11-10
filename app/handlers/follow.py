@@ -28,7 +28,9 @@ def follow_text(follows: set) -> str:
             "Sevimli janrlaringizni tanlang — shu janrda yangi kino qo'shilishi bilan bot sizga xabar beradi "
             "(kuniga ko'pi bilan %d ta).\n\n" % DAILY_CAP
             + (f"Tanlangan: {' • '.join(chosen)}\n\n" if chosen else "")
-            + ("📬 Haftalik tavsiya: <b>yoqilgan</b>" if "weekly" in follows else "📬 Haftalik tavsiya: o'chiq"))
+            + ("📬 Haftalik tavsiya: <b>yoqilgan</b>" if "weekly" in follows else "📬 Haftalik tavsiya: o'chiq")
+            + ("\n📺 Ko'rgan seriallaringizning yangi qismlari: <b>o'chiq</b>" if "noparts" in follows
+               else "\n📺 Ko'rgan seriallaringizning yangi qismlari: <b>yoqilgan</b>"))
 
 
 def follow_kb(follows: set) -> dict:
@@ -42,6 +44,7 @@ def follow_kb(follows: set) -> dict:
     if row:
         rows.append(row)
     rows.append([btn("📬 Haftalik tavsiya: " + ("o'chirish" if "weekly" in follows else "yoqish"), "fw:w", style=PRIMARY)])
+    rows.append([btn("📺 Serial yangi qismlari: " + ("yoqish" if "noparts" in follows else "o'chirish"), "fw:np", style=PRIMARY)])
     rows.append([btn("✅ Tayyor", "fw:ok", style=SUCCESS)])
     return {"inline_keyboard": rows}
 
@@ -70,6 +73,9 @@ def cb_follow(ctx: Ctx) -> None:
     elif action == "w":
         on = db.follow_toggle(ctx.user_id, "weekly")
         ctx.answer("📬 Haftalik tavsiya yoqildi" if on else "📬 O'chirildi")
+    elif action == "np":
+        off = db.follow_toggle(ctx.user_id, "noparts")
+        ctx.answer("📺 Serial xabarlari o'chirildi" if off else "📺 Serial xabarlari yoqildi")
     elif action == "woff":
         if "weekly" in db.user_follows(ctx.user_id):
             db.follow_toggle(ctx.user_id, "weekly")
@@ -139,6 +145,55 @@ def notify_followers(app, movie_id: int) -> None:
         log.info("«%s» — %s ta kuzatuvchiga xabar yuborildi", movie["title"], sent)
 
     threading.Thread(target=work, name="follow-notify", daemon=True).start()
+
+
+# ═════════════════════════ 📺 serialning yangi qismi ═════════════════════════
+
+_parts_today: dict = {}
+PARTS_CAP = 5              # bitta foydalanuvchiga kuniga ko'pi bilan nechta serial xabari
+
+
+def notify_new_parts(app, movie_id: int, part_nos: list) -> None:
+    """Serialga yangi qism(lar) qo'shilsa, uni ilgari ko'rgan foydalanuvchilarga xabar yuboradi (orqa fonda)."""
+    movie = app.db.get_movie(movie_id)
+    if not movie or movie["category"] not in ("serial", "cartoon") or not part_nos:
+        return
+    nos = sorted(part_nos)
+    first = app.db.get_part_by_no(movie_id, nos[0])
+    if not first or app.db.count_parts(movie_id) < 2:
+        return
+    users = app.db.watchers(movie_id)
+    if not users:
+        return
+    label = f"{nos[0]}-qism" if len(nos) == 1 else f"{nos[0]}–{nos[-1]}-qismlar"
+    text = f"🆕 <b>{esc(movie['title'])}</b>\n\n📺 <b>{label}</b> qo'shildi!"
+    kb = ikb([btn(f"▶️ {nos[0]}-qismni ko'rish", f"pt:{first['id']}", style=SUCCESS)],
+             [btn("🔕 Serial xabarlarini o'chirish", "fw:np", style=PRIMARY)])
+
+    def work() -> None:
+        day = int(time.time() // 86400)
+        sent = 0
+        for uid in users:
+            if app.stopping.is_set():
+                return
+            k = (uid, day)
+            if _parts_today.get(k, 0) >= PARTS_CAP:
+                continue
+            lg = app.user_lang(uid)
+            try:
+                app.bot.send_message(uid, i18n_bot.translate(text, lg), i18n_bot.translate_markup(kb, lg))
+                _parts_today[k] = _parts_today.get(k, 0) + 1
+                sent += 1
+            except Forbidden:
+                app.db.set_blocked(uid, True)
+            except TelegramError as exc:
+                log.warning("Serial xabari yetmadi (%s): %s", uid, exc)
+            time.sleep(SEND_GAP)
+        for key in [k for k in _parts_today if k[1] != day]:
+            _parts_today.pop(key, None)
+        log.info("«%s» %s — %s ta tomoshabinga xabar yuborildi", movie["title"], label, sent)
+
+    threading.Thread(target=work, name="parts-notify", daemon=True).start()
 
 
 # ═════════════════════════ 📬 haftalik tavsiya ═════════════════════════

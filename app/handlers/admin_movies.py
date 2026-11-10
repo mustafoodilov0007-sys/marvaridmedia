@@ -1251,8 +1251,15 @@ def cb_add_movie(ctx: Ctx) -> None:
         data = ctx.sdata if state == "am:part" else {}
         movie = ctx.db.get_movie(data["movie_id"]) if data.get("movie_id") else None
         added = len(data.get("saved", []))
+        saved_nos = list(data.get("saved", []))
         ctx.clear_state()
         ctx.answer("🏁 Tayyor!")
+        if movie and saved_nos:
+            try:
+                from .follow import notify_new_parts
+                notify_new_parts(ctx.app, movie["id"], saved_nos)      # ilgari ko'rganlarga «yangi qism» xabari
+            except Exception:  # noqa: BLE001
+                log.exception("Yangi qism xabari yuborilmadi")
         if movie:
             n = ctx.db.count_parts(movie["id"])
             code_txt = f"🔢 Kod: <code>{movie['code']}</code>\n" if movie["code"] > 0 else ""
@@ -1446,6 +1453,7 @@ def manage_view(ctx: Ctx, movie):
         rows.append([btn("🔗 Qolgan qismlar linki", f"dm:el:{mid}", style=PRIMARY)])
     if cat != "music":
         rows.append([btn("🌐 Sayt linki (Saytda ko'rish)", f"dm:ew:{mid}", style=PRIMARY)])
+        rows.append([btn("🎞 Treyler havolasi (YouTube)", f"dm:tu:{mid}", style=PRIMARY)])
     rows.append([btn(f"🏷 Turini o'zgartirish ({cat_icon(cat)} {cat_name(cat)})", f"dm:cat:{mid}",
                      style=SUCCESS)])
     if ctx.app.setting_bool("premium_enabled") or movie["is_premium"]:
@@ -1755,6 +1763,11 @@ def cb_manage(ctx: Ctx) -> None:
         ctx.set_state("dm:wlink", movie_id=mid)
         ctx.send(f"🌐 <b>{esc(movie['title'])}</b>\n\nHozirgi sayt linki: {esc(movie['watch_url'] or '—')}\n\n"
                  "Yangi <b>linkni</b> yuboring (olib tashlash uchun <code>-</code>):", cancel_kb(), preview=False)
+    elif action == "tu":
+        ctx.answer()
+        ctx.set_state("dm:turl", movie_id=mid)
+        ctx.send(f"🎞 <b>{esc(movie['title'])}</b>\n\nHozirgi treyler: {esc(movie['trailer_url'] or '—')}\n\n"
+                 "Yangi <b>YouTube havolasini</b> yuboring (olib tashlash uchun <code>-</code>):", cancel_kb(), preview=False)
     elif action == "el":
         ctx.answer()
         ctx.set_state("dm:link", movie_id=mid)
@@ -1960,6 +1973,22 @@ def st_edit_wlink(ctx: Ctx) -> None:
     ctx.db.update_movie(movie["id"], watch_url=link)
     ctx.clear_state()
     ctx.send("✅ Sayt linki yangilandi!" if link else "🗑 Sayt linki olib tashlandi.")
+    send_manage(ctx, ctx.db.get_movie(movie["id"]))
+
+
+@router.state("dm:turl", admin=True)
+def st_edit_turl(ctx: Ctx) -> None:
+    movie = _edit_target(ctx)
+    if not movie:
+        return
+    text = ctx.text.strip()
+    link = "" if text == "-" else clean_web(text)
+    if text != "-" and (not link or len(link) > 400):
+        ctx.send("❗️ To'liq havolani yuboring (masalan <code>https://youtube.com/watch?v=...</code>) yoki <code>-</code>.", cancel_kb())
+        return
+    ctx.db.update_movie(movie["id"], trailer_url=link)
+    ctx.clear_state()
+    ctx.send("✅ Treyler havolasi yangilandi!" if link else "🗑 Treyler havolasi olib tashlandi.")
     send_manage(ctx, ctx.db.get_movie(movie["id"]))
 
 

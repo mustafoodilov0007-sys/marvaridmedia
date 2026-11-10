@@ -346,7 +346,7 @@ CATEGORIES = ("movie", "serial", "cartoon", "music")
 
 _CATALOG_ROW = """
 SELECT m.id, m.code, m.title, m.description, m.is_premium, m.views, m.created_at, m.category, m.poster_id,
-       m.genres, m.year, m.year_end, m.country, m.lang, m.quality, m.duration, m.age, m.imdb, m.group_link, m.watch_url,
+       m.genres, m.year, m.year_end, m.country, m.lang, m.quality, m.duration, m.age, m.imdb, m.group_link, m.watch_url, m.trailer_url,
        (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = 1) AS likes,
        (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = -1) AS dislikes,
        (SELECT s.id FROM shorts s WHERE s.movie_id = m.id AND s.kind = 'video' ORDER BY s.id LIMIT 1) AS trailer,
@@ -399,6 +399,11 @@ class Database:
             for r in self.conn.execute("SELECT id, description FROM movies WHERE category<>'music'").fetchall():
                 self.conn.execute("UPDATE movies SET country=?, lang=? WHERE id=?",
                                   (genres.detect_country(r[1]), genres.detect_lang(r[1]), r[0]))
+        if "trailer_url" not in cols:  # 🎞 treyler havolasi (YouTube) — saytda va botda «Treyler» tugmasi
+            self.conn.execute("ALTER TABLE movies ADD COLUMN trailer_url TEXT NOT NULL DEFAULT ''")
+        hcols = {r[1] for r in self.conn.execute("PRAGMA table_info(history)").fetchall()}
+        if "part_id" not in hcols:  # ▶️ serialda oxirgi ko'rilgan qism (davom etish uchun)
+            self.conn.execute("ALTER TABLE history ADD COLUMN part_id INTEGER NOT NULL DEFAULT 0")
         if "year_end" not in cols:  # 📅 serial yillar oralig'i (2012–2015): year — boshlanishi, year_end — tugashi
             self.conn.execute("ALTER TABLE movies ADD COLUMN year_end INTEGER NOT NULL DEFAULT 0")
         if "watch_url" not in cols:  # 🌐 kino joylangan boshqa saytning linki (ixtiyoriy) — saytda «Saytda ko'rish» tugmasi
@@ -1148,9 +1153,21 @@ class Database:
 
     # ───────── 🕘 ko'rilganlar tarixi ─────────
 
-    def touch_history(self, uid: int, movie_id: int) -> None:
-        self.x("INSERT INTO history(user_id, movie_id, at) VALUES (?,?,?)"
-               " ON CONFLICT(user_id, movie_id) DO UPDATE SET at=excluded.at", (uid, movie_id, now()))
+    def touch_history(self, uid: int, movie_id: int, part_id: int = 0) -> None:
+        self.x("INSERT INTO history(user_id, movie_id, at, part_id) VALUES (?,?,?,?)"
+               " ON CONFLICT(user_id, movie_id) DO UPDATE SET at=excluded.at, part_id=CASE WHEN excluded.part_id>0 THEN excluded.part_id ELSE part_id END",
+               (uid, movie_id, now(), part_id))
+
+    def last_part(self, uid: int, movie_id: int):
+        """Foydalanuvchi serialning qaysi qismini oxirgi marta ko'rgan (qism qatori yoki None)."""
+        return self.q1("SELECT p.* FROM history h JOIN parts p ON p.id=h.part_id WHERE h.user_id=? AND h.movie_id=? AND h.part_id>0",
+                       (uid, movie_id))
+
+    def watchers(self, movie_id: int) -> List[int]:
+        """Kinoni ko'rgan (bloklamagan) foydalanuvchilar — yangi qism chiqqanda xabar uchun."""
+        return [r[0] for r in self.q("SELECT h.user_id FROM history h JOIN users u ON u.user_id=h.user_id"
+                                     " WHERE h.movie_id=? AND u.is_blocked=0 AND h.user_id>0 AND h.user_id NOT IN"
+                                     " (SELECT user_id FROM follows WHERE topic='noparts') ORDER BY h.at DESC", (movie_id,))]
 
     def history(self, uid: int, limit: int = 15) -> List[sqlite3.Row]:
         return self.q(_CATALOG_ROW.replace("FROM movies m", "FROM history h JOIN movies m ON m.id = h.movie_id")

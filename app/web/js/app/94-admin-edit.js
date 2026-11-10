@@ -28,6 +28,7 @@
       (meta.ages || []).forEach(function (a) { age.appendChild(new Option(a + "+", String(a))); }); age.value = String(m.age || 0);
       var link = h("input"); link.type = "url"; link.value = m.group_link; link.placeholder = "https://t.me/...";
       var wurl = h("input"); wurl.type = "url"; wurl.value = m.watch_url || ""; wurl.placeholder = "https://sayt.uz/kino/123";
+      var turl = h("input"); turl.type = "url"; turl.value = m.trailer_url || ""; turl.placeholder = "https://youtube.com/watch?v=...";
       function multi(list, chosen) {
         var box = h("div", "gchips"), on = chosen.slice(), chips = {};
         list.forEach(function (o) {
@@ -102,7 +103,7 @@
       save.onclick = function () {
         var body = { id: m.id, title: title.value, description: desc.value, premium: isPrem };
         if (!music) Object.assign(body, { category: cat.value, year: year.value, country: country.value, lang: lang.value,
-          group_link: link.value, watch_url: wurl.value, genres: gen.get(), quality: qual.get(), duration_min: dur.value, age: age.value, imdb: imdb.value });
+          group_link: link.value, watch_url: wurl.value, trailer_url: turl.value, genres: gen.get(), quality: qual.get(), duration_min: dur.value, age: age.value, imdb: imdb.value });
         save.disabled = true;
         api("/api/admin/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
           .then(function (r) {
@@ -120,7 +121,7 @@
       var kids = [h("h3", null, "✏️ Tahrirlash · Kod " + m.code), music ? null : h("div", "tmwrap", [tmBtn, tmBox]), f("Nomi", title), f("Izoh", desc)];
       if (!music) kids.push(h("div", "row2", [f("Turi", cat), f("Yili", year)]), h("div", "row2", [f("Davlat", country), f("Til", lang)]),
         h("div", "row2", [f("Davomiyligi (daq)", dur), f("IMDb reyting", imdb)]), f("Yosh cheklovi", age),
-        f("Janrlar", gen.box), f("Sifat", qual.box), f("Serial guruh havolasi", link), f("Saytdagi link («Saytda ko'rish»)", wurl));
+        f("Janrlar", gen.box), f("Sifat", qual.box), f("Serial guruh havolasi", link), f("Saytdagi link («Saytda ko'rish»)", wurl), f("Treyler (YouTube havolasi)", turl));
       kids.push(h("div", "gchips", [prem]), h("div", "eactions", [cancel, save, del]));
       s.replaceChildren(h("div", "ed", kids));
       s.scrollTop = 0;
@@ -128,9 +129,30 @@
   }
 
   // ───── 🎬 treyler (admin shorts sifatida qo'shgan video) ─────
+  function youtubeId(u) {
+    var m = /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/.exec(u || "");
+    return m ? m[1] : "";
+  }
   function openTrailer(it) {
     closeTrailer(true);
     var box = $("trailer");
+    if (!it.trailer && it.turl) {                       // 🎞 YouTube havolasi: sahifa ichida ijro etiladi (boshqa havola — tashqarida ochiladi)
+      var yid = youtubeId(it.turl);
+      if (!yid) { openExternal(it.turl); return; }
+      var fr = document.createElement("iframe");
+      fr.src = "https://www.youtube-nocookie.com/embed/" + yid + "?autoplay=1&rel=0&playsinline=1";
+      fr.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; fr.allowFullscreen = true;
+      fr.setAttribute("title", it.title + " — treyler");
+      var yclose = h("button", "ibtn tclose", [icon("x")]);
+      yclose.setAttribute("aria-label", "Yopish");
+      yclose.onclick = function () { closeTrailer(); };
+      var ygo = h("button", "btn primary", [icon(it.locked ? "lock" : "play"), it.locked ? "Premium" : "Kinoni ko'rish"]);
+      ygo.onclick = function () { closeTrailer(); watch(it, ygo); };
+      box.replaceChildren(h("div", "tbox yt", [fr, h("div", "tbar", [h("b", null, it.title), ygo])]), yclose);
+      box.classList.add("on");
+      trailerOpen = true; stopHero(); updateBack();
+      return;
+    }
     var v = document.createElement("video");
     v.controls = true; v.autoplay = true; v.playsInline = true; v.setAttribute("playsinline", "");
     v.preload = "metadata";
@@ -154,6 +176,8 @@
     if (!trailerOpen) return;
     var v = box.querySelector("video");
     if (v) { try { v.pause(); v.removeAttribute("src"); v.load(); } catch (e) {} }
+    var ifr = box.querySelector("iframe");
+    if (ifr) { try { ifr.src = "about:blank"; } catch (e) {} }
     box.classList.remove("on");
     box.replaceChildren();
     trailerOpen = false;

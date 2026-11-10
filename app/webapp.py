@@ -578,6 +578,7 @@ def _item(r, premium_on: bool, vip: bool) -> dict:
         "poster": _poster_key(r["poster_id"]),
         "glink": (r["group_link"] if "group_link" in keys else "") if r["category"] in ("serial", "cartoon") else "",
         "wurl": (r["watch_url"] if "watch_url" in keys else "") or "",
+        "turl": (r["trailer_url"] if "trailer_url" in keys else "") or "",
     }
 
 
@@ -721,7 +722,7 @@ def api_admin_movie(app: App, user: dict, qs: dict) -> dict:
             "id": m["id"], "code": m["code"], "title": m["title"], "description": m["description"] or "",
             "category": m["category"], "genres": genres.parse(m["genres"]), "year": m["year"] or 0, "year_end": m["year_end"] or 0,
             "country": m["country"], "lang": m["lang"], "quality": genres.quality_parse(m["quality"]),
-            "premium": bool(m["is_premium"]), "group_link": m["group_link"] or "", "watch_url": m["watch_url"] or "",
+            "premium": bool(m["is_premium"]), "group_link": m["group_link"] or "", "watch_url": m["watch_url"] or "", "trailer_url": m["trailer_url"] or "",
             "duration_min": round((m["duration"] or 0) / 60), "age": m["age"] or 0, "imdb": m["imdb"] or "",
         },
         "meta": {
@@ -822,6 +823,11 @@ def api_admin_save(app: App, user: dict, body: dict) -> dict:
             if wu and not re.match(r"https?://", wu):
                 return {"ok": False, "reason": "wlink"}
             f["watch_url"] = wu
+        if "trailer_url" in body:
+            tu = str(body["trailer_url"]).strip()[:400]
+            if tu and not re.match(r"https?://", tu):
+                return {"ok": False, "reason": "turl"}
+            f["trailer_url"] = tu
         if "group_link" in body:
             link = str(body["group_link"]).strip()[:300]
             if link and not re.match(r"https?://", link):
@@ -1261,7 +1267,7 @@ def _kids_filter(o):
 
 # Telegram oynasi (web.telegram.org va ilovalar) ichida ochilishi uchun frame-ancestors ruxsat etilgan
 CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org https://accounts.google.com; "
-       "style-src 'self' 'unsafe-inline' https://accounts.google.com; frame-src https://accounts.google.com; "
+       "style-src 'self' 'unsafe-inline' https://accounts.google.com; frame-src https://accounts.google.com https://www.youtube-nocookie.com https://www.youtube.com; "
        "img-src 'self' data: blob: https://image.tmdb.org https://*.googleusercontent.com; font-src 'self'; media-src 'self' blob:; "
        "connect-src 'self' https://accounts.google.com; "
        "object-src 'none'; base-uri 'self'; form-action 'self'; "

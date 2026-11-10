@@ -557,6 +557,8 @@ class AddFlow(AdminCase):
         self.assertEqual(db.premium_until(502), 0)                                # pul mukofoti — Premium emas
         self.assertGreater(db.premium_until(503), 0)
         self.assertEqual(db.premium_until(504), 0)
+        winners_post = [a for nme, a, k in self.app.bot.sent if nme == "send_message" and a and a[0] == "-100777" and "g'oliblari" in str(a)]
+        self.assertTrue(winners_post)                                             # g'oliblar e'loni kanalga chiqdi
         self.assertIn("50 000 so'm", " ".join(self.app.bot.texts(502)))           # g'olibga pul haqida xabar
         self.assertIn("PUL TO'LANADI", " ".join(self.app.bot.texts(1)))           # adminga to'lash eslatmasi
         # /tekshir: o'tgan oyda hech kim yo'q — joriy oy natijasi ko'rsatiladi; foydalanuvchi o'z natijasini g'olib bilan solishtiradi
@@ -593,6 +595,46 @@ class AddFlow(AdminCase):
         self.msg(701, "/tekshir")
         self.assertIn("Tabriklaymiz, siz g'olibsiz", self.last(701))
         self.assertIn("30 kun", self.last(701))
+
+    def test_series_continue_and_new_part_notice(self):
+        import threading
+        from app.handlers import follow
+        db = self.app.db
+        db.upsert_user({"id": 901, "first_name": "Tomoshabin"})
+        mid = db.add_movie(900, "Katta sichqon", "", None, False, 1, "F1", "video", "serial", genre_keys=["comedy"])
+        db.add_part(mid, "F2", "video")
+        db.add_part(mid, "F3", "video")
+        p2 = db.get_part_by_no(mid, 2)
+        self.press(901, f"pt:{p2['id']}")                                      # 2-qismni ko'rdi
+        self.msg(901, "900")
+        self.assertIn("Davom etish: 3-qism", str(self.app.bot.sent[-1]))        # keyingi qismdan davom etish tugmasi
+        # admin 4-qismni qo'shadi → ilgari ko'rganga xabar
+        no = db.add_part(mid, "F4", "video")
+        follow._parts_today.clear()
+        follow.notify_new_parts(self.app, mid, [no])
+        for th in threading.enumerate():
+            if th.name == "parts-notify":
+                th.join(5)
+        self.assertIn("4-qism", " ".join(self.app.bot.texts(901)))
+        self.assertIn("qo'shildi", " ".join(self.app.bot.texts(901)))
+        # o'chirish: /kuzatish da «serial xabarlari» o'chirilsa — yuborilmaydi
+        self.press(901, "fw:np")
+        self.assertIn("noparts", db.user_follows(901))
+        self.assertEqual(db.watchers(mid), [])
+
+    def test_trailer_link_bot_and_site(self):
+        from app import webapp
+        mid = add_movie(self.app, 950, "Treylerli kino")
+        self.msg(1, "/start")
+        self.press(1, f"dm:tu:{mid}")
+        self.msg(1, "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        self.assertEqual(self.app.db.get_movie(mid)["trailer_url"], "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        row = self.app.db.catalog("video", "new", None, 5, movie_id=mid)[0]
+        self.assertEqual(webapp._item(row, False, True)["turl"], "https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        self.msg(5, "950")                                                         # botda foydalanuvchiga «🎞 Treyler» tugmasi
+        self.assertIn("Treyler", str(self.app.bot.sent[-1]))
+        r = webapp.api_admin_save(self.app, {"id": 1, "first_name": "A"}, {"id": mid, "trailer_url": "not-a-link"})
+        self.assertEqual(r.get("reason"), "turl")
 
     def test_year_range_typed(self):
         from app import genres
