@@ -496,6 +496,32 @@ class AddFlow(AdminCase):
         self.press(302, cb)                                                    # ikkinchi marta — qo'shilmaydi
         self.assertEqual(db.top_requests(5)[0]["n"], 2)
 
+    def test_stars_subscription_flow(self):
+        db = self.app.db
+        db.upsert_user({"id": 401, "first_name": "Obuna"})
+        db.add_plan(30, 10000, 50)
+        plan = db.q1("SELECT * FROM plans WHERE days=30 AND is_active=1")
+        self.assertIsNotNone(plan)
+        self.app.bot.create_invoice_link = lambda *a, **k: "https://t.me/$sub123"
+        self.press(401, f"pr:plan:{plan['id']}")
+        self.assertIn(f"pr:sub:{plan['id']}", str(self.app.bot.sent[-1]))                  # obuna tugmasi bor
+        self.press(401, f"pr:sub:{plan['id']}")
+        self.assertIn("https://t.me/$sub123", str(self.app.bot.sent[-1]))                   # to'lov havolasi tugmada
+        import copy
+        def pay(charge, first, recurring=True):
+            upd = message(401, "")
+            upd["message"].pop("text")
+            upd["message"]["successful_payment"] = {"currency": "XTR", "total_amount": plan["stars"], "invoice_payload": f"premsub:{plan['id']}:401",
+                                                    "telegram_payment_charge_id": charge, "is_recurring": recurring, "is_first_recurring": first,
+                                                    "subscription_expiration_date": 9999999999}
+            self.run_update(self.app, upd)
+        pay("C1", True)
+        until1 = db.premium_until(401)
+        self.assertGreater(until1, 0)
+        pay("C2", False)                                                                    # keyingi oy — avtomatik yangilanish
+        self.assertGreater(db.premium_until(401), until1)
+        self.assertIn("avtomatik yangilandi", " ".join(self.app.bot.texts(401)))
+
     def test_year_range_typed(self):
         from app import genres
         self.assertEqual(genres.parse_years("2012-2015"), (2012, 2015))

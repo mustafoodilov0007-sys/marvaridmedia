@@ -417,6 +417,13 @@ class Bot:
                                          "payload": payload, "currency": currency, "prices": prices,
                                          "provider_token": provider_token, "reply_markup": reply_markup})
 
+    def create_invoice_link(self, title, description, payload, prices, subscription_period=None, currency="XTR"):
+        """To'lov havolasi. subscription_period=2592000 (30 kun) — Stars bilan har oy avtomatik yangilanadigan obuna."""
+        params = {"title": title, "description": description, "payload": payload, "currency": currency, "prices": prices}
+        if subscription_period:
+            params["subscription_period"] = int(subscription_period)
+        return self.call("createInvoiceLink", params)
+
     def answer_pre_checkout_query(self, query_id, ok, error_message=None):
         return self.call("answerPreCheckoutQuery", {"pre_checkout_query_id": query_id, "ok": ok,
                                                     "error_message": error_message})

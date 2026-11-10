@@ -201,6 +201,9 @@ def cb_premium(ctx: Ctx) -> None:
             lines.append(f"⭐ Telegram Stars: <b>{plan['stars']} ⭐</b> (darhol faollashadi)")
             rows.append([btn(f"⭐ Telegram Stars — {plan['stars']} ⭐", f"pr:stars:{plan['id']}",
                              style=SUCCESS)])
+            if plan["days"] == 30:           # Telegram obunasi faqat 30 kunlik davr bilan ishlaydi
+                lines.append(f"🔄 Har oy avtomatik: <b>{plan['stars']} ⭐/oy</b> (xohlagan paytda bekor qilinadi)")
+                rows.append([btn(f"🔄 Har oy avtomatik — {plan['stars']} ⭐/oy", f"pr:sub:{plan['id']}", style=PRIMARY)])
         lines += ["", "To'lov usulini tanlang 👇"]
         rows.append([btn("⬅️ Orqaga", "pr:menu", style=DANGER)])
         ctx.edit("\n".join(lines), ikb(*rows))
@@ -239,6 +242,29 @@ def cb_premium(ctx: Ctx) -> None:
         except TelegramError as exc:
             log.error("Click/Payme invoice yuborilmadi: %s", exc)
             ctx.send("⚠️ To'lov oynasini ochib bo'lmadi. Keyinroq urinib ko'ring yoki karta orqali to'lang.")
+
+    elif action == "sub":
+        if not (stars_on and plan["stars"] > 0 and plan["days"] == 30):
+            ctx.answer("🔄 Obuna vaqtincha mavjud emas.", alert=True)
+            return
+        ctx.answer()
+        try:
+            link = ctx.bot.create_invoice_link(
+                f"🔄 Premium obuna — oyiga"[:32],
+                f"{app.brand} Premium: har 30 kunda avtomatik yangilanadi. Majburiy obunasiz, reklamasiz va maxsus kinolar bilan. "
+                f"Xohlagan paytda bekor qilasiz. To'lov qilish orqali /terms shartlariga rozilik bildirasiz."[:255],
+                f"premsub:{plan['id']}:{ctx.user_id}", [{"label": "Premium — 1 oy", "amount": plan["stars"]}],
+                subscription_period=2592000)
+        except TelegramError as exc:
+            log.error("Obuna havolasi yaratilmadi: %s", exc)
+            ctx.send("⚠️ Obunani rasmiylashtirib bo'lmadi. Keyinroq urinib ko'ring yoki oddiy Stars to'lovini tanlang.")
+            return
+        ctx.send(f"🔄 <b>Premium obuna</b> — <b>{plan['stars']} ⭐ / oy</b>\n\n"
+                 "• Har 30 kunda Telegram o'zi yangilaydi, Premium uzilmaydi\n"
+                 "• Bekor qilish: Telegram → Sozlamalar → Stars → <b>Obunalar</b> (xohlagan paytda)\n"
+                 "• To'langan muddat oxirigacha Premium saqlanadi\n\n"
+                 "Davom etish uchun pastdagi tugmani bosing 👇",
+                 ikb([btn("💳 Obunani rasmiylashtirish", url=link, style=SUCCESS)], [btn("⬅️ Orqaga", f"pr:plan:{plan['id']}", style=DANGER)]))
 
     elif action == "stars":
         if not (stars_on and plan["stars"] > 0):
@@ -445,14 +471,16 @@ def on_successful_payment(ctx: Ctx) -> None:
         app.notify_admins(f"⚡️ <b>Yangi Click/Payme to'lov!</b>\n\n👤 {who}\n💎 Premium {plan_name(days)} — "
                           f"<b>{fmt_num(som)} so'm</b>\n🧾 <code>{esc(charge)}</code>")
         return
-    if parts[0] == "prem":
+    if parts[0] in ("prem", "premsub"):
         plan = db.get_plan(int(parts[1])) if len(parts) > 1 and parts[1].isdigit() else None
         days = plan["days"] if plan else 30
         until = db.grant_premium(ctx.user_id, days)
+        renewed = parts[0] == "premsub" and sp.get("is_recurring") and not sp.get("is_first_recurring")
         db.create_payment(ctx.user_id, "premium", "stars", "approved", plan_id=plan["id"] if plan else None,
-                          days=days, amount=amount, currency="XTR", charge_id=charge)
-        ctx.send("🎉 <b>To'lov qabul qilindi!</b>\n\n"
-                 f"💎 Premium faollashtirildi — <b>{fmt_datetime(until)}</b> gacha.\n\n"
+                          days=days, amount=amount, currency="XTR", charge_id=charge,
+                          note="obuna (avtomatik yangilanish)" if renewed else ("obuna" if parts[0] == "premsub" else ""))
+        head = "🔄 <b>Obunangiz avtomatik yangilandi!</b>\n\n" if renewed else "🎉 <b>To'lov qabul qilindi!</b>\n\n"
+        ctx.send(head + f"💎 Premium faollashtirildi — <b>{fmt_datetime(until)}</b> gacha.\n\n"
                  "Endi botdan cheklovsiz foydalanishingiz mumkin 🍿",
                  user_menu(ctx.is_admin, True))
         app.notify_admins(f"⭐ <b>Yangi Stars to'lov!</b>\n\n👤 {who}\n💎 Premium {plan_name(days)} — "
