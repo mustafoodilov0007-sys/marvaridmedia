@@ -113,6 +113,9 @@ def cmd_start(ctx: Ctx) -> None:
     if is_new:
         from .trial import maybe_gift
         maybe_gift(ctx)
+        from .tour import start_tour
+        if ctx.db.take_tour(ctx.user_id):
+            start_tour(ctx)
     if code:
         handle_query(ctx, payload)
 

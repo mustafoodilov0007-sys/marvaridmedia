@@ -24,6 +24,7 @@ from . import startmedia  # noqa: F401
 from . import follow  # noqa: F401
 from . import trial  # noqa: F401
 from . import lang  # noqa: F401
+from . import tour  # noqa: F401
 from . import weblogin  # noqa: F401
 from .. import webapp  # noqa: F401  — 🌐 sayt (Mini App)
 from . import bootstrap  # noqa: F401

@@ -421,6 +421,8 @@ class Database:
             self.conn.execute("ALTER TABLE users ADD COLUMN ref_by INTEGER NOT NULL DEFAULT 0")
         if "contact_banned" not in ucols:  # 🚫 admin murojaat/so'rov yuborishini cheklagan
             self.conn.execute("ALTER TABLE users ADD COLUMN contact_banned INTEGER NOT NULL DEFAULT 0")
+        if "tour_done" not in ucols:  # 🧭 tanishtiruv ko'rsatilganmi
+            self.conn.execute("ALTER TABLE users ADD COLUMN tour_done INTEGER NOT NULL DEFAULT 0")
         if "lang" not in ucols:  # 🌐 bot tili: '' (o'zbek) | ru | en
             self.conn.execute("ALTER TABLE users ADD COLUMN lang TEXT NOT NULL DEFAULT ''")
         if "trial_used" not in ucols:  # 🎁 bepul Premium sinov muddati berilganmi (bir marta)
@@ -646,6 +648,10 @@ class Database:
                 c.execute("INSERT INTO users(user_id, joined_at, last_active, premium_until, premium_notified)"
                           " VALUES (?,?,?,?,?)", (uid, t, t, until, notified))
             return until
+
+    def take_tour(self, uid: int) -> bool:
+        """Tanishtiruv hali ko'rsatilmagan bo'lsa belgilaydi va True qaytaradi (bir marta)."""
+        return self.x("UPDATE users SET tour_done=1 WHERE user_id=? AND tour_done=0", (uid,)).rowcount > 0
 
     def get_lang(self, uid: int) -> str:
         return self.val("SELECT lang FROM users WHERE user_id=?", (uid,)) or ""

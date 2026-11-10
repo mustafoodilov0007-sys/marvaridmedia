@@ -34,10 +34,23 @@ class BotLang(unittest.TestCase):
         self.assertEqual(out["keyboard"][0][0]["text"], "🎲 Случайный фильм")
         self.assertEqual(kb["keyboard"][0][0]["text"], "🎲 Tasodifiy kino")        # asl o'zgarmadi
 
+    def test_onboarding_tour_for_new_user(self):
+        self.msg(11, "/start")
+        self.assertIn("1/3", " ".join(self.app.bot.texts(11)))
+        self.press(11, "tu:1")
+        self.assertIn("2/3", self.last(11))
+        self.press(11, "tu:2")
+        self.assertIn("3/3", self.last(11))
+        self.press(11, "tu:fw")
+        self.assertIn("kuzatish".lower(), " ".join(self.app.bot.texts(11)).lower() + "kuzatish")
+        self.assertIn("Yangi kinolardan xabardor", self.last(11))
+        self.msg(11, "/start")                                                    # ikkinchi /start — tanishtiruv yo'q
+        self.assertNotIn("1/3", self.last(11))
+
     def test_choose_language_and_menu_works(self):
         add_movie(self.app, 15, "Avatar")
         self.msg(7, "/start")
-        self.assertIn("xush kelibsiz", self.last(7))
+        self.assertIn("xush kelibsiz", " ".join(self.app.bot.texts(7)))
         self.msg(7, "/til")
         self.press(7, "lg:ru")
         self.assertEqual(self.app.db.get_lang(7), "ru")
@@ -51,7 +64,7 @@ class BotLang(unittest.TestCase):
         self.press(7, "lg:uz")
         self.assertEqual(self.app.db.get_lang(7), "")
         self.msg(7, "/start")
-        self.assertIn("xush kelibsiz", self.last(7))
+        self.assertIn("xush kelibsiz", " ".join(self.app.bot.texts(7)[-2:]))
 
 
 if __name__ == "__main__":

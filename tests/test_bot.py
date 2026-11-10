@@ -33,7 +33,7 @@ class Basics(BotCase):
     def test_start_and_search(self):
         add_movie(self.app, 15, "Avatar")
         self.msg(5, "/start")
-        self.assertIn("xush kelibsiz", self.last(5))
+        self.assertIn("xush kelibsiz", " ".join(self.app.bot.texts(5)))
         self.msg(5, "Avatar")
         self.assertIn("Avatar", " ".join(self.app.bot.texts(5)))
         self.msg(5, "15")        # kod bilan: kino yuboriladi
