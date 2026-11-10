@@ -164,7 +164,7 @@
       mb.onclick = function (e) { e.stopPropagation(); haptic(); setMuted(!shortsMuted); };
       if (isVideo) frame.appendChild(mb);
       var saveB = h("button", isSaved(it) ? "on" : "", [h("span", "rnd", [icon("bookmark")]), "Saqlash"]);
-      saveB.onclick = function () { saveB.classList.toggle("on", toggleSaved(it)); };
+      saveB.onclick = function () { saveB.classList.toggle("on", toggleSaved(it)); popBtn(saveB); };
       var shareB = h("button", null, [h("span", "rnd", [icon("share")]), "Ulashish"]);
       shareB.onclick = function () { share(it); };
       var infoB = h("button", null, [h("span", "rnd", [icon(CAT_ICON[it.cat] || "film")]), "Batafsil"]);

@@ -30,7 +30,7 @@
     go.onclick = function (e) { e.stopPropagation(); watch(it, go); };
     var bm = h("button", "qb" + (isSaved(it) ? " on" : ""), [icon("bookmark")]);
     bm.setAttribute("aria-label", "Saqlash: " + it.title);
-    bm.onclick = function (e) { e.stopPropagation(); bm.classList.toggle("on", toggleSaved(it)); };
+    bm.onclick = function (e) { e.stopPropagation(); bm.classList.toggle("on", toggleSaved(it)); popBtn(bm); };
     var more = h("button", "qb", [icon("info")]);
     more.setAttribute("aria-label", "Batafsil: " + it.title);
     more.onclick = function (e) { e.stopPropagation(); openSheet(it); };
@@ -228,7 +228,7 @@
     }
     var bm = h("button", "btn sq" + (isSaved(it) ? " on" : ""), [icon("bookmark")]);
     bm.setAttribute("aria-label", "Saqlash");
-    bm.onclick = function (e) { e.stopPropagation(); bm.classList.toggle("on", toggleSaved(it)); };
+    bm.onclick = function (e) { e.stopPropagation(); bm.classList.toggle("on", toggleSaved(it)); popBtn(bm); };
     var sh = h("button", "btn sq", [icon("share")]);
     sh.setAttribute("aria-label", "Ulashish");
     sh.onclick = function (e) { e.stopPropagation(); share(it); };

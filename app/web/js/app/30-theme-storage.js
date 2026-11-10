@@ -69,6 +69,11 @@
     store.set("hist", JSON.stringify(localHist));
   }
   function persistSaved() { store.set("saved", JSON.stringify(saved)); }
+  function popBtn(el) {          // 🔖 bosilganda «pop» animatsiyasini qayta ishga tushiradi
+    if (!el) return;
+    el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop");
+    setTimeout(function () { el.classList.remove("pop"); }, 600);
+  }
   function toggleSaved(it) {
     var key = "b" + it.id;
     if (saved[key]) {
