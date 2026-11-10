@@ -202,9 +202,12 @@
     function end() { if (fin) return; fin = true; done(); }
     d.addEventListener("transitionend", end); setTimeout(end, 520);
   }
+  function flyTarget(sheet) {          // telefonda poster butun ekranli muqovaga «kengayadi», kompyuterda — oynadagi postergacha
+    return innerWidth < 900 ? sheet.querySelector(".sheet-top") : sheet.querySelector(".sheet-main .poster");
+  }
   function flyCleanup() {
     if (flyEl) { flyEl.remove(); flyEl = null; }
-    var tp = document.querySelector("#sheet .sheet-main .poster"); if (tp) tp.style.visibility = "";
+    var tp = flyTarget($("sheet")); if (tp) tp.style.visibility = "";
     if (flySrc) flySrc.style.visibility = "";
   }
   function inView(r) { return r.width > 8 && r.height > 8 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; }
@@ -278,8 +281,19 @@
       };
       tabsEl.appendChild(tb); panels.push(pn);
     });
+    var topKids = [bg, h("div", "grip"), closeBtn];
+    var heroVid = null;
+    if (it.trailer && !LITE && !REDUCE && !(navigator.connection && navigator.connection.saveData)) {     // muqova ustida treyler jim o'ynaydi (poster qoladi)
+      heroVid = document.createElement("video");
+      heroVid.className = "svid"; heroVid.muted = true; heroVid.defaultMuted = true; heroVid.loop = true; heroVid.playsInline = true;
+      heroVid.setAttribute("playsinline", ""); heroVid.setAttribute("muted", ""); heroVid.preload = "auto";
+      heroVid.src = "/media/short/" + it.trailer;
+      heroVid.addEventListener("playing", function () { setTimeout(function () { heroVid.classList.add("on"); }, 700); });
+      heroVid.addEventListener("error", function () { heroVid.remove(); });
+      topKids.splice(1, 0, heroVid);
+    }
     var parts = [
-      h("div", "sheet-top", [bg, h("div", "grip"), closeBtn]),
+      h("div", "sheet-top", topKids),
       h("div", "sheet-main", [posterNode(it, 720), h("div", "info", [h("h3", null, it.title), metaLine, ratingBadges(it), chips, stats.childNodes.length ? stats : null])]),
       acts,
       me.admin ? adminBar(it) : null,
@@ -298,13 +312,14 @@
       }).catch(function () {});
     }
     flyCleanup(); flySrc = null; flyId = null;
+    if (heroVid) { var pv = heroVid.play(); if (pv && pv.catch) pv.catch(function () {}); }
     var url = (!sheetOpen && !REDUCE && srcPoster) ? imgOf(srcPoster) : "";
     if (url) { s.style.transition = "none"; s.style.opacity = "0"; }       // oyna o'z joyida paydo bo'ladi, poster «uchib» keladi
     $("veil").classList.add("on");
     s.classList.add("on");
     s.scrollTop = 0;
     if (url) {
-      var tp = s.querySelector(".sheet-main .poster"), sr = srcPoster.getBoundingClientRect(), tr = tp ? tp.getBoundingClientRect() : null;
+      var tp = flyTarget(s), sr = srcPoster.getBoundingClientRect(), tr = tp ? tp.getBoundingClientRect() : null;
       if (tr && inView(sr) && tr.width > 8) {
         tp.style.visibility = "hidden";
         flyEl = flyBox(url, sr, getComputedStyle(srcPoster).borderRadius);
@@ -329,9 +344,10 @@
   }
   function closeSheet(fromPop) {
     closeTrailer(true);
+    document.querySelectorAll("#sheet video").forEach(function (v) { try { v.pause(); } catch (e) {} });
     var sh = $("sheet"), back = null;
     if (flySrc && flyId != null && document.body.contains(flySrc) && !REDUCE) {      // orqaga «uchib» qaytish
-      var tp0 = sh.querySelector(".sheet-main .poster"), im0 = imgOf(tp0), sr0 = flySrc.getBoundingClientRect(), tr0 = tp0 ? tp0.getBoundingClientRect() : null;
+      var tp0 = flyTarget(sh), im0 = tp0 && tp0.classList.contains("sheet-top") ? imgOf(tp0.querySelector(".bg")) : imgOf(tp0), sr0 = flySrc.getBoundingClientRect(), tr0 = tp0 ? tp0.getBoundingClientRect() : null;
       if (im0 && tr0 && inView(sr0) && inView(tr0)) back = { url: im0, from: tr0, to: sr0, src: flySrc, tp: tp0 };
     }
     flyCleanup();
