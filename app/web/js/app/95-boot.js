@@ -97,7 +97,9 @@
     try { var qp = new URLSearchParams(location.search); link = qp.get("k") || qp.get("v") || pathInfo().k || (pathInfo().view ? "v" : ""); } catch (e) {}
     var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
     // kirish animatsiyasi faqat BIR MARTA: qurilma xotirasi (kesh) tozalanmaguncha qayta chiqmaydi
-    if (link || reduce || store.get("wt")) { el.remove(); return; }
+    var force = false;
+    try { force = new URLSearchParams(location.search).get("welcome") === "1"; } catch (e) {}   // ?welcome=1 — qayta ko'rish (sinov uchun)
+    if (!force && (link || reduce || store.get("wt"))) { el.remove(); return; }
     store.set("wt", "1");
     var user = !PUB && tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
     var first = user && user.first_name ? String(user.first_name).trim().slice(0, 18) : "";
