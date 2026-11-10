@@ -1,0 +1,72 @@
+/* 🎬 Tinch (premium) harakat tizimi — hamma animatsiyalar shu yerda bir xillashtiriladi.
+   Qoidalar: sakrash/aylanish/ortiqcha «prujina» yo'q; faqat opacity va transform; qisqa (.16–.38 s); bir xil egri chiziq.
+   Kartalar ro'yxatda birin-ketin emas, bir paytda yumshoq paydo bo'ladi (telefon qotmaydi). */
+:root {
+  --ease-out: cubic-bezier(.22, .61, .36, 1);
+  --ease-in-out: cubic-bezier(.4, 0, .2, 1);
+  --t1: .16s; --t2: .26s; --t3: .38s;
+}
+
+/* sahifa almashishi: faqat yumshoq paydo bo'lish */
+@keyframes pgIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+#view.enter > * { animation: pgIn var(--t2) var(--ease-out) both; }
+
+/* kartalar: bosilganda ozgina kichrayadi (sakramaydi) */
+.grid .card .poster, .rail .card .poster { transition: transform var(--t2) var(--ease-out), box-shadow var(--t2) var(--ease-out); }
+.rail .card:active .poster, .grid .card:active .poster { transform: scale(.97); transition-duration: .12s; }
+/* ro'yxat kartalari: bir paytda yengil paydo bo'ladi (kechikishsiz) */
+@keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.grid > .card, .section:not(.rv) .rail > .card, .rv.in .rail > .card { animation: cardIn var(--t3) var(--ease-out) backwards; }
+.grid > .card:nth-child(n), .rail > .card:nth-child(n) { animation-delay: 0ms !important; }
+.card.leaving { animation: cardOut var(--t2) var(--ease-in-out) forwards; }
+@keyframes cardOut { to { opacity: 0; transform: scale(.96); } }
+
+/* kichik tugmalar: sakrash o'rniga yengil «bosilish» */
+@keyframes bmPop { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
+.pop svg { animation: bmPop .26s var(--ease-out); }
+@keyframes vPop { 0% { transform: scale(1); } 40% { transform: scale(1.1); } 100% { transform: scale(1); } }
+.rbtn.vpop { animation: vPop .26s var(--ease-out); }
+.rbtn.vpop b { animation: numBump .22s var(--ease-out); }
+@keyframes numBump { 0% { transform: translateY(4px); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes heartPop { 0% { transform: scale(1); } 40% { transform: scale(1.22); } 100% { transform: scale(1); } }
+.cm-btn.like.hpop svg { animation: heartPop .3s var(--ease-out); }
+@keyframes cmDrop { 0% { opacity: 0; transform: translateY(-6px); } 100% { opacity: 1; transform: none; } }
+.cm.cm-new { animation: cmDrop var(--t2) var(--ease-out); }
+
+/* pastki menyu va siljuvchi tabletkalar: sakramaydi, ravon suriladi */
+.nav button.on svg { animation: none; }
+.nav .navind { transition: transform var(--t2) var(--ease-out), opacity var(--t1); }
+.pillbar .slidepill { transition: transform var(--t2) var(--ease-out), width var(--t2) var(--ease-out), height var(--t1), opacity var(--t1); }
+
+/* tanlangan chip, bo'sh holat, tema: bezaksiz */
+.gchip.on, .fpill.on, .ctab.on { animation: none; }
+.empty .big svg { animation: none; }
+#bTheme.spin svg { animation: themeSpin .4s var(--ease-in-out); }
+@keyframes themeSpin { 0% { transform: rotate(0); } 100% { transform: rotate(180deg); } }
+
+/* bildirishnoma: pastdan yumshoq chiqadi */
+.toast { transform: translate(-50%, 12px); transition: opacity var(--t1) ease, transform var(--t1) var(--ease-out); }
+.toast.on { transform: translate(-50%, 0); transition: opacity var(--t1) ease, transform var(--t2) var(--ease-out); }
+
+/* kino sahifasi: ma'lumotlar yengil, tez ketma-ket paydo bo'ladi (jami ~0.3 s) */
+@keyframes sUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.sheet.on .sheet-main .info > * { animation: sUp var(--t3) var(--ease-out) both; }
+.sheet.on .sheet-main .info > :nth-child(1) { animation-delay: .06s; }
+.sheet.on .sheet-main .info > :nth-child(2) { animation-delay: .09s; }
+.sheet.on .sheet-main .info > :nth-child(3) { animation-delay: .12s; }
+.sheet.on .sheet-main .info > :nth-child(4) { animation-delay: .15s; }
+.sheet.on .sheet-main .info > :nth-child(5) { animation-delay: .18s; }
+.sheet.on .sheet-main + .actions { animation: sUp var(--t3) var(--ease-out) .2s both; }
+.sheet.on .stabs { animation: sUp var(--t3) var(--ease-out) .24s both; }
+.sheet.on .spanel:not(.hidden) { animation: sUp var(--t3) var(--ease-out) .28s both; }
+.sheet .chips > .chip { animation: none; }
+.sheet.on .sheet-top .bg:not(.ph) { animation: sKen 24s ease-in-out infinite alternate; }
+@keyframes sKen { from { scale: 1; } to { scale: 1.05; } }
+@media (max-width: 899px) {
+  .sheet { transition: opacity var(--t3) var(--ease-in-out), visibility 0s linear var(--t3); }
+  .sheet.on { transition: opacity var(--t3) var(--ease-in-out), visibility 0s; }
+}
+html.lite .sheet.on .sheet-main .info > *, html.lite .sheet.on .stabs, html.lite .sheet.on .sheet-main + .actions,
+html.lite .sheet.on .spanel, html.lite .grid > .card, html.lite .rail > .card { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+@keyframes tbpop { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
