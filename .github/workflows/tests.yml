@@ -14,3 +14,12 @@ jobs:
           python-version: "3.12"
       - name: Avtomatik testlar (bot, sayt, baza)
         run: python -W ignore::ResourceWarning -m unittest discover -s tests -t . -v
+      - name: Sayt JavaScript sintaksisini tekshirish
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          web = Path("app/web")
+          Path("/tmp/app.js").write_text("\n".join(f.read_text(encoding="utf-8") for f in sorted((web / "js" / "app").glob("*.js"))), encoding="utf-8")
+          PY
+          node --check /tmp/app.js
+          node --check app/web/js/i18n.js

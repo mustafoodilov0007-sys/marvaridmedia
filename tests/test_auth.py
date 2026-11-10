@@ -150,7 +150,10 @@ class Ads(AuthCase):
 
     def test_poster_thumb_webp_smaller(self):
         import io
-        from PIL import Image
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow o'rnatilmagan")
         from app import webapp
         if not webapp._webp_ok():
             self.skipTest("Pillow WebP yo'q")
