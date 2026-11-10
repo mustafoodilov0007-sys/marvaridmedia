@@ -27,6 +27,7 @@ from . import lang  # noqa: F401
 from . import tour  # noqa: F401
 from . import contest  # noqa: F401
 from . import tvchannels  # noqa: F401
+from . import weekly  # noqa: F401
 from . import shortscheck  # noqa: F401
 from . import weblogin  # noqa: F401
 from .. import webapp  # noqa: F401  — 🌐 sayt (Mini App)

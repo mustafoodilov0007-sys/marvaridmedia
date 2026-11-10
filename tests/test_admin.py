@@ -548,6 +548,41 @@ class AddFlow(AdminCase):
         self.press(1, f"tvc:del:{db.tv_channels()[0]['id']}")
         self.assertEqual(webapp.api_tv(app, {"id": 1})["channels"], [])
 
+    def test_weekly_top5_post_and_toggle(self):
+        from app.handlers import weekly
+        app, db = self.app, self.app.db
+        app.set_setting("post_channel", "-100777")
+        for i in range(6):
+            mid = add_movie(app, 800 + i, f"Haftalik kino {i}")
+            for _ in range(6 - i):
+                db.inc_views(mid, db.get_parts(mid)[0]["id"])
+        self.msg(1, "/haftatop")
+        self.assertIn("Haftaning TOP-5", self.last(1))
+        self.press(1, "wk:tog")
+        self.assertTrue(app.setting_bool("weekly_on"))
+        self.press(1, "wk:now")
+        posts = [a for nme, a, k in app.bot.sent if nme in ("send_photo", "send_message") and a and a[0] == "-100777"]
+        self.assertTrue(posts)
+        txt = str(posts[-1])
+        self.assertIn("Haftalik kino 0", txt)
+        self.assertNotIn("Haftalik kino 5", txt)                                     # faqat 5 ta
+        self.press(1, "wk:test")
+        self.assertTrue([1 for nme, a, k in app.bot.sent if nme in ("send_photo", "send_message") and a and a[0] == 1 and "TOP-5" in str(a)])
+
+    def test_searcher_of_missing_movie_is_notified_when_added(self):
+        app, db = self.app, self.app.db
+        db.upsert_user({"id": 601, "first_name": "Q"})
+        db.log_search(601, "Yashirin Qahramon", "yashirin qahramon", 0)          # topilmagan qidiruv (so'rov yubormagan)
+        add_movie(app, 810, "Boshqa kino")
+        self.assertNotIn("Qidirgan kinongiz", " ".join(app.bot.texts(601)))
+        mid = add_movie(app, 811, "Yashirin Qahramon")
+        from app.handlers.contact import notify_requesters
+        notify_requesters(app, mid)
+        self.assertIn("Qidirgan kinongiz qo'shildi", " ".join(app.bot.texts(601)))
+        n = len(app.bot.texts(601))
+        notify_requesters(app, mid)                                                  # ikkinchi marta yuborilmaydi
+        self.assertEqual(len(app.bot.texts(601)), n)
+
     def test_marvarid_tv_empty_and_deleted_movie(self):
         from app import tv, webapp
         tv._mem.clear()

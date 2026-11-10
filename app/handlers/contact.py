@@ -373,4 +373,26 @@ def notify_requesters(app, movie_id: int) -> int:
         except TelegramError as exc:
             log.warning("So'rov egasiga xabar yetmadi (%s): %s", r["user_id"], exc.description)
         time.sleep(0.05)
+    # 🔔 /sorov bosmagan bo'lsa ham: kino topilmagan qidiruv egasiga ham xabar boradi (bir marta, har qidiruv uchun)
+    for r in app.db.failed_searches(now() - REQUEST_DAYS * 86400):
+        need = _need_tokens(r["norm"])
+        if not need or not set(need) <= title_tokens:
+            continue
+        app.db.mark_searches_notified(r["user_id"], r["norm"])
+        u = app.db.get_user(r["user_id"])
+        if r["user_id"] in sent_to or not u or u["is_blocked"]:
+            continue
+        sent_to.add(r["user_id"])
+        code = f"\n🔢 Kod: <code>{movie['code']}</code>" if movie["code"] > 0 else ""
+        try:
+            app.bot.send_message(
+                r["user_id"],
+                f"🔔 <b>Qidirgan kinongiz qo'shildi!</b>\n\n🔎 Siz qidirgan: «{esc(r['query'])}»\n"
+                f"🎬 <b>{esc(movie['title'])}</b>{code}\n\nHoziroq tomosha qiling 🍿",
+                ikb([btn("▶️ Ko'rish", f"mv:{movie_id}", style=SUCCESS)]))
+        except Forbidden:
+            app.db.set_blocked(r["user_id"], True)
+        except TelegramError as exc:
+            log.warning("Qidiruv egasiga xabar yetmadi (%s): %s", r["user_id"], exc.description)
+        time.sleep(0.05)
     return len(sent_to)

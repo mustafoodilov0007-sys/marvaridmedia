@@ -384,6 +384,9 @@ class Database:
 
     def _migrate(self) -> None:
         """Eski bazaga yangi ustunlarni qo'shadi (ma'lumotlar saqlanib qoladi)."""
+        scols = {r[1] for r in self.conn.execute("PRAGMA table_info(searches)").fetchall()}
+        if scols and "notified" not in scols:     # 🔔 topilmagan qidiruv egasiga «kino qo'shildi» xabari yuborilganmi
+            self.conn.execute("ALTER TABLE searches ADD COLUMN notified INTEGER NOT NULL DEFAULT 0")
         cols = {r[1] for r in self.conn.execute("PRAGMA table_info(movies)").fetchall()}
         if "category" not in cols:
             # eski kinolarning hammasi «kino» turida qoladi
@@ -958,6 +961,14 @@ class Database:
 
     def open_requests(self, since: int) -> List[sqlite3.Row]:
         return self.q("SELECT * FROM requests WHERE done_at=0 AND created_at>=? ORDER BY id", (since,))
+
+    def failed_searches(self, since: int) -> List[sqlite3.Row]:
+        """Natija topilmagan, hali xabar yuborilmagan qidiruvlar (foydalanuvchi bo'yicha eng yangisi)."""
+        return self.q("SELECT MAX(id) AS id, user_id, MIN(query) AS query, norm FROM searches WHERE results=0 AND notified=0"
+                      " AND created_at>=? AND user_id>0 AND norm<>'' GROUP BY user_id, norm", (since,))
+
+    def mark_searches_notified(self, uid: int, norm: str) -> None:
+        self.x("UPDATE searches SET notified=1 WHERE user_id=? AND norm=?", (uid, norm))
 
     def close_request(self, request_id: int, movie_id: int) -> None:
         self.x("UPDATE requests SET done_at=?, movie_id=? WHERE id=?", (now(), movie_id, request_id))
