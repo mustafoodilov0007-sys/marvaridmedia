@@ -56,19 +56,13 @@ def cat_name(category: str) -> str:
 # {card} — karta raqami, {holder} — karta egasi.
 DEFAULT_TEXTS = {
     "start_text": (
-        "✨ <b>{brand}</b> — kino olamiga xush kelibsiz, <b>{name}</b>!\n\n"
-        "🎬 <b>{movies}</b> kino  •  📺 <b>{serials}</b> serial  •  🧸 <b>{cartoons}</b> multfilm  •  🎵 <b>{music}</b> qo'shiq\n\n"
-        "<b>Qanday ishlaydi?</b>\n"
-        "1️⃣ Kino <b>nomini</b> yozing yoki 🔢 <b>kodini</b> yuboring\n"
-        "2️⃣ Yoki pastdagi tugmalardan tanlang\n"
-        "3️⃣ Kino bir zumda chatingizga keladi ⚡️\n\n"
-        "😔 Topilmasa — /sorov bilan so'rang, tez orada qo'shamiz.\n"
-        "🍿 Yoqimli hordiq tilaymiz!"
+        "✨ Assalomu alaykum, <b>{name}</b>!\n\n"
+        "<b>{brand}</b> — kino olamiga xush kelibsiz 🍿\n\n"
+        "Kino <b>nomi</b> yoki <b>kodini</b> yozing — qolganini o'zim hal qilaman 💫"
     ),
     "sub_text": (
-        "🚀📢 <b>Botdan to'liq foydalanish uchun avvalo asosiy kanalimizga obuna bo'ling!</b>\n\n"
-        "✅ Kanalga obuna bo'lganingizdan so'ng botning barcha funksiyalaridan "
-        "foydalanishingiz mumkin bo'ladi."
+        "🌟 <b>Deyarli tayyor!</b>\n\n"
+        "Botdan to'liq foydalanish uchun kanalimizga obuna bo'ling va pastdagi tugmani bosing 👇"
     ),
     "caption_footer": (
         "━━━━━━━━━━━━━━━\n"

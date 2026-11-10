@@ -340,7 +340,7 @@ class AddFlow(AdminCase):
         add_movie(self.app, 5, "Avatar")
         self.msg(1, "/start")
         self.assertIn("kino olamiga xush kelibsiz", self.last(1))
-        self.assertIn("1</b> kino", self.last(1))                          # jonli statistika
+        self.assertLess(len(self.last(1)), 200)                            # qisqa va yoqimli
         self.msg(1, "/startmedia")                                         # admin GIF/rasm qo'yadi
         m = message(1, "")
         m["message"].pop("text")
