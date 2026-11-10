@@ -92,6 +92,50 @@ def cmd_rating(ctx: Ctx) -> None:
     ctx.send(standings_text(ctx.app, ctx.user_id))
 
 
+def check_text(app, uid: int) -> str:
+    """/tekshir: o'tgan oy musobaqa natijasi (g'oliblar va foydalanuvchining o'z natijasi). O'tgan oyda ishtirokchi bo'lmasa — joriy oy."""
+    now_dt = datetime.now(TZ)
+    prev = now_dt.replace(day=1) - timedelta(days=1)
+    start, end = month_bounds(prev)
+    pz = prizes(app)
+    rows = app.db.top_referrers(start, end, max(len(pz), 5))
+    final = bool(rows)
+    if not final:
+        start, end = month_bounds(now_dt)
+        rows = app.db.top_referrers(start, end, max(len(pz), 5))
+    period = datetime.fromtimestamp(start, TZ).strftime("%m.%Y")
+    lines = [f"🔎 <b>Musobaqa natijalari</b> ({period})" + ("" if final else " — <i>davom etmoqda</i>"), ""]
+    if not rows:
+        lines.append("Hali hech kim do'st taklif qilmagan. Birinchi bo'ling: /taklif 🚀")
+        return "\n".join(lines)
+    best = rows[0]["n"]
+    for i, r in enumerate(rows[:max(len(pz), 3)]):
+        prize = ""
+        if i < len(pz) and r["n"] >= MIN_REFS:
+            prize = " → " + prize_text(pz[i])
+        lines.append(f"{place_mark(i)} {_name(r)} — <b>{r['n']}</b> ta{prize}" + ("  ← siz" if r["uid"] == uid else ""))
+    mine = app.db.referral_count_between(uid, start, end)
+    rank = app.db.referral_rank(uid, start, end)
+    lines.append("")
+    if not mine:
+        lines.append(f"Sizning natijangiz: <b>0 ta</b> (g'olibda {best} ta). Keyingi oy qatnashing: /taklif")
+    else:
+        won = rank and rank <= len(pz) and mine >= MIN_REFS
+        lines.append(f"Sizning natijangiz: <b>{mine} ta</b> — {rank}-o'rin" + (f" (g'olibda {best} ta, sizda {mine} ta)" if rank > 1 else " 🏆"))
+        if final and won:
+            lines.append(f"🎉 <b>Tabriklaymiz, siz g'olibsiz!</b> Mukofot: {prize_text(pz[rank - 1])}")
+        elif mine < MIN_REFS:
+            lines.append(f"Mukofot uchun kamida {MIN_REFS} ta do'st kerak edi.")
+        elif final:
+            lines.append("Keyingi oy yana urinib ko'ring: /taklif 💪")
+    return "\n".join(lines)
+
+
+@router.command("tekshir", "natija", gate=False)
+def cmd_check(ctx: Ctx) -> None:
+    ctx.send(check_text(ctx.app, ctx.user_id))
+
+
 # ───── kanalga e'lon ─────
 
 def announce_text(app) -> str:

@@ -559,10 +559,40 @@ class AddFlow(AdminCase):
         self.assertEqual(db.premium_until(504), 0)
         self.assertIn("50 000 so'm", " ".join(self.app.bot.texts(502)))           # g'olibga pul haqida xabar
         self.assertIn("PUL TO'LANADI", " ".join(self.app.bot.texts(1)))           # adminga to'lash eslatmasi
+        # /tekshir: o'tgan oyda hech kim yo'q — joriy oy natijasi ko'rsatiladi; foydalanuvchi o'z natijasini g'olib bilan solishtiradi
+        self.msg(504, "/tekshir")
+        out = self.last(504)
+        self.assertIn("Sizning natijangiz: <b>2 ta</b>", out)
+        self.assertIn("g'olibda 5 ta, sizda 2 ta", out)
+        self.msg(501, "/tekshir")
+        self.assertIn("1-o'rin", self.last(501))
         self.press(1, "cn:add")
         self.assertEqual(len(contest.prizes(self.app)), 4)                        # g'oliblar sonini admin belgilaydi
         self.press(1, "cn:tog")
         self.assertFalse(contest.enabled(self.app))
+
+    def test_check_command_shows_last_month_results(self):
+        from datetime import datetime, timedelta
+        from app.handlers import contest
+        db = self.app.db
+        prev = datetime.now(contest.TZ).replace(day=1) - timedelta(days=1)
+        start, _ = contest.month_bounds(prev)
+        for uid in (701, 702):
+            db.upsert_user({"id": uid, "first_name": f"P{uid}"})
+        n = 800
+        for inviter, cnt in ((701, 10), (702, 1)):
+            for _ in range(cnt):
+                n += 1
+                db.upsert_user({"id": n, "first_name": "d"})
+                db.x("UPDATE users SET ref_by=?, joined_at=? WHERE user_id=?", (inviter, start + 500, n))
+        contest.save_prizes(self.app, [{"t": "p", "v": 30}])
+        self.msg(702, "/tekshir")
+        out = self.last(702)
+        self.assertIn("g'olibda 10 ta, sizda 1 ta", out)                           # «g'olibda 10 ta, sizda 1 ta»
+        self.assertIn("kamida 3 ta do'st kerak edi", out)
+        self.msg(701, "/tekshir")
+        self.assertIn("Tabriklaymiz, siz g'olibsiz", self.last(701))
+        self.assertIn("30 kun", self.last(701))
 
     def test_year_range_typed(self):
         from app import genres

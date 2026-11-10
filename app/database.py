@@ -583,6 +583,15 @@ class Database:
                       " JOIN users u ON u.user_id = r.ref_by WHERE r.ref_by>0 AND r.joined_at>=? AND r.joined_at<?"
                       " GROUP BY r.ref_by ORDER BY n DESC, first_at ASC LIMIT ?", (since, until, limit))
 
+    def referral_rank(self, uid: int, since: int, until: int) -> int:
+        """Taklif qilganlar orasidagi o'rin (1 — eng ko'p). Hali hech kimni taklif qilmagan bo'lsa — 0."""
+        mine = self.referral_count_between(uid, since, until)
+        if not mine:
+            return 0
+        better = self.val("SELECT COUNT(*) FROM (SELECT ref_by FROM users WHERE ref_by>0 AND joined_at>=? AND joined_at<?"
+                          " GROUP BY ref_by HAVING COUNT(*)>?)", (since, until, mine))
+        return better + 1
+
     def referral_count_between(self, uid: int, since: int, until: int) -> int:
         return self.val("SELECT COUNT(*) FROM users WHERE ref_by=? AND joined_at>=? AND joined_at<?", (uid, since, until))
 
