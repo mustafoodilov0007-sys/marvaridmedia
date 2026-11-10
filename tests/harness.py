@@ -54,6 +54,11 @@ class FakeBot:
     def texts(self, chat=None):
         out = []
         for name, a, k in self.sent:
+            if name in ("sendPhoto", "editMessageMedia") and a and isinstance(a[0], dict):       # bot.call orqali rasmli xabar
+                prm = a[0]
+                if chat is None or prm.get("chat_id") == chat:
+                    out.append(str(prm.get("caption") or (prm.get("media") or {}).get("caption") or ""))
+                continue
             if name in ("send_message", "send_photo", "send_video", "send_document", "edit_message_text"):
                 if chat is None or (a and a[0] == chat):
                     idx = 2 if name == "edit_message_text" else 1     # (edit: chat_id, message_id, matn)

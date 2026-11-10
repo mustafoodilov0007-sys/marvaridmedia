@@ -335,6 +335,14 @@ def handle_query(ctx: Ctx, raw: str) -> None:
         return
     app.cache_search(sid, (text, ids, fuzzy))
     page_text, kb = search_view(app, sid, text, ids, fuzzy, 0, len(music_ids))
+    poster = search_poster(app, ids, 0)
+    if poster and visible_len(page_text) <= CAPTION_LIMIT:         # birinchi natijaning posteri bilan
+        try:
+            ctx.bot.call("sendPhoto", {"chat_id": ctx.chat_id, "photo": poster, "caption": ctx.tr(page_text), "parse_mode": "HTML",
+                                       "reply_markup": ctx.tr_kb(kb)})
+            return
+        except TelegramError as exc:
+            log.debug("Qidiruv posteri yuborilmadi: %s", exc)
     ctx.send(page_text, kb)
 
 
@@ -507,7 +515,34 @@ def cb_search_page(ctx: Ctx) -> None:
     music_n = len(search_ids(ctx.app, normalize(query), "music", fuzzy_ok=False)[0])
     text, kb = search_view(ctx.app, sid, query, ids, fuzzy, page, music_n)
     ctx.answer()
+    if "photo" in ctx.cb_message and visible_len(text) <= CAPTION_LIMIT:      # rasmli natija — sahifa almashganda poster ham almashadi
+        poster = search_poster(ctx.app, ids, page % max(1, math.ceil(len(ids) / PER_PAGE)))
+        if poster:
+            try:
+                ctx.bot.call("editMessageMedia", {"chat_id": ctx.chat_id, "message_id": ctx.cb_message["message_id"],
+                                                  "media": {"type": "photo", "media": poster, "caption": ctx.tr(text), "parse_mode": "HTML"},
+                                                  "reply_markup": ctx.tr_kb(kb)})
+                return
+            except BadRequest as exc:
+                if exc.has("message is not modified"):
+                    return
+            except TelegramError:
+                pass
+        ctx.edit(text, kb)                  # poster yo'q — faqat izohni (ro'yxatni) yangilaymiz
+        return
     edit_or_send(ctx, text, kb)
+
+
+CAPTION_LIMIT = 980          # Telegram rasm izohi 1024 belgigacha
+
+
+def search_poster(app, ids: List[int], page: int):
+    """Sahifadagi birinchi posterli kinoning poster file_id si (yo'q bo'lsa — None)."""
+    for mid in ids[page * PER_PAGE:(page + 1) * PER_PAGE][:4]:
+        m = app.db.get_movie(mid)
+        if m and m["poster_id"] and m["category"] != "music":
+            return m["poster_id"]
+    return None
 
 
 def edit_or_send(ctx: Ctx, text: str, kb) -> None:

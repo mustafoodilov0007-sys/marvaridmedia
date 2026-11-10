@@ -30,6 +30,14 @@ class BotCase(unittest.TestCase):
 
 
 class Basics(BotCase):
+    def test_search_result_comes_with_poster(self):
+        mid = add_movie(self.app, 21, "Poster kino", )
+        self.app.db.update_movie(mid, poster_id="POSTER_FILE")
+        self.msg(5, "poster kino")
+        photos = [a[0] for n, a, k in self.app.bot.sent if n == "sendPhoto" and a and isinstance(a[0], dict) and a[0].get("photo") == "POSTER_FILE"]
+        self.assertTrue(photos and "Poster kino" in photos[-1]["caption"])
+        self.assertIn("inline_keyboard", photos[-1]["reply_markup"])
+
     def test_unknown_command_and_title_buttons(self):
         add_movie(self.app, 20, "Avatar Suv yo'li")
         self.msg(5, "/qandaydir")

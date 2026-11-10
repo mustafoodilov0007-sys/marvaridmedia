@@ -18,7 +18,7 @@ def trial_days(app) -> int:
     if raw == "":
         return DEFAULT_DAYS
     try:
-        return max(0, min(30, int(raw)))
+        return max(0, min(90, int(raw)))
     except ValueError:
         return 0
 
@@ -48,15 +48,19 @@ def maybe_gift(ctx: Ctx) -> bool:
     return True
 
 
+LABELS = {0: "O'chirish", 1: "1 kun", 3: "3 kun", 30: "1 oy"}
+
+
 def _view(app):
     d = trial_days(app)
+    shown = "o‘chiq" if d == 0 else (f"{d} kun" + (" (1 oy)" if d == 30 else ""))
     text = ("🎁 <b>Premium sinov muddati</b>\n\n"
-            f"Hozir: <b>{'o‘chiq' if d == 0 else f'{d} kun'}</b>\n\n"
-            "Yangi foydalanuvchi birinchi /start da bir marta shuncha kun bepul Premium oladi "
-            "(eski foydalanuvchilarga berilmaydi). Premium'ni sinab ko'rgan odam keyin to'lashi ehtimoli yuqori.\n\n"
+            f"Hozir: <b>{shown}</b>\n\n"
+            "Yangi foydalanuvchi birinchi /start da bir marta shuncha vaqt bepul Premium oladi "
+            "(eski foydalanuvchilarga berilmaydi). Muddatni o'zingiz tanlaysiz.\n\n"
             "⚠️ Sinov davomida foydalanuvchi majburiy kanallarga obuna bo'lmasdan foydalanadi (Premium shunday ishlaydi).")
-    rows = [[btn(("✅ " if d == n else "") + (f"{n} kun" if n else "O'chirish"), f"tr:set:{n}", style=SUCCESS if d == n else PRIMARY)
-             for n in (0, 1, 3, 7)]]
+    rows = [[btn(("✅ " if d == n else "") + LABELS[n], f"tr:set:{n}", style=SUCCESS if d == n else PRIMARY) for n in (0, 1, 3, 30)],
+            [btn("✏️ Boshqa muddat (kun)", "tr:custom", style=PRIMARY)]]
     return text, ikb(*rows)
 
 
@@ -75,5 +79,26 @@ def cb_trial(ctx: Ctx) -> None:
             _since(ctx.app)
         ctx.answer("✅ Saqlandi")
         ctx.edit(*_view(ctx.app))
+    elif len(parts) > 1 and parts[1] == "custom":
+        ctx.answer()
+        ctx.set_state("tr:in")
+        ctx.send("✏️ Sinov muddatini <b>kun</b> bilan yuboring (1 dan 90 gacha), masalan <code>14</code>.",
+                 ikb([btn("❌ Bekor qilish", "cancel", style=DANGER)]))
     else:
         ctx.answer()
+
+
+@router.state("tr:in", admin=True)
+def st_trial_days(ctx: Ctx) -> None:
+    if not ctx.is_owner:
+        ctx.clear_state()
+        return
+    text = ctx.text.strip()
+    if not text.isdigit() or not 1 <= int(text) <= 90:
+        ctx.send("❗️ 1 dan 90 gacha kun sonini yuboring.")
+        return
+    ctx.app.set_setting("trial_days", text)
+    _since(ctx.app)
+    ctx.clear_state()
+    ctx.send("✅ Saqlandi.")
+    ctx.send(*_view(ctx.app))
