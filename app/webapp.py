@@ -1563,6 +1563,11 @@ def make_handler(app: App):
                 if m:
                     page = seo.movie_page(app, _site_base(self, app), int(m.group(1)), _poster_key)
                     return self._index(qs, page, 200 if page else 404)
+                m = re.fullmatch(r"/kolleksiya/(\d{1,9})(?:-[a-z0-9-]*)?", path)
+                if m or path == "/kolleksiyalar":
+                    base = _site_base(self, app)
+                    page = seo.collection_page(app, base, int(m.group(1))) if m else seo.collections_index_page(app, base)
+                    return self._index(qs, page, 200 if page else 404)
                 m = re.fullmatch(r"/janr/([a-z]{3,20})", path)
                 if m or path in seo.LIST_PAGES:
                     base = _site_base(self, app)

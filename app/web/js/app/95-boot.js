@@ -152,6 +152,7 @@
   try { startView = new URLSearchParams(location.search).get("v") || ""; } catch (e) {}
   var pI = pathInfo();
   if (pI.genre) show("video", { f: { genre: pI.genre } });
+  else if (pI.colId) show("col", { id: pI.colId });
   else show(pI.view || (["stats", "support", "search", "saved", "movie", "serial", "cartoon", "music", "shorts", "profile", "catalog"].indexOf(startView) >= 0 ? startView : "home"));
   // 🔗 kanal postidagi havola: ?k=15 (kino) yoki ?k=m3 (musiqa) — shu kino oynasi darhol ochiladi
   (function () {

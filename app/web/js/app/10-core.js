@@ -19,6 +19,8 @@
     var p = location.pathname, m;
     if ((m = p.match(/^\/kino\/(\d{1,9})/))) return { k: m[1] };
     if ((m = p.match(/^\/janr\/([a-z]{3,20})$/))) return { view: "video", genre: m[1] };
+    if ((m = p.match(/^\/kolleksiya\/(\d{1,9})/))) return { view: "col", colId: m[1] };
+    if (p === "/kolleksiyalar") return { view: "cols" };
     var v = { "/kinolar": "movie", "/seriallar": "serial", "/multfilmlar": "cartoon" }[p];
     return v ? { view: v } : {};
   }

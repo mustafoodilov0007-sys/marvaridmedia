@@ -6,6 +6,7 @@ Odam ko'radigan sahifa — oddiy sayt (SPA); qidiruv robotlari ko'radigan ma'lum
 
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import re
@@ -125,6 +126,61 @@ def list_page(app, base: str, cat: Optional[str] = None, genre: Optional[str] = 
             "noscript": noscript, "status": 200}
 
 
+def collection_path(cid: int, title: str) -> str:
+    s = slug(title)
+    return f"/kolleksiya/{cid}" + (f"-{s}" if s else "")
+
+
+def _list_ld_html(base: str, h1: str, desc: str, url: str, items, brand: str, extra_nav: str = "") -> Dict:
+    ld = {"@context": "https://schema.org", "@type": "ItemList", "name": h1, "url": url,
+          "itemListElement": [{"@type": "ListItem", "position": i + 1, "url": base + movie_path(r["code"], r["title"]), "name": r["title"]}
+                              for i, r in enumerate(items[:50])]}
+    lis = ""
+    for r in items:
+        yr = f" ({r['year']})" if r["year"] else ""
+        lis += f'<li><a href="{_e(movie_path(r["code"], r["title"]))}">{_e(r["title"])}</a>{yr}</li>'
+    noscript = f'<article><h1>{_e(h1)}</h1><p>{_e(desc)}</p><ol>{lis}</ol><nav><a href="/">Bosh sahifa</a> {extra_nav}</nav></article>'
+    return {"ld": ld, "noscript": noscript}
+
+
+def collection_page(app, base: str, cid: int) -> Optional[Dict]:
+    """Bitta kolleksiya sahifasi (masalan «Marvel to'plami»): Google'da «Marvel kinolari o'zbek tilida» kabi so'rovlar uchun."""
+    db, brand = app.db, app.brand
+    col = db.get_collection(cid)
+    if not col:
+        return None
+    rows = [r for r in db.collection_movies(cid, 100) if r["code"] > 0]
+    if not rows:
+        return None
+    h1 = col["title"]
+    desc = f"{h1}: {len(rows)} ta kino va serial o'zbek tilida. " + ", ".join(r["title"] for r in rows[:4]) + " va boshqalar. Qidiring, saqlang, tomosha qiling."
+    url = base + collection_path(cid, h1)
+    title = f"{h1} — kinolar o'zbek tilida | {brand}"
+    first = next((r for r in rows if r["poster_id"]), None)
+    image = f"{base}/api/poster/{first['id']}?v=" + hashlib.sha1(first["poster_id"].encode()).hexdigest()[:12] if first else f"{base}/og.png"
+    parts = _list_ld_html(base, h1, desc, url, rows, brand, '<a href="/kolleksiyalar">Barcha kolleksiyalar</a>')
+    return {"title": title, "og": og_tags(brand, title, desc, image, url), "canonical": url, "jsonld": parts["ld"],
+            "noscript": parts["noscript"], "status": 200}
+
+
+def collections_index_page(app, base: str) -> Optional[Dict]:
+    db, brand = app.db, app.brand
+    cols = [c for c in db.list_collections() if c["n"]]
+    if not cols:
+        return None
+    h1 = "Kolleksiyalar"
+    desc = "Mavzu bo'yicha kino to'plamlari: " + ", ".join(c["title"] for c in cols[:6]) + ". O'zbek tilida tomosha qiling."
+    url = base + "/kolleksiyalar"
+    title = f"Kolleksiyalar — mavzu bo'yicha kinolar | {brand}"
+    lis = "".join(f'<li><a href="{_e(collection_path(c["id"], c["title"]))}">{_e(c["title"])}</a> ({c["n"]} ta)</li>' for c in cols)
+    ld = {"@context": "https://schema.org", "@type": "ItemList", "name": h1, "url": url,
+          "itemListElement": [{"@type": "ListItem", "position": i + 1, "url": base + collection_path(c["id"], c["title"]), "name": c["title"]}
+                              for i, c in enumerate(cols[:50])]}
+    noscript = f'<article><h1>{_e(h1)}</h1><p>{_e(desc)}</p><ul>{lis}</ul><nav><a href="/">Bosh sahifa</a></nav></article>'
+    return {"title": title, "og": og_tags(brand, title, desc, f"{base}/og.png", url), "canonical": url, "jsonld": ld,
+            "noscript": noscript, "status": 200}
+
+
 def apply(page_html: str, seo: Dict) -> str:
     """Asosiy sahifaga SEO ma'lumotlarini kiritadi: sarlavha, OG, kanonik havola, JSON-LD, <noscript>."""
     s = page_html
@@ -152,6 +208,10 @@ def sitemap(app, base: str) -> str:
     urls: List[tuple] = [(base + "/", None, "1.0")]
     urls += [(base + p, None, "0.8") for p in LIST_PAGES]
     urls += [(f"{base}/janr/{k}", None, "0.6") for k in db.genre_counts("video")]
+    cols = [c for c in db.list_collections() if c["n"]]
+    if cols:
+        urls.append((base + "/kolleksiyalar", None, "0.7"))
+        urls += [(base + collection_path(c["id"], c["title"]), None, "0.7") for c in cols]
     for r in db.q("SELECT code, title, created_at FROM movies WHERE category<>'music' AND code>0 ORDER BY id DESC LIMIT 49000"):
         urls.append((base + movie_path(r["code"], r["title"]), datetime.fromtimestamp(r["created_at"], TZ).strftime("%Y-%m-%d"), "0.7"))
     out = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']

@@ -12,7 +12,10 @@
       if (histFirst) { histFirst = false; history.replaceState(st, "", undefined); return; }   // birinchi ko'rinish: yangi yozuv yo'q
       var cur = history.state;
       if (cur && !cur.sheet && cur.v === name && JSON.stringify(cur.o || {}) === JSON.stringify(o)) return;
-      history.pushState(st, "", VIEW_PATH[name] || ("/?v=" + name));
+      var path = VIEW_PATH[name] || ("/?v=" + name);
+      if (name === "col" && opts && opts.id != null) path = /^\d+$/.test(String(opts.id)) ? "/kolleksiya/" + opts.id : "/janr/" + String(opts.id).replace(/^g_/, "");
+      if (name === "cols") path = "/kolleksiyalar";
+      history.pushState(st, "", path);
     } catch (e) {}
   }
   function pushSheet(it) {

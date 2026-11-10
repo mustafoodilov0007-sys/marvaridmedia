@@ -35,6 +35,27 @@ class Pages(WebCase):
         self.assertIn('property="og:image"', page)
         self.assertIn('rel="manifest"', page)
 
+    def test_collection_pages_for_search_engines(self):
+        db = self.app.db
+        cid = db.add_collection("Marvel to'plami")
+        db.add_to_collection(cid, self.m1)
+        db.add_to_collection(cid, self.m3)
+        st, body, _ = self.web.get(f"/kolleksiya/{cid}-marvel-toplami")
+        page = body.decode()
+        self.assertEqual(st, 200)
+        self.assertIn("Marvel to&#x27;plami — kinolar o&#x27;zbek tilida", page)
+        self.assertIn('"@type": "ItemList"', page)
+        self.assertIn('rel="canonical"', page)
+        self.assertIn("Avatar Suv yo&#x27;li", page)                                  # <noscript> ro'yxatida
+        st2, body2, _ = self.web.get("/kolleksiyalar")
+        self.assertEqual(st2, 200)
+        self.assertIn(f"/kolleksiya/{cid}-marvel-toplami", body2.decode())
+        self.assertEqual(self.web.get("/kolleksiya/99999")[0], 404)
+        from app import seo
+        seo._cache.clear()                                                          # sitemap 1 soat keshlanadi
+        sm = self.web.get("/sitemap.xml")[1].decode()
+        self.assertIn(f"/kolleksiya/{cid}-marvel-toplami", sm)
+
     def test_movie_link_preview(self):
         st, body, _ = self.web.get("/?k=101")
         page = body.decode()
