@@ -61,7 +61,7 @@
       activate = function () { Player.playFrom(it, b); };
     } else {
       if (HOVER) b.appendChild(quickView(it));
-      activate = function () { openSheet(it); };
+      activate = function () { openSheet(it, false, b.querySelector(".poster")); };
     }
     b.onclick = activate;      // tugma bosilganda ham, kartochkaning o'zi bosilganda ham ishlaydi
     return b;

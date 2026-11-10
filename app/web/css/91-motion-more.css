@@ -25,3 +25,6 @@
   transition: transform .38s cubic-bezier(.3, 1.15, .4, 1), opacity .2s; will-change: transform; }
 .nav .navind.first { transition: none; }
 .nav.hasind button.on::before { display: none; }
+
+/* 🛫 Kartadan kino oynasiga uchib o'tuvchi poster nusxasi */
+.flyp { position: fixed; z-index: 60; background-size: cover; background-position: center; pointer-events: none; box-shadow: 0 14px 34px rgba(0, 0, 0, .55); will-change: left, top, width, height; }

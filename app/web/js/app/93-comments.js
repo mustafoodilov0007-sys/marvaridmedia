@@ -176,7 +176,31 @@
     }
     return bar;
   }
-  function openSheet(it, fromPop) {
+  // 🛫 Kartadan kino oynasiga: poster joyidan «uchib» o'tadi (qaytishda — orqasiga). Faqat transform/rect, 0.4 soniya.
+  var flyEl = null, flySrc = null, flyId = null;
+  function imgOf(posterEl) { var im = posterEl && posterEl.querySelector("img.ok"); return im && im.currentSrc ? im.currentSrc : (im ? im.src : ""); }
+  function flyBox(url, r, radius) {
+    var d = document.createElement("div");
+    d.className = "flyp";
+    d.style.cssText = "left:" + r.left + "px;top:" + r.top + "px;width:" + r.width + "px;height:" + r.height + "px;border-radius:" + radius + ";background-image:url('" + url + "')";
+    document.body.appendChild(d);
+    return d;
+  }
+  function flyMove(d, r, radius, done) {
+    void d.offsetWidth;
+    d.style.transition = "left .42s cubic-bezier(.2,.8,.2,1), top .42s cubic-bezier(.2,.8,.2,1), width .42s cubic-bezier(.2,.8,.2,1), height .42s cubic-bezier(.2,.8,.2,1), border-radius .42s";
+    d.style.left = r.left + "px"; d.style.top = r.top + "px"; d.style.width = r.width + "px"; d.style.height = r.height + "px"; d.style.borderRadius = radius;
+    var fin = false;
+    function end() { if (fin) return; fin = true; done(); }
+    d.addEventListener("transitionend", end); setTimeout(end, 520);
+  }
+  function flyCleanup() {
+    if (flyEl) { flyEl.remove(); flyEl = null; }
+    var tp = document.querySelector("#sheet .sheet-main .poster"); if (tp) tp.style.visibility = "";
+    if (flySrc) flySrc.style.visibility = "";
+  }
+  function inView(r) { return r.width > 8 && r.height > 8 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; }
+  function openSheet(it, fromPop, srcPoster) {
     haptic();
     if (!fromPop) pushSheet(it);
     var s = $("sheet");
@@ -244,9 +268,29 @@
         similar.replaceChildren(h("div", "sec-head", [h("h2", null, "🎭 O'xshash kinolar")]), list);
       }).catch(function () {});
     }
+    flyCleanup(); flySrc = null; flyId = null;
+    var url = (!sheetOpen && !REDUCE && srcPoster) ? imgOf(srcPoster) : "";
+    if (url) { s.style.transition = "none"; s.style.opacity = "0"; }       // oyna o'z joyida paydo bo'ladi, poster «uchib» keladi
     $("veil").classList.add("on");
     s.classList.add("on");
     s.scrollTop = 0;
+    if (url) {
+      var tp = s.querySelector(".sheet-main .poster"), sr = srcPoster.getBoundingClientRect(), tr = tp ? tp.getBoundingClientRect() : null;
+      if (tr && inView(sr) && tr.width > 8) {
+        tp.style.visibility = "hidden";
+        flyEl = flyBox(url, sr, getComputedStyle(srcPoster).borderRadius);
+        flySrc = srcPoster; flyId = it.id;
+        srcPoster.style.visibility = "hidden";
+        void s.offsetWidth;
+        s.style.transition = "opacity .3s"; s.style.opacity = "1";
+        var mine = flyEl;
+        flyMove(flyEl, tr, getComputedStyle(tp).borderRadius, function () {
+          if (flyEl !== mine) return;
+          tp.style.visibility = ""; srcPoster.style.visibility = ""; flyEl.remove(); flyEl = null;
+          s.style.transition = ""; s.style.opacity = "";
+        });
+      } else { s.style.transition = ""; s.style.opacity = ""; }
+    }
     sheetOpen = true;
     stopHero();
     document.querySelectorAll(".short video").forEach(function (v) { v.pause(); });
@@ -255,6 +299,19 @@
   }
   function closeSheet(fromPop) {
     closeTrailer(true);
+    var sh = $("sheet"), back = null;
+    if (flySrc && flyId != null && document.body.contains(flySrc) && !REDUCE) {      // orqaga «uchib» qaytish
+      var tp0 = sh.querySelector(".sheet-main .poster"), im0 = imgOf(tp0), sr0 = flySrc.getBoundingClientRect(), tr0 = tp0 ? tp0.getBoundingClientRect() : null;
+      if (im0 && tr0 && inView(sr0) && inView(tr0)) back = { url: im0, from: tr0, to: sr0, src: flySrc, tp: tp0 };
+    }
+    flyCleanup();
+    if (back) {
+      back.tp.style.visibility = "hidden"; back.src.style.visibility = "hidden";
+      var cl = flyBox(back.url, back.from, getComputedStyle(back.tp).borderRadius);
+      flyMove(cl, back.to, getComputedStyle(back.src).borderRadius, function () { back.src.style.visibility = ""; cl.remove(); });
+      setTimeout(function () { back.src.style.visibility = ""; if (cl.parentNode) cl.remove(); }, 700);
+    }
+    flySrc = null; flyId = null;
     $("veil").classList.remove("on");
     $("sheet").classList.remove("on");
     sheetOpen = false;
