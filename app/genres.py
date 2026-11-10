@@ -245,22 +245,26 @@ def detect_lang(*texts: str) -> str:
 
 
 def card_lines(movie, parts: int = 0) -> list:
-    """Bot va kanal uchun ixcham, chiroyli ma'lumot: 2 qator (davlat · janrlar / til · sifat · qismlar)."""
+    """Bot va kanal uchun ixcham ma'lumot: har qator belgi bilan (premium emoji ulangan bo'lsa, ular premium bo'lib chiqadi):
+    🌍 davlat · 📅 yil / 🎭 janrlar / 🗣 til · 🎞 sifat · 📺 qismlar."""
     keys = movie.keys()
-    a, b = [], []
+    a, b, c = [], [], []
     if "country" in keys and movie["country"] in COUNTRIES:
-        a.append(country_label(movie["country"]))
-    g = " · ".join(name(k) for k in parse(movie["genres"])[:3])
+        a.append("🌍 " + country_label(movie["country"]))
+    y = year_text(movie["year"], movie["year_end"] if "year_end" in keys else 0) if movie["year"] else ""
+    if y:
+        a.append("📅 " + y)
+    g = ", ".join(name(k) for k in parse(movie["genres"])[:3])
     if g:
-        a.append("🎭 " + g)
+        b.append("🎭 " + g)
     if "lang" in keys and movie["lang"] in LANGS:
-        b.append("🗣 " + LANGS[movie["lang"]][1])
+        c.append("🗣 " + LANGS[movie["lang"]][1])
     q = quality_text(movie["quality"]) if "quality" in keys else ""
     if q:
-        b.append("🎞 " + q.replace(", ", " · ").replace(" va ", " · "))
+        c.append("🎞 " + q.replace(", ", " · ").replace(" va ", " · "))
     if parts > 1:
-        b.append(f"📺 {parts} qism")
-    return [x for x in ("  ·  ".join(a), "  ·  ".join(b)) if x]
+        c.append(f"📺 {parts} qism")
+    return [x for x in ("  ·  ".join(a), "  ·  ".join(b), "  ·  ".join(c)) if x]
 
 
 def title_year(movie) -> str:

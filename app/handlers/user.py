@@ -789,11 +789,11 @@ def open_movie(ctx: Ctx, movie, extra_rows=None) -> None:
 def build_caption(app, movie, part, total: int) -> str:
     """Botga yuboriladigan kino izohi: nom + yil, 2 qatorli ma'lumot, qisqa syujet (ochiladigan iqtibos), kod va ko'rishlar."""
     music = movie["category"] == "music"
-    head = f"{cat_icon(movie['category'])} <b>{esc(movie['title'])}</b>" + ("" if music else genres.title_year(movie))
+    head = f"{cat_icon(movie['category'])} <b>{esc(movie['title'])}</b>"
     if total > 1:
         head += f"\n📺 <b>{esc(part_label(part))}</b>  <i>/ {total}</i>"
     info = [] if music else genres.card_lines(movie)
-    meta = (f"🔢 <code>{movie['code']}</code>  ·  " if movie["code"] > 0 else "") + f"👁 {fmt_num(movie['views'] + 1)}"
+    meta = (f"🔢 Kod: <code>{movie['code']}</code>  ·  " if movie["code"] > 0 else "") + f"👁 {fmt_num(movie['views'] + 1)}"
     if movie["is_premium"]:
         meta += "  ·  💎 <b>PREMIUM</b>"
     footer = render(app.setting("caption_footer"), brand=esc(app.brand), bot=app.bot_username).strip()
