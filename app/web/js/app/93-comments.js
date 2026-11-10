@@ -262,7 +262,7 @@
       : PUB ? "«Kinoni ko'rish» bosilsa, Telegram'da botimiz ochiladi va kinoni yuboradi."
       : "«Kinoni ko'rish» bosilsa, bot kinoni chatga yuboradi.");
     var tabList = [{ label: "Umumiy", nodes: [desc, it.glink ? glinkRow(it) : null, it.cat === "music" ? null : rateRow(it), noteNode, similar] }];
-    if (it.cat !== "music") tabList.push({ label: "Izohlar", nodes: [commentsSection(it)] });
+    if (it.cat !== "music") tabList.push({ label: "Izohlar", lazy: function () { return [commentsSection(it)]; } });   // izohlar yorliq ochilganda quriladi (sahifa ochilishi yengil)
     if (it.trailer || it.turl) {
       var trBtn = h("button", "strailer", [posterNode(it, 720), h("span", "play", [icon("play")]), h("b", null, "Treylerni ko'rish")]);
       trBtn.onclick = function () { haptic(); openTrailer(it); };
@@ -272,9 +272,10 @@
     var tabsEl = h("div", "stabs"), panels = [];
     tabList.forEach(function (t, i) {
       var tb = h("button", "stab" + (i ? "" : " on"), t.label);
-      var pn = h("div", "spanel" + (i ? " hidden" : ""), t.nodes.filter(Boolean));
+      var pn = h("div", "spanel" + (i ? " hidden" : ""), (t.nodes || []).filter(Boolean));
       tb.onclick = function () {
         haptic();
+        if (t.lazy) { var mk = t.lazy; t.lazy = null; mk().forEach(function (n) { pn.appendChild(n); }); }
         tabsEl.querySelectorAll(".stab").forEach(function (x) { x.classList.toggle("on", x === tb); });
         panels.forEach(function (x) { x.classList.toggle("hidden", x !== pn); });
         try { tb.scrollIntoView({ inline: "center", block: "nearest" }); } catch (e) {}
@@ -304,12 +305,15 @@
     s.replaceChildren.apply(s, parts.filter(Boolean));          // null qiymatlar «null» matni bo'lib chiqmasin
     if (similar) {
       var myS = ++sheetReq;
-      api("/api/similar?id=" + it.id).then(function (d) {
-        if (myS !== sheetReq || !d.ok || !d.items.length) return;
-        var list = h("div", "rail");
-        d.items.forEach(function (x) { list.appendChild(card(x)); });
-        similar.replaceChildren(h("div", "sec-head", [h("h2", null, "🎭 O'xshash kinolar")]), list);
-      }).catch(function () {});
+      setTimeout(function () {          // ochilish animatsiyasi tugagach (qotib qolmasin)
+        if (myS !== sheetReq) return;
+        api("/api/similar?id=" + it.id).then(function (d) {
+          if (myS !== sheetReq || !d.ok || !d.items.length) return;
+          var list = h("div", "rail");
+          d.items.forEach(function (x) { list.appendChild(card(x)); });
+          similar.replaceChildren(h("div", "sec-head", [h("h2", null, "🎭 O'xshash kinolar")]), list);
+        }).catch(function () {});
+      }, 480);
     }
     flyCleanup(); flySrc = null; flyId = null;
     if (heroVid) { var pv = heroVid.play(); if (pv && pv.catch) pv.catch(function () {}); }

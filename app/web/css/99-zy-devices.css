@@ -1,0 +1,41 @@
+/* 📱 Qurilmalar: iPhone (notch / Dynamic Island, dvh), Samsung Z Fold (tashqi tor ekran va ochilgan keng ekran), Z Flip (tor va past ekran) */
+
+/* 1) Kesik (notch) va yon chekkalar: gorizontal burilganda ham tugmalar kesilmaydi */
+.top { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+.nav { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+.page { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+
+/* 2) Kino sahifasi: balandlik brauzer paneli o'zgarsa ham to'g'ri (dvh), yopish tugmasi kesik tagida qolmaydi */
+@media (max-width: 899px) {
+  .sheet { height: 100vh; height: 100dvh; }
+  .sheet-top { height: 60vh; height: 60dvh; }
+  .close { top: calc(12px + max(var(--tgtop, 0px), env(safe-area-inset-top, 0px))); right: max(12px, env(safe-area-inset-right)); }
+  .sheet-main, .sheet .actions, .stabs, .sdetails { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+}
+
+/* 3) Z Fold ochilgan (taxminan 560–899 px, deyarli kvadrat) va planshetlar: tarkib markazda, muqova past */
+@media (min-width: 560px) and (max-width: 899px) {
+  .sheet-top { height: 46vh; height: 46dvh; min-height: 300px; }
+  .sheet-main { margin-top: -120px; }
+  .sheet-main, .sheet .actions, .stabs, .spanel, .sdetails { max-width: 720px; margin-left: auto; margin-right: auto; }
+  .sheet .actions, .stabs, .sdetails { width: calc(100% - 32px); }
+}
+
+/* 4) Past ekran (Z Flip tashqi ekrani, telefon gorizontal): muqova ekranning ko'p qismini egallamasin */
+@media (max-height: 520px) and (max-width: 899px) {
+  .sheet-top { height: 70vh; height: 70dvh; min-height: 220px; }
+  .sheet-main { margin-top: -100px; }
+  .sheet-main h3 { font-size: 22px; }
+}
+
+/* 5) Juda tor ekran (Z Fold tashqi ~344 px, Z Flip tashqi ~260 px): sarlavha va pastki menyu sig'adi */
+@media (max-width: 380px) { .word .w2 { display: none; } .nav button { font-size: 10px; } }
+@media (max-width: 320px) { .word { display: none; } .top { gap: 5px; padding-left: 10px; padding-right: 10px; } .top .ibtn { width: 38px; height: 38px; } .emblem { width: 36px; height: 36px; } }
+@media (max-width: 300px) { .nav button span { display: none; } }
+
+/* 6) iPhone: yozish maydoniga bosilganda sahifa o'zi kattalashib ketmasin (16 px dan kichik matn zoom qiladi) */
+@supports (-webkit-touch-callout: none) {
+  input, textarea, select { font-size: max(16px, 1em); }
+}
+/* Z Flip tashqi ekrani: asosiy tugma butun qatorni oladi, saqlash/ulashish pastiga tushadi */
+@media (max-width: 320px) { .sheet .actions { flex-wrap: wrap; } .sheet .actions .btn.primary { flex: 1 1 100%; } .stabs { gap: 16px; } }
