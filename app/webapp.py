@@ -487,6 +487,43 @@ def api_collections(app: App, user: dict) -> dict:
     return {"ok": True, "items": out + _genre_collections(app, top=12)}
 
 
+def api_tv(app: App, user: dict) -> dict:
+    """📺 Marvarid TV: bugungi jadval (+ ertangi kunning boshi), hozir efirdagi kino server vaqti bo'yicha."""
+    from . import tv
+    from .handlers import trial
+    ts = int(time.time())
+    _, vip = _user_flags(app, user["id"])
+    if app.setting_bool("premium_enabled") and not vip:      # 📺 TV faqat Premium egalari uchun (sinov — 1 kun hammaga)
+        days = trial.trial_days(app)
+        can = bool(days) and user["id"] > 0 and app.db.can_claim_trial(user["id"])
+        return {"ok": True, "locked": True, "now": ts, "trial_days": days if can else 0, "guest": user["id"] <= 0}
+    slots = tv.window(app, ts)
+    if not slots:
+        return {"ok": True, "empty": True, "now": ts}
+    _, vip = _user_flags(app, user["id"])
+    premium_on = app.setting_bool("premium_enabled")
+    ids = list(dict.fromkeys(sl[0] for sl in slots))
+    items = {r["id"]: _item(r, premium_on, vip) for r in app.db.catalog_rows(ids)}
+    out = [{"s": sl[1], "e": sl[2], "b": tv.block_of(sl[1])["title"], "it": items[sl[0]]} for sl in slots if sl[0] in items]
+    if not out:
+        return {"ok": True, "empty": True, "now": ts}
+    return {"ok": True, "now": ts, "slots": out, "cur": tv.current([[0, o["s"], o["e"]] for o in out], ts)}
+
+
+def api_tv_trial(app: App, user: dict) -> dict:
+    """🎁 TV uchun bepul sinov Premium'ni (bir marta) oladi — hali olmagan har bir foydalanuvchi."""
+    from .handlers import trial
+    days = trial.trial_days(app)
+    if user["id"] <= 0:
+        return {"ok": False, "reason": "login"}
+    if not days or not app.setting_bool("premium_enabled"):
+        return {"ok": False, "reason": "off"}
+    if not app.db.claim_trial(user["id"]):
+        return {"ok": False, "reason": "used"}
+    app.db.grant_premium(user["id"], days)
+    return {"ok": True, "days": days}
+
+
 def api_history_clear(app: App, user: dict) -> dict:
     """Foydalanuvchining «Davom ettiring» tarixini o'chiradi (faqat o'zining)."""
     return {"ok": True, "n": app.db.clear_history(user["id"]) if user["id"] else 0}
@@ -1676,6 +1713,12 @@ def make_handler(app: App):
                         return self._json(api_similar(app, user, qs))
                     if path == "/api/collections":
                         return self._json(api_collections(app, user))
+                    if path == "/api/tv":
+                        d = api_tv(app, user)
+                        if self._kids and d.get("slots"):      # bolalar rejimi: faqat mos kinolar efirda
+                            d["slots"] = [x for x in d["slots"] if _kids_item_ok(x["it"])]
+                            d["cur"] = -1 if not d["slots"] else next((i for i, x in enumerate(d["slots"]) if x["e"] > d["now"]), 0)
+                        return self._json(d)
                     if path == "/api/random":
                         return self._json(api_random(app, user))
                     if path == "/api/popular":
@@ -1763,6 +1806,8 @@ def make_handler(app: App):
                     return self._json(api_watch(app, user, body))
                 if path == "/api/request":
                     return self._json(api_request(app, user, body))
+                if path == "/api/tv/trial":
+                    return self._json(api_tv_trial(app, user))
                 if path == "/api/history/clear":
                     return self._json(api_history_clear(app, user))
                 if path == "/api/searched":

@@ -110,8 +110,11 @@
       page.appendChild(lc);
     }
     var nSaved = Object.keys(saved).length;
+    var savedBox = h("button", "pbox", [h("b", null, String(nSaved)), h("span", null, "Sevimlilar")]);
+    savedBox.type = "button";
+    savedBox.onclick = function () { haptic(); show("saved"); };
     page.appendChild(h("div", "pstats", [
-      h("div", null, [h("b", null, String(nSaved)), h("span", null, "Sevimlilar")]),
+      savedBox,
       h("div", null, [h("b", null, String(PUB ? localHist.length : "—")), h("span", null, "Ko'rilgan")]),
       h("div", null, [h("b", null, String(((me.counts || {}).movie || 0) + ((me.counts || {}).serial || 0) + ((me.counts || {}).cartoon || 0))), h("span", null, "Jami kino")])
     ]));

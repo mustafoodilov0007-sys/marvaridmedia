@@ -1,0 +1,80 @@
+/* 📺 Marvarid TV */
+.tvcard { display: flex; gap: 14px; align-items: center; width: calc(100% - 32px); margin: 14px 16px 6px; padding: 12px; text-align: left; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 20px; color: var(--text); font: inherit; }
+.tvcard .poster { flex: 0 0 38%; max-width: 168px; aspect-ratio: 16 / 10; border-radius: 12px; overflow: hidden; position: relative; }
+.tvcard .poster img { object-position: center 25%; }
+.tvinfo { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.tvinfo small { font-size: 11px; font-weight: 800; letter-spacing: .8px; color: var(--muted); }
+.tvinfo b { font-size: 19px; font-weight: 800; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.tvinfo em { font-style: normal; font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tvtime { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+.tvtime .tvbar { flex: 1; }
+.tvbar { height: 4px; border-radius: 4px; background: rgba(127,127,127,.28); overflow: hidden; min-width: 40px; }
+.tvbar i { display: block; height: 100%; background: #e5342f; border-radius: 4px; transition: width .6s linear; }
+.tvbar.big { height: 5px; }
+.livebadge { position: absolute; left: 8px; top: 8px; display: inline-flex; gap: 5px; align-items: center; padding: 3px 8px 3px 6px; border-radius: 7px;
+  background: #e5342f; color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .5px; }
+.livebadge i, .tvtag.live i { width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: tvblink 1.4s ease-in-out infinite; }
+@keyframes tvblink { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .livebadge i, .tvtag.live i { animation: none; } }
+
+.tvpage h1 { display: flex; align-items: center; gap: 10px; }
+.tvlogo { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #e5342f; color: #fff; }
+.tvlogo svg { width: 20px; height: 20px; }
+.tvlive { border-radius: 22px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
+.tvsk { height: 320px; }
+.tvhero { aspect-ratio: 16 / 9; width: 100%; border-radius: 0; cursor: pointer; position: relative; }
+.tvhero img { object-position: center 25%; }
+.tvbody { padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 10px; }
+.tvbody h2 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -.4px; line-height: 1.1; }
+.tvkick { display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 13px; font-weight: 700; flex-wrap: wrap; }
+.tvbits { color: var(--muted); font-size: 14px; }
+.tvleft { margin: 0; color: var(--muted); font-size: 14px; }
+.tvbtns { display: flex; gap: 10px; }
+.tvgo, .tvmore { flex: 1; display: inline-flex; gap: 8px; align-items: center; justify-content: center; min-height: 48px; border: 0; border-radius: 14px; font: inherit; font-weight: 800; cursor: pointer; }
+.tvgo { background: var(--accent); color: #1b1407; }
+.tvmore { background: var(--surface-2); color: var(--text); }
+.tvgo svg, .tvmore svg { width: 18px; height: 18px; }
+.tvtag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 8px; font-size: 12px; font-weight: 800; letter-spacing: .3px; }
+.tvtag.live { background: #e5342f; color: #fff; }
+.tvtag.next { background: var(--surface-2); color: var(--muted); }
+.tvnext { display: flex; gap: 12px; align-items: center; width: 100%; padding: 10px; text-align: left; background: var(--surface-2); border: 0; border-radius: 14px; color: var(--text); font: inherit; cursor: pointer; }
+.tvnext .poster { flex: 0 0 96px; aspect-ratio: 16 / 10; border-radius: 10px; overflow: hidden; position: relative; }
+.tvnext small { display: block; color: var(--muted); font-size: 12px; font-weight: 700; }
+.tvnext b { font-size: 16px; }
+.tvh { font-size: 22px; font-weight: 800; margin: 24px 2px 10px; }
+.tvprog { border-radius: 22px; background: var(--surface); border: 1px solid var(--line); padding: 6px 8px 10px; }
+.tvblock { padding: 16px 10px 6px; font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); }
+.tvrow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 10px; border: 0; border-radius: 14px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.tvrow time { flex: 0 0 52px; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--muted); }
+.tvrow .poster { flex: 0 0 86px; aspect-ratio: 16 / 10; border-radius: 10px; overflow: hidden; position: relative; }
+.tvri { min-width: 0; flex: 1; }
+.tvri b { display: block; font-size: 16px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.tvri > div { display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+.tvmeta { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.tvmeta svg { width: 14px; height: 14px; color: var(--accent); flex: none; }
+.tvrow.on { background: rgba(229, 52, 47, .14); box-shadow: inset 3px 0 0 #e5342f; }
+.tvrow.on time { color: #ff6b66; }
+.tvrow.past { opacity: .45; }
+@media (min-width: 900px) {
+  .tvcard { max-width: 760px; margin-left: auto; margin-right: auto; }
+  .tvpage .tvlive { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+  .tvpage .tvhero { height: 100%; aspect-ratio: auto; min-height: 340px; }
+}
+
+/* profil: «Sevimlilar» katagi tugma */
+.pstats .pbox { text-align: center; padding: 12px 6px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); color: inherit; font: inherit; cursor: pointer; }
+.pstats .pbox b { display: block; font-size: 20px; font-weight: 800; color: var(--accent-2); }
+.pstats .pbox span { font-size: 12px; color: var(--muted); font-weight: 600; }
+
+.tvlockpic { display: grid; place-items: center; background: var(--surface-2); color: var(--accent-2); }
+.tvlockpic svg { width: 34px; height: 34px; }
+.tvlock { padding: 30px 20px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.tvlock h2 { margin: 0; font-size: 24px; font-weight: 800; }
+.tvlock p { margin: 0; color: var(--muted); max-width: 420px; }
+.tvlock .tvbtns { width: 100%; max-width: 420px; }
+.tvlogo.big { width: 64px; height: 64px; border-radius: 18px; }
+.tvlogo.big svg { width: 34px; height: 34px; }
+.tvgo:disabled { opacity: .6; }
+.tvgo { flex: 1.6; white-space: nowrap; padding: 0 14px; }
+.tvgo svg, .tvmore svg { flex: none; }

@@ -693,6 +693,14 @@ class Database:
             c.execute("UPDATE users SET trial_used=1 WHERE user_id=?", (uid,))
             return True
 
+    def can_claim_trial(self, uid: int) -> bool:
+        row = self.q1("SELECT trial_used, premium_until FROM users WHERE user_id=?", (uid,))
+        return bool(row) and not row["trial_used"] and row["premium_until"] <= now()
+
+    def claim_trial(self, uid: int) -> bool:
+        """Sinovni (bir marta) belgilaydi — eski va yangi foydalanuvchilar uchun; Premium'i bor yoki oldin olgan odamga berilmaydi."""
+        return self.take_trial(uid, 0)
+
     def subtract_premium(self, uid: int, days: int) -> int:
         t = now()
         with self.tx() as c:

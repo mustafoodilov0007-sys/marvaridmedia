@@ -472,9 +472,9 @@ class AddFlow(AdminCase):
         self.msg(202, "/start")
         self.assertEqual(db.premium_until(202), 0)                           # o'chiq — berilmaydi
         self.app.set_setting("trial_days", "3")
-        db.x("UPDATE users SET joined_at=0 WHERE user_id=202")               # funksiya yoqilishidan oldingi (eski) foydalanuvchi
+        db.x("UPDATE users SET joined_at=0 WHERE user_id=202")               # eski foydalanuvchi ham sinovni oladi (hali olmagan bo'lsa)
         self.msg(202, "/start")
-        self.assertEqual(db.premium_until(202), 0)
+        self.assertGreater(db.premium_until(202), 0)
         self.msg(1, "/sinov")
         self.assertIn("sinov muddati", self.last(1).lower())
         self.press(1, "tr:set:30")
@@ -484,6 +484,57 @@ class AddFlow(AdminCase):
         self.assertEqual(trial.trial_days(self.app), 14)                       # admin o'zi yozgan muddat
         self.press(1, "tr:set:1")
         self.assertEqual(trial.trial_days(self.app), 1)
+
+    def test_marvarid_tv_is_premium_only_with_free_trial_day(self):
+        from app import tv, webapp
+        tv._mem.clear()
+        app, db = self.app, self.app.db
+        app.set_setting("premium_enabled", "1")
+        app.set_setting("trial_days", "1")
+        for i in range(1, 8):
+            m = add_movie(app, 970 + i, f"TV kino {i}")
+            db.x("UPDATE movies SET duration=? WHERE id=?", ((90 + i * 7) * 60, m))
+        db.upsert_user({"id": 401, "first_name": "T"})
+        d = webapp.api_tv(app, {"id": 401})
+        self.assertTrue(d["locked"])                                       # Premium'siz — yopiq
+        self.assertEqual(d["trial_days"], 1)                               # lekin 1 kunlik sinov taklif qilinadi
+        self.assertNotIn("slots", d)
+        self.assertEqual(webapp.api_tv_trial(app, {"id": 0})["reason"], "login")
+        r = webapp.api_tv_trial(app, {"id": 401})
+        self.assertTrue(r["ok"] and r["days"] == 1)
+        self.assertEqual(webapp.api_tv_trial(app, {"id": 401})["reason"], "used")   # faqat bir marta
+        d = webapp.api_tv(app, {"id": 401})
+        self.assertNotIn("locked", d)
+        self.assertTrue(d["slots"] and d["cur"] >= 0)
+        # jadval: ketma-ket, ustma-ust tushmaydi, bir xil kino ketma-ket kelmaydi, kun to'liq yopiladi
+        t0 = tv.day_start(d["now"])
+        sched = tv.schedule(app, t0)
+        self.assertEqual(sched[0][1], t0)
+        self.assertLessEqual(sched[-1][2], t0 + 86400)                     # kun oxirida tanaffus bo'lishi mumkin, lekin keyingi kunga o'tmaydi
+        for a, b in zip(sched, sched[1:]):
+            self.assertLessEqual(a[2], b[1])
+            self.assertNotEqual(a[0], b[0])
+        self.assertEqual(tv.schedule(app, t0), sched)                      # kun davomida o'zgarmaydi (saqlanadi)
+        tv._mem.clear()
+        self.assertEqual(tv.schedule(app, t0), sched)                      # qayta ishga tushgandan keyin ham bir xil
+        # Premium o'chirilgan tizimda TV hammaga ochiq
+        app.set_setting("premium_enabled", "0")
+        db.upsert_user({"id": 402, "first_name": "U"})
+        self.assertNotIn("locked", webapp.api_tv(app, {"id": 402}))
+
+    def test_marvarid_tv_empty_and_deleted_movie(self):
+        from app import tv, webapp
+        tv._mem.clear()
+        app, db = self.app, self.app.db
+        app.set_setting("premium_enabled", "0")
+        self.assertTrue(webapp.api_tv(app, {"id": 1}).get("empty"))        # kino yo'q — xato emas, bo'sh holat
+        ids = [add_movie(app, 990 + i, f"Efir {i}") for i in range(3)]
+        d = webapp.api_tv(app, {"id": 1})
+        first = d["slots"][0]["it"]["id"]
+        db.x("DELETE FROM movies WHERE id=?", (first,))                   # jadvaldagi kino o'chirildi — jadval o'zi qayta tuziladi
+        tv._mem.clear()
+        d2 = webapp.api_tv(app, {"id": 1})
+        self.assertTrue(d2["slots"] and all(s["it"]["id"] != first for s in d2["slots"]))
 
     def test_request_votes(self):
         db = self.app.db

@@ -441,6 +441,7 @@
     homeGenres = data.genres || [];
     view.replaceChildren(h("h1", "sr-only", (me.brand || "Marvarid Media") + " — kinolar, seriallar va multfilmlar"), heroView(data.hero || []));
     if (PUB && me.miniapp) view.appendChild(openInTelegram());
+    view.appendChild(tvHomeCard());
     var any = false;
     var byKey = {};
     (data.rails || []).forEach(function (r) { byKey[r.key] = r; });

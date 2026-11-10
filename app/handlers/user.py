@@ -110,9 +110,9 @@ def cmd_start(ctx: Ctx) -> None:
     apply_referral(ctx, payload)
     if not code or is_new:
         send_welcome(ctx)
+    from .trial import maybe_gift
+    maybe_gift(ctx)                      # sinov Premium: hali olmagan har bir foydalanuvchiga (eski ham) — bir marta
     if is_new:
-        from .trial import maybe_gift
-        maybe_gift(ctx)
         from .tour import start_tour
         if ctx.db.take_tour(ctx.user_id):
             start_tour(ctx)

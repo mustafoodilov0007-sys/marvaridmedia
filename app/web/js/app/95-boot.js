@@ -21,7 +21,7 @@
   $("bChannel").appendChild(icon("send"));
   $("bChannel").onclick = function () { haptic(); if (me.channel) openLink(me.channel); };
   var NAV = { home: ["home", "Asosiy"], movie: ["film", "Kinolar"], serial: ["tv", "Serial"], cartoon: ["smile", "Multfilm"],
-              shorts: ["clap", "Shorts"], music: ["music", "Musiqa"], saved: ["bookmark", "Saqlangan"] };
+              shorts: ["clap", "Shorts"], music: ["music", "Musiqa"], tv: ["live", "TV"] };
   document.querySelectorAll(".nav button").forEach(function (b) {
     var n = NAV[b.dataset.view];
     b.replaceChildren(icon(n[0]), h("span", null, n[1]));
@@ -30,7 +30,7 @@
   });
   // katta ekranda — sarlavhadagi gorizontal menyu
   [["home", "Bosh sahifa"], ["movie", "Kinolar"], ["serial", "Seriallar"], ["cartoon", "Multfilmlar"], ["music", "Musiqa"],
-   ["shorts", "Shorts"], ["saved", "Sevimlilar"]].forEach(function (n) {
+   ["shorts", "Shorts"], ["tv", "Marvarid TV"]].forEach(function (n) {
     var b = h("button", n[0] === "home" ? "on" : "", n[1]);
     b.dataset.view = n[0];
     b.onclick = function () { haptic(); show(n[0]); };
@@ -153,7 +153,7 @@
   var pI = pathInfo();
   if (pI.genre) show("video", { f: { genre: pI.genre } });
   else if (pI.colId) show("col", { id: pI.colId });
-  else show(pI.view || (["stats", "support", "search", "saved", "movie", "serial", "cartoon", "music", "shorts", "profile", "catalog"].indexOf(startView) >= 0 ? startView : "home"));
+  else show(pI.view || (["stats", "support", "search", "saved", "tv", "movie", "serial", "cartoon", "music", "shorts", "profile", "catalog"].indexOf(startView) >= 0 ? startView : "home"));
   // 🔗 kanal postidagi havola: ?k=15 (kino) yoki ?k=m3 (musiqa) — shu kino oynasi darhol ochiladi
   (function () {
     var k = "";

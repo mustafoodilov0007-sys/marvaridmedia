@@ -94,6 +94,7 @@
       return;
     }
     if (name === "saved") return renderSaved(view);
+    if (name === "tv") return renderTV(view, my);
     if (name === "shorts") {
       try { return renderShorts(view, opts.start); }
       catch (err) {

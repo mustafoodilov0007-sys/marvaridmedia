@@ -10,7 +10,7 @@ from ..utils import now
 
 log = logging.getLogger("trial")
 
-DEFAULT_DAYS = 0          # standart: o‘chiq — egasi /sinov orqali yoqadi (sinov paytida majburiy obuna o‘tkazib yuboriladi)
+DEFAULT_DAYS = 1          # standart: 1 kun hammaga bepul Premium (Marvarid TV uchun); egasi /sinov orqali o‘zgartiradi yoki o‘chiradi
 
 
 def trial_days(app) -> int:
@@ -39,7 +39,7 @@ def maybe_gift(ctx: Ctx) -> bool:
     days = trial_days(app)
     if days <= 0 or not app.setting_bool("premium_enabled") or ctx.is_admin:
         return False
-    if not ctx.db.take_trial(ctx.user_id, _since(app)):
+    if not ctx.db.take_trial(ctx.user_id, 0):          # hali olmagan har bir foydalanuvchi (eski ham, yangi ham)
         return False
     ctx.db.grant_premium(ctx.user_id, days)
     ctx.send(f"🎁 <b>Sovg'a!</b> Sizga <b>{days} kunlik bepul Premium</b> berildi.\n\n"
@@ -56,8 +56,8 @@ def _view(app):
     shown = "o‘chiq" if d == 0 else (f"{d} kun" + (" (1 oy)" if d == 30 else ""))
     text = ("🎁 <b>Premium sinov muddati</b>\n\n"
             f"Hozir: <b>{shown}</b>\n\n"
-            "Yangi foydalanuvchi birinchi /start da bir marta shuncha vaqt bepul Premium oladi "
-            "(eski foydalanuvchilarga berilmaydi). Muddatni o'zingiz tanlaysiz.\n\n"
+            "Hali olmagan har bir foydalanuvchi /start da (yoki saytda «Marvarid TV» ni ochganda) bir marta shuncha vaqt bepul Premium oladi. "
+            "Muddatni o'zingiz tanlaysiz.\n\n"
             "⚠️ Sinov davomida foydalanuvchi majburiy kanallarga obuna bo'lmasdan foydalanadi (Premium shunday ishlaydi).")
     rows = [[btn(("✅ " if d == n else "") + LABELS[n], f"tr:set:{n}", style=SUCCESS if d == n else PRIMARY) for n in (0, 1, 3, 30)],
             [btn("✏️ Boshqa muddat (kun)", "tr:custom", style=PRIMARY)]]

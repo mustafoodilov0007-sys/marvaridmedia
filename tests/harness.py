@@ -77,6 +77,7 @@ def make_app(channels: str = "", webapp_url: str = "https://site.test", admins: 
     import app.handlers  # noqa: F401  — hamma buyruq va tugmalarni ro'yxatdan o'tkazadi
     from app.core import App
     app = App(Config())
+    app.set_setting("trial_days", "0")      # sinov Premium testlarda standart bo'yicha o'chiq (alohida testlanadi)
     app.bot = FakeBot()
     app.me = {"id": 9, "username": "test_bot"}
     app._tmp = tmp
