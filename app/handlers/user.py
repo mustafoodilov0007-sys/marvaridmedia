@@ -157,7 +157,8 @@ def send_invite(ctx: Ctx) -> None:
     ctx.send(f"🤝 <b>Do'stlarni taklif qiling — Premium oling!</b>\n\n"
              f"Har bir do'stingiz shu havola orqali botga kirsa, <b>ikkalangizga ham +{REF_DAYS} kun 💎 Premium</b> beriladi.\n\n"
              f"🔗 Sizning havolangiz:\n<code>{link}</code>\n\n"
-             f"👥 Taklif qilganlar: <b>{n}</b>",
+             f"👥 Taklif qilganlar: <b>{n}</b>\n"
+             "🏆 Oylik musobaqa va reyting: /reyting",
              ikb([btn("📤 Do'stlarga yuborish", url=share, style=SUCCESS)]))
 
 

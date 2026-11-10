@@ -577,6 +577,15 @@ class Database:
                 "comments": self.val("SELECT COUNT(*) FROM comments WHERE user_id=? AND status='ok'", (uid,)),
                 "referrals": self.referral_count(uid)}
 
+    def top_referrers(self, since: int, until: int, limit: int = 10) -> List[sqlite3.Row]:
+        """Oylik musobaqa: [since, until) oralig'ida eng ko'p do'st taklif qilganlar (bir xil sonda — avval boshlaganlar)."""
+        return self.q("SELECT r.ref_by AS uid, COUNT(*) AS n, MIN(r.joined_at) AS first_at, u.first_name, u.username FROM users r"
+                      " JOIN users u ON u.user_id = r.ref_by WHERE r.ref_by>0 AND r.joined_at>=? AND r.joined_at<?"
+                      " GROUP BY r.ref_by ORDER BY n DESC, first_at ASC LIMIT ?", (since, until, limit))
+
+    def referral_count_between(self, uid: int, since: int, until: int) -> int:
+        return self.val("SELECT COUNT(*) FROM users WHERE ref_by=? AND joined_at>=? AND joined_at<?", (uid, since, until))
+
     def referral_count(self, uid: int) -> int:
         return self.val("SELECT COUNT(*) FROM users WHERE ref_by=?", (uid,))
 

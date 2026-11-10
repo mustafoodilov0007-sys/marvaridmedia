@@ -522,6 +522,32 @@ class AddFlow(AdminCase):
         self.assertGreater(db.premium_until(401), until1)
         self.assertIn("avtomatik yangilandi", " ".join(self.app.bot.texts(401)))
 
+    def test_referral_contest_awards_top3(self):
+        from datetime import datetime
+        from app.handlers import contest
+        db = self.app.db
+        start, end = contest.month_bounds(datetime.now(contest.TZ))
+        for uid in (501, 502, 503, 504):
+            db.upsert_user({"id": uid, "first_name": f"U{uid}"})
+        n = 600
+        for inviter, cnt in ((501, 5), (502, 3), (503, 2)):                      # 503 — 3 tadan kam: mukofot yo'q
+            for _ in range(cnt):
+                n += 1
+                db.upsert_user({"id": n, "first_name": "d"})
+                db.x("UPDATE users SET ref_by=?, joined_at=? WHERE user_id=?", (inviter, start + 100, n))
+        self.msg(501, "/reyting")
+        self.assertIn("← siz", self.last(501))
+        self.assertIn("<b>5</b>", self.last(501))
+        now = datetime.now(contest.TZ)
+        won = contest.award_month(self.app, now.year, now.month)
+        self.assertEqual([(o, u) for o, u, _, _ in won], [(1, 501), (2, 502)])
+        self.assertGreater(db.premium_until(501), db.premium_until(502))             # 30 kun > 14 kun
+        self.assertEqual(db.premium_until(503), 0)
+        self.assertIn("Tabriklaymiz", " ".join(self.app.bot.texts(501)))
+        self.msg(1, "/musobaqa")
+        self.press(1, "cn:tog")
+        self.assertFalse(contest.enabled(self.app))
+
     def test_year_range_typed(self):
         from app import genres
         self.assertEqual(genres.parse_years("2012-2015"), (2012, 2015))
