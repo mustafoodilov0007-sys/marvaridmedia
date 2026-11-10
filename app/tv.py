@@ -168,3 +168,33 @@ def current(slots: List[list], ts: int) -> int:
         if s[1] > ts:
             return i
     return -1
+
+
+# ───── jonli kanallar ─────
+import re as _re
+
+_YT_ID = _re.compile(r"(?:youtube\.com/(?:watch\?(?:.*&)?v=|live/|embed/|shorts/)|youtu\.be/)([A-Za-z0-9_-]{11})")
+_YT_CH = _re.compile(r"youtube\.com/channel/(UC[A-Za-z0-9_-]{22})")
+
+
+def parse_channel_url(url: str):
+    """(tur, embed manzili): 'youtube' — saytda o'ynaydi; 'link' — faqat tashqi havola (kanal saytida ochiladi). Yaroqsiz — None."""
+    u = (url or "").strip()
+    if not _re.match(r"https://[^\s]+$", u) or len(u) > 400:
+        return None
+    m = _YT_ID.search(u)
+    if m:
+        return "youtube", f"https://www.youtube-nocookie.com/embed/{m.group(1)}?autoplay=1&rel=0&playsinline=1"
+    m = _YT_CH.search(u)
+    if m:      # kanalning joriy jonli efiri (efir bo'lmasa YouTube o'zi xabar ko'rsatadi)
+        return "youtube", f"https://www.youtube-nocookie.com/embed/live_stream?channel={m.group(1)}&autoplay=1&rel=0&playsinline=1"
+    return "link", ""
+
+
+def channels(app) -> list:
+    out = []
+    for r in app.db.tv_channels():
+        parsed = parse_channel_url(r["url"])
+        if parsed:
+            out.append({"id": r["id"], "name": r["name"], "kind": parsed[0], "embed": parsed[1], "url": r["url"]})
+    return out

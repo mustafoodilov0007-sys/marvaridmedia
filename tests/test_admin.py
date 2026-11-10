@@ -522,6 +522,32 @@ class AddFlow(AdminCase):
         db.upsert_user({"id": 402, "first_name": "U"})
         self.assertNotIn("locked", webapp.api_tv(app, {"id": 402}))
 
+    def test_tv_live_channels_admin_and_api(self):
+        from app import tv, webapp
+        tv._mem.clear()
+        app, db = self.app, self.app.db
+        app.set_setting("premium_enabled", "0")
+        add_movie(app, 995, "Efir kino")
+        self.assertEqual(tv.parse_channel_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ")[0], "youtube")
+        self.assertIn("embed/dQw4w9WgXcQ", tv.parse_channel_url("https://youtu.be/dQw4w9WgXcQ")[1])
+        self.assertIn("live_stream?channel=UCabcdefghijklmnopqrstuv", tv.parse_channel_url("https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv")[1])
+        self.assertEqual(tv.parse_channel_url("https://kanal.uz/live"), ("link", ""))      # tashqi havola
+        self.assertIsNone(tv.parse_channel_url("javascript:alert(1)"))                      # xavfli sxema rad etiladi
+        self.assertIsNone(tv.parse_channel_url("http://kanal.uz"))                          # faqat https
+        self.msg(1, "/kanallar")
+        self.assertIn("Hozircha kanal yo'q", self.last(1))
+        self.press(1, "tvc:add")
+        self.msg(1, "Milliy TV | https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        self.assertIn("qo'shildi", " ".join(self.app.bot.texts(1)))
+        self.press(1, "tvc:add")
+        self.msg(1, "noto'g'ri format")                                                    # yaroqsiz — qo'shilmaydi
+        self.assertEqual(len(db.tv_channels()), 1)
+        d = webapp.api_tv(app, {"id": 1})
+        self.assertEqual([c["name"] for c in d["channels"]], ["Milliy TV"])
+        self.assertEqual(d["channels"][0]["kind"], "youtube")
+        self.press(1, f"tvc:del:{db.tv_channels()[0]['id']}")
+        self.assertEqual(webapp.api_tv(app, {"id": 1})["channels"], [])
+
     def test_marvarid_tv_empty_and_deleted_movie(self):
         from app import tv, webapp
         tv._mem.clear()

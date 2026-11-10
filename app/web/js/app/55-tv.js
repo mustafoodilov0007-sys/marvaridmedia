@@ -1,5 +1,5 @@
   // ───── 📺 Marvarid TV: kunlik «efir» jadvali (kutubxonadagi kinolardan) ─────
-  var tvData = null, tvLock = null, tvOff = 0, tvFetchedAt = 0, tvP = null;
+  var tvData = null, tvChans = [], tvLock = null, tvOff = 0, tvFetchedAt = 0, tvP = null;
   function tvNow() { return Date.now() / 1000 + tvOff; }
   function tvHM(ts) {      // Toshkent vaqti (UTC+5), qurilma vaqt mintaqasidan qat'i nazar
     var d = new Date((ts + 5 * 3600) * 1000);
@@ -21,6 +21,7 @@
       tvFetchedAt = Date.now();
       tvLock = d.locked ? d : null;          // Premium'siz foydalanuvchi: yopiq holat (sinov taklif qilinadi)
       tvData = !d.locked && d.slots && d.slots.length ? d : null;
+      tvChans = !d.locked && d.channels ? d.channels : [];
       return tvData;
     }).catch(function () { tvP = null; return tvData; });
     return tvP;
@@ -125,8 +126,10 @@
     var prog = h("div", "tvprog");
     page.appendChild(h("h1", null, [h("span", "tvlogo", [icon("live")]), "Marvarid TV"]));
     page.appendChild(h("p", "lead", "Kunlik efir jadvali — hozir nima ko'rsatilayotganini bilib oling"));
+    var tabs = h("div", "tvtabs hidden"), dastur = h("h2", "tvh", "Dastur"), sel = "m", shownChan = "";
+    page.appendChild(tabs);
     page.appendChild(live);
-    page.appendChild(h("h2", "tvh", "Dastur"));
+    page.appendChild(dastur);
     page.appendChild(prog);
     live.appendChild(h("div", "tvsk"));
     view.replaceChildren(page);
@@ -173,9 +176,50 @@
         h("div", "tvbtns", [act, more])]));
       prog.replaceChildren();
     }
+    function paintTabs() {
+      if (!tvChans.length || tvLock) { tabs.classList.add("hidden"); return; }
+      tabs.classList.remove("hidden");
+      var list = [{ id: "m", name: "Marvarid TV", mine: true }].concat(tvChans);
+      tabs.replaceChildren.apply(tabs, list.map(function (c) {
+        var b = h("button", "tvtab" + (String(sel) === String(c.id) ? " on" : ""), [c.mine ? h("i") : null, c.name]);
+        b.type = "button";
+        b.onclick = function () { if (String(sel) === String(c.id)) return; haptic(); sel = c.id; paintTabs(); paint(); };
+        return b;
+      }));
+      var on = tabs.querySelector(".on");
+      if (on) try { on.scrollIntoView({ inline: "center", block: "nearest" }); } catch (e) {}
+    }
+    function channelView(c) {
+      stageKey = ""; stageNode = null;
+      dastur.classList.add("hidden"); prog.classList.add("hidden");
+      var site = h("button", "tvmore", [icon("send"), "Kanal saytida ko'rish"]);
+      site.onclick = function () { haptic(); openExternal(c.url); };
+      var node;
+      if (c.kind === "youtube" && c.embed) {
+        var fr = document.createElement("iframe");
+        fr.src = c.embed;
+        fr.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; fr.allowFullscreen = true;
+        fr.setAttribute("title", c.name);
+        node = h("div", "tvchan", [h("div", "tvframe", [fr]),
+          h("div", "tvbody", [h("div", "tvkick", [h("span", "tvtag live", [h("i"), "JONLI"]), h("span", null, "Rasmiy efir")]), h("h2", null, c.name),
+            h("p", "tvleft", "Efir ochilmasa, kanal saytida ko'ring."), h("div", "tvbtns", [site])])]);
+      } else {
+        node = h("div", "tvlock", [h("span", "tvlogo big", [icon("live")]), h("h2", null, c.name),
+          h("p", null, "Bu kanalning efiri kanal saytida ko'rsatiladi."), h("div", "tvbtns", [site])]);
+      }
+      live.replaceChildren(node);
+    }
     function paint() {
       if (my !== reqId) { clearInterval(timer); return; }
       if (tvLock) { lockView(); return; }
+      paintTabs();
+      if (sel !== "m") {
+        var cur = tvChans.filter(function (c) { return String(c.id) === String(sel); })[0];
+        if (cur) { if (shownChan !== String(cur.id) || !live.querySelector(".tvchan, .tvlock")) { shownChan = String(cur.id); channelView(cur); } return; }   // kanal tanlangan: jadval uni bosib ketmaydi
+        sel = "m";
+      }
+      shownChan = "";
+      dastur.classList.remove("hidden"); prog.classList.remove("hidden");
       var st = tvState();
       if (!st) {
         stageKey = ""; stageNode = null;

@@ -498,16 +498,16 @@ def api_tv(app: App, user: dict) -> dict:
         can = bool(days) and user["id"] > 0 and app.db.can_claim_trial(user["id"])
         return {"ok": True, "locked": True, "now": ts, "trial_days": days if can else 0, "guest": user["id"] <= 0}
     slots = tv.window(app, ts)
+    chans = tv.channels(app)
     if not slots:
-        return {"ok": True, "empty": True, "now": ts}
-    _, vip = _user_flags(app, user["id"])
+        return {"ok": True, "empty": True, "now": ts, "channels": chans}
     premium_on = app.setting_bool("premium_enabled")
     ids = list(dict.fromkeys(sl[0] for sl in slots))
     items = {r["id"]: _item(r, premium_on, vip) for r in app.db.catalog_rows(ids)}
     out = [{"s": sl[1], "e": sl[2], "b": tv.block_of(sl[1])["title"], "it": items[sl[0]]} for sl in slots if sl[0] in items]
     if not out:
-        return {"ok": True, "empty": True, "now": ts}
-    return {"ok": True, "now": ts, "slots": out, "cur": tv.current([[0, o["s"], o["e"]] for o in out], ts)}
+        return {"ok": True, "empty": True, "now": ts, "channels": chans}
+    return {"ok": True, "now": ts, "slots": out, "cur": tv.current([[0, o["s"], o["e"]] for o in out], ts), "channels": chans}
 
 
 def api_tv_trial(app: App, user: dict) -> dict:
@@ -1715,6 +1715,8 @@ def make_handler(app: App):
                         return self._json(api_collections(app, user))
                     if path == "/api/tv":
                         d = api_tv(app, user)
+                        if self._kids:
+                            d["channels"] = []                 # bolalar rejimi: tashqi kanallar ko'rsatilmaydi
                         if self._kids and d.get("slots"):      # bolalar rejimi: faqat mos kinolar efirda
                             d["slots"] = [x for x in d["slots"] if _kids_item_ok(x["it"])]
                             d["cur"] = -1 if not d["slots"] else next((i for i, x in enumerate(d["slots"]) if x["e"] > d["now"]), 0)

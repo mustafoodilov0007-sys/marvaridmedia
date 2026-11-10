@@ -276,6 +276,13 @@ CREATE TABLE IF NOT EXISTS follows (
 );
 CREATE INDEX IF NOT EXISTS idx_follows_topic ON follows(topic);
 
+CREATE TABLE IF NOT EXISTS tv_channels (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT    NOT NULL,
+    url        TEXT    NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS comments (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     movie_id   INTEGER NOT NULL,
@@ -692,6 +699,17 @@ class Database:
                 return False
             c.execute("UPDATE users SET trial_used=1 WHERE user_id=?", (uid,))
             return True
+
+    # ───────── 📺 TV: jonli kanallar ─────────
+
+    def tv_channels(self) -> List[sqlite3.Row]:
+        return self.q("SELECT * FROM tv_channels ORDER BY id")
+
+    def add_tv_channel(self, name: str, url: str) -> int:
+        return self.x("INSERT INTO tv_channels(name, url, created_at) VALUES (?,?,?)", (name, url, now())).lastrowid
+
+    def del_tv_channel(self, cid: int) -> bool:
+        return self.x("DELETE FROM tv_channels WHERE id=?", (cid,)).rowcount > 0
 
     def can_claim_trial(self, uid: int) -> bool:
         row = self.q1("SELECT trial_used, premium_until FROM users WHERE user_id=?", (uid,))
