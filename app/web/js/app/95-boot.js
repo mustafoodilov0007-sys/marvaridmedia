@@ -17,7 +17,7 @@
   $("bStats").appendChild(icon("chart"));
   $("bStats").onclick = function () { haptic(); show("stats"); };
   $("bSearch").appendChild(h("span", "slabel", "Qidirish..."));
-  $("bSearch").onclick = function () { haptic(); show("search"); };
+  $("bSearch").onclick = function () { haptic(); if (window.innerWidth >= 900) openQuickSearch(); else show("search"); };
   $("bChannel").appendChild(icon("send"));
   $("bChannel").onclick = function () { haptic(); if (me.channel) openLink(me.channel); };
   var NAV = { home: ["home", "Asosiy"], movie: ["film", "Kinolar"], serial: ["tv", "Serial"], cartoon: ["smile", "Multfilm"],
