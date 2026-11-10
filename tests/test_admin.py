@@ -480,6 +480,22 @@ class AddFlow(AdminCase):
         self.press(1, "tr:set:7")
         self.assertEqual(trial.trial_days(self.app), 7)
 
+    def test_request_votes(self):
+        db = self.app.db
+        db.upsert_user({"id": 301, "first_name": "A"})
+        db.upsert_user({"id": 302, "first_name": "B"})
+        db.add_request(301, "Gladiator 2")
+        self.msg(302, "/sorovlar")
+        self.assertIn("Gladiator 2", self.last(302))
+        from app.handlers import contact
+        text, kb = contact._vote_view(type("C", (), {"db": db, "user_id": 302})())
+        cb = kb["inline_keyboard"][0][0]["callback_data"]
+        self.press(302, cb)
+        self.assertTrue(db.user_requested(302, "gladiator 2"))
+        self.assertEqual(db.top_requests(5)[0]["n"], 2)                        # ovoz hisoblandi
+        self.press(302, cb)                                                    # ikkinchi marta — qo'shilmaydi
+        self.assertEqual(db.top_requests(5)[0]["n"], 2)
+
     def test_year_range_typed(self):
         from app import genres
         self.assertEqual(genres.parse_years("2012-2015"), (2012, 2015))

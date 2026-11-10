@@ -890,6 +890,9 @@ class Database:
         return self.x("INSERT INTO requests(user_id, query, norm, created_at) VALUES (?,?,?,?)",
                       (uid, query[:300], normalize(query)[:300], now())).lastrowid
 
+    def user_requested(self, uid: int, norm: str) -> bool:
+        return bool(self.val("SELECT COUNT(*) FROM requests WHERE user_id=? AND norm=? AND done_at=0", (uid, norm[:300])))
+
     def open_requests(self, since: int) -> List[sqlite3.Row]:
         return self.q("SELECT * FROM requests WHERE done_at=0 AND created_at>=? ORDER BY id", (since,))
 

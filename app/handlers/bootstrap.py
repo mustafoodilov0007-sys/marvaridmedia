@@ -18,6 +18,7 @@ USER_COMMANDS = [
     {"command": "new", "description": "🆕 Yangi kinolar"},
     {"command": "sorov", "description": "🎬 Kino so'rash (topilmasa)"},
     {"command": "premium", "description": "💎 Premium obuna"},
+    {"command": "sorovlar", "description": "🗳 Eng ko'p so'ralgan kinolar — ovoz bering"},
     {"command": "kuzatish", "description": "🔔 Yangi kinolardan xabardor bo'lish"},
     {"command": "taklif", "description": "🤝 Do'st taklif qilib Premium olish"},
     {"command": "donat", "description": "💝 Loyihani qo'llab-quvvatlash"},

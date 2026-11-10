@@ -785,6 +785,9 @@ def part_kb(app, movie, part, total: int, extra_rows=None) -> dict:
     if movie["category"] != "music":
         last.append(btn("🎭 O'xshashlari", f"sim:{movie['id']}", style=SUCCESS))
     rows.append(last)
+    site = (app.config.webapp_url or "").rstrip("/")
+    if site and movie["category"] != "music" and movie["code"] > 0:      # bot → sayt ko'prigi: izohlar, poster, o'xshashlar
+        rows.append([{"text": "💬 Izohlar va batafsil", "web_app": {"url": f"{site}/?k={movie['code']}"}, "style": PRIMARY}])
     if extra_rows:
         rows.extend(extra_rows)
     return {"inline_keyboard": rows}

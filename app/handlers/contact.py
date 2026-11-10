@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 import time
+import zlib
 
 from ..core import Ctx, router
-from ..keyboards import DANGER, PRIMARY, btn, cancel_kb, ikb
+from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb
 from ..telegram import Forbidden, TelegramError
 from ..texts import B
 from ..utils import esc, message_html, user_link, visible_len
@@ -264,6 +265,46 @@ def st_request(ctx: Ctx) -> None:
         return
     ctx.clear_state()
     send_request(ctx, ctx.text)
+
+
+def _vote_view(ctx: Ctx):
+    from ..utils import now
+    rows = ctx.db.top_requests(8, now() - REQUEST_DAYS * 86400)
+    lines = ["🗳 <b>Eng ko'p so'ralgan kinolar</b>", "",
+             "«Menga ham kerak» tugmasini bossangiz, kino qo'shilishi bilan bot sizga xabar beradi. "
+             "Ovoz ko'p kinolar birinchi qo'shiladi 🎬", ""]
+    kb = []
+    if not rows:
+        lines.append("Hozircha ochiq so'rov yo'q 👍 O'zingiz so'rang: /sorov")
+    for i, r in enumerate(rows, 1):
+        mine = ctx.db.user_requested(ctx.user_id, r["norm"])
+        lines.append(f"<b>{i}.</b> {esc(r['query'][:60])} — 👥 {r['n']}" + (" ✅" if mine else ""))
+        if not mine:
+            kb.append([btn(f"🙋 Menga ham kerak: {r['query'][:26]}", f"rv:{zlib.crc32(r['norm'].encode()):08x}", style=SUCCESS)])
+    return "\n".join(lines), ikb(*kb) if kb else None
+
+
+@router.command("sorovlar", "ovoz", gate=False)
+def cmd_votes(ctx: Ctx) -> None:
+    ctx.send(*_vote_view(ctx))
+
+
+@router.callback("rv", gate=False)
+def cb_vote(ctx: Ctx) -> None:
+    from ..utils import now
+    key = ctx.data.split(":", 1)[1] if ":" in ctx.data else ""
+    if ctx.db.is_contact_banned(ctx.user_id):
+        ctx.answer("⛔️ Hozircha so'rov yuborish cheklangan", alert=True)
+        return
+    for r in ctx.db.top_requests(20, now() - REQUEST_DAYS * 86400):
+        if f"{zlib.crc32(r['norm'].encode()):08x}" == key:
+            if not ctx.db.user_requested(ctx.user_id, r["norm"]):
+                ctx.db.add_request(ctx.user_id, r["query"])
+            ctx.answer("✅ Ovozingiz qo'shildi!")
+            ctx.edit(*_vote_view(ctx))
+            return
+    ctx.answer("😔 Bu so'rov allaqachon yopilgan", alert=True)
+    ctx.edit(*_vote_view(ctx))
 
 
 @router.callback("rq")
