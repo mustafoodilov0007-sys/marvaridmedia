@@ -19,6 +19,7 @@ USER_COMMANDS = [
     {"command": "sorov", "description": "🎬 Kino so'rash (topilmasa)"},
     {"command": "premium", "description": "💎 Premium obuna"},
     {"command": "sorovlar", "description": "🗳 Eng ko'p so'ralgan kinolar — ovoz bering"},
+    {"command": "til", "description": "🌐 Til / Язык / Language"},
     {"command": "kuzatish", "description": "🔔 Yangi kinolardan xabardor bo'lish"},
     {"command": "taklif", "description": "🤝 Do'st taklif qilib Premium olish"},
     {"command": "donat", "description": "💝 Loyihani qo'llab-quvvatlash"},
@@ -74,6 +75,10 @@ def setup_commands(app: App) -> None:
     if app.config.webapp_url:
         commands.insert(1, {"command": "sayt", "description": "🌐 Sayt: kinolar, multfilmlar, musiqalar"})
     app.bot.safe("setMyCommands", {"commands": commands})
+    from .. import i18n_bot
+    for code in ("ru", "en"):                          # Telegram ilovasi tiliga qarab buyruqlar ro'yxati
+        app.bot.safe("setMyCommands", {"commands": [dict(c, description=i18n_bot.translate(c["description"], code)) for c in commands],
+                                       "language_code": code})
     for uid in app.admin_ids():
         app.bot.safe("setMyCommands", {"commands": ADMIN_COMMANDS, "scope": {"type": "chat", "chat_id": uid}})
 

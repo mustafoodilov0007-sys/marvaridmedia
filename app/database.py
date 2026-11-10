@@ -421,6 +421,8 @@ class Database:
             self.conn.execute("ALTER TABLE users ADD COLUMN ref_by INTEGER NOT NULL DEFAULT 0")
         if "contact_banned" not in ucols:  # 🚫 admin murojaat/so'rov yuborishini cheklagan
             self.conn.execute("ALTER TABLE users ADD COLUMN contact_banned INTEGER NOT NULL DEFAULT 0")
+        if "lang" not in ucols:  # 🌐 bot tili: '' (o'zbek) | ru | en
+            self.conn.execute("ALTER TABLE users ADD COLUMN lang TEXT NOT NULL DEFAULT ''")
         if "trial_used" not in ucols:  # 🎁 bepul Premium sinov muddati berilganmi (bir marta)
             self.conn.execute("ALTER TABLE users ADD COLUMN trial_used INTEGER NOT NULL DEFAULT 0")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_users_ref ON users(ref_by)")
@@ -644,6 +646,12 @@ class Database:
                 c.execute("INSERT INTO users(user_id, joined_at, last_active, premium_until, premium_notified)"
                           " VALUES (?,?,?,?,?)", (uid, t, t, until, notified))
             return until
+
+    def get_lang(self, uid: int) -> str:
+        return self.val("SELECT lang FROM users WHERE user_id=?", (uid,)) or ""
+
+    def set_lang(self, uid: int, lang: str) -> None:
+        self.x("UPDATE users SET lang=? WHERE user_id=?", (lang if lang in ("ru", "en") else "", uid))
 
     def take_trial(self, uid: int, since: int) -> bool:
         """Yangi foydalanuvchiga sinov muddati berilmagan bo'lsa belgilaydi (True). `since` — funksiya yoqilgan vaqt: undan oldin

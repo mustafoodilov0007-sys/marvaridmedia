@@ -47,7 +47,7 @@ def send_welcome(ctx: Ctx) -> None:
     method = {"photo": "sendPhoto", "animation": "sendAnimation", "video": "sendVideo"}.get(kind)
     if method and file_id and len(text) <= 1024:
         try:
-            ctx.bot.call(method, {"chat_id": ctx.chat_id, kind: file_id, "caption": text, "parse_mode": "HTML", "reply_markup": kb})
+            ctx.bot.call(method, {"chat_id": ctx.chat_id, kind: file_id, "caption": ctx.tr(text), "parse_mode": "HTML", "reply_markup": ctx.tr_kb(kb)})
             return
         except TelegramError as exc:           # fayl o'chgan/yaroqsiz — oddiy matn bilan davom etamiz
             log.warning("Start media yuborilmadi: %s", exc)
@@ -795,8 +795,8 @@ def part_kb(app, movie, part, total: int, extra_rows=None) -> dict:
 
 def send_part(ctx: Ctx, movie, part, total: int, extra_rows=None) -> None:
     app = ctx.app
-    caption = build_caption(app, movie, part, total)
-    kb = part_kb(app, movie, part, total, extra_rows)
+    caption = ctx.tr(build_caption(app, movie, part, total))
+    kb = ctx.tr_kb(part_kb(app, movie, part, total, extra_rows))
     protect = protect_for(ctx)
     try:
         if part["file_type"] == "video":

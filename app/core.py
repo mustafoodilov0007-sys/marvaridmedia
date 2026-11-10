@@ -52,6 +52,16 @@ def start_payload(code) -> str:
 
 # ═════════════════════════ Router ═════════════════════════
 
+_ALIAS: dict = {}
+
+
+def _alias_map() -> dict:
+    if not _ALIAS:
+        from . import i18n_bot
+        _ALIAS.update({button_key(k): v for k, v in i18n_bot.button_aliases().items()})
+    return _ALIAS
+
+
 def button_key(text: str) -> str:
     """Tugma matnini solishtirish uchun: emoji variant belgisi (U+FE0F) va bo'shliqlarsiz."""
     return (text or "").replace("\ufe0f", "").strip()
@@ -94,7 +104,15 @@ class Router:
         return deco
 
     def find_button(self, text: str) -> Optional[Handler]:
-        return self.buttons.get(button_key(text)) if text else None
+        if not text:
+            return None
+        h = self.buttons.get(button_key(text))
+        if h is None:                                   # ruscha/inglizcha tarjima qilingan pastki menyu tugmasi
+            from . import i18n_bot
+            uz = _alias_map().get(button_key(text))
+            if uz:
+                h = self.buttons.get(button_key(uz))
+        return h
 
     def state(self, *names: str, admin=False):
         def deco(func):
@@ -215,14 +233,28 @@ class Ctx:
 
     # ───────── javob berish ─────────
 
+    @property
+    def lang(self) -> str:
+        """Foydalanuvchi tili: '' (o'zbek) | 'ru' | 'en'."""
+        return self.app.user_lang(self.user_id) if self.user_id else ""
+
+    def tr(self, text: str) -> str:
+        from . import i18n_bot
+        return i18n_bot.translate(text, self.lang) if self.lang else text
+
+    def tr_kb(self, kb):
+        from . import i18n_bot
+        return i18n_bot.translate_markup(kb, self.lang) if self.lang else kb
+
     def send(self, text: str, kb: Optional[dict] = None, **kw):
-        return self.bot.send_message(self.chat_id, text, reply_markup=kb, **kw)
+        return self.bot.send_message(self.chat_id, self.tr(text), reply_markup=self.tr_kb(kb), **kw)
 
     def edit(self, text: str, kb: Optional[dict] = None):
         """Callback xabarini tahrirlaydi (matn yoki izoh). Iloji bo'lmasa — yangi xabar yuboradi."""
         msg = self.cb_message
         if not msg:
             return self.send(text, kb)
+        text, kb = self.tr(text), self.tr_kb(kb)
         try:
             if "text" in msg:
                 return self.bot.edit_message_text(self.chat_id, msg["message_id"], text, kb)
@@ -238,7 +270,7 @@ class Ctx:
             return
         self._answered = True
         try:
-            self.bot.answer_callback_query(self.callback["id"], text[:200] if text else None, alert)
+            self.bot.answer_callback_query(self.callback["id"], self.tr(text)[:200] if text else None, alert)
         except TelegramError:
             pass
 
@@ -341,6 +373,18 @@ class App:
         bot = getattr(self, "bot", None)
         if bot is not None:
             bot.emoji_map = self.emoji_mapping() if self.setting("emoji_on") != "0" else {}
+
+    def user_lang(self, uid: int) -> str:
+        cache = self.__dict__.setdefault("_lang_cache", {})
+        if uid not in cache:
+            if len(cache) > 20000:
+                cache.clear()
+            cache[uid] = self.db.get_lang(uid) or ""
+        return cache[uid]
+
+    def set_user_lang(self, uid: int, lang: str) -> None:
+        self.db.set_lang(uid, lang)
+        self.__dict__.setdefault("_lang_cache", {})[uid] = lang if lang in ("ru", "en") else ""
 
     def setting(self, key: str) -> str:
         value = self._settings.get(key)

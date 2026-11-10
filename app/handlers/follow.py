@@ -9,6 +9,7 @@ import time
 from datetime import datetime
 
 from .. import genres
+from .. import i18n_bot
 from ..core import Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, ikb
 from ..telegram import Forbidden, TelegramError
@@ -119,11 +120,13 @@ def notify_followers(app, movie_id: int) -> None:
             k = (uid, day)
             if _sent_today.get(k, 0) >= DAILY_CAP:
                 continue
+            lg = app.user_lang(uid)
+            t_text, t_kb = i18n_bot.translate(text, lg), i18n_bot.translate_markup(kb, lg)
             try:
                 if movie["poster_id"]:
-                    app.bot.call("sendPhoto", {"chat_id": uid, "photo": movie["poster_id"], "caption": text, "parse_mode": "HTML", "reply_markup": kb})
+                    app.bot.call("sendPhoto", {"chat_id": uid, "photo": movie["poster_id"], "caption": t_text, "parse_mode": "HTML", "reply_markup": t_kb})
                 else:
-                    app.bot.send_message(uid, text, kb)
+                    app.bot.send_message(uid, t_text, t_kb)
                 _sent_today[k] = _sent_today.get(k, 0) + 1
                 sent += 1
             except Forbidden:
@@ -165,8 +168,9 @@ def send_weekly(app, uid: int) -> bool:
     lines.append("\nYoqimli hordiq! 🍿")
     kb = ikb(*[[btn(f"▶️ {r['title'][:28]}", f"mv:{r['id']}", style=SUCCESS)] for r in rows],
              [btn("🔕 Haftalik tavsiyani o'chirish", "fw:woff", style=DANGER)])
+    lg = app.user_lang(uid)
     try:
-        app.bot.send_message(uid, "\n".join(lines), kb)
+        app.bot.send_message(uid, i18n_bot.translate("\n".join(lines), lg), i18n_bot.translate_markup(kb, lg))
         return True
     except Forbidden:
         app.db.set_blocked(uid, True)
