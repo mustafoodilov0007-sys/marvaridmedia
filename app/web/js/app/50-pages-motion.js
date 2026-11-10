@@ -67,7 +67,7 @@
   // ───── ✨ jonli animatsiyalar: fon zarralari, ikonkalar qatori, 3D karusel, kolleksiya va davlatlar ─────
   var ambientOn = false;
   function startAmbient() {
-    if (ambientOn || REDUCE) return;
+    if (ambientOn || REDUCE || LITE) return;
     ambientOn = true;
     var box = h("div", "amb");
     box.setAttribute("aria-hidden", "true");
@@ -191,11 +191,13 @@
     function layout() {
       ticking = false;
       var cr = cf.getBoundingClientRect(), cx = cr.left + cr.width / 2, best = 0, bd = 1e9;
-      Array.prototype.forEach.call(cf.children, function (c, i) {
-        var b = c.getBoundingClientRect();
+      var kids = cf.children, rects = new Array(kids.length), i0;
+      for (i0 = 0; i0 < kids.length; i0++) rects[i0] = kids[i0].getBoundingClientRect();        // avval hammasini o'qiymiz (so'ng yozamiz) — qayta hisoblash bitta marta
+      Array.prototype.forEach.call(kids, function (c, i) {
+        var b = rects[i];
         if (b.right < cr.left - b.width || b.left > cr.right + b.width) { c.classList.remove("on"); return; }   // ko'rinmaydigan chetdagilarga tegmaymiz
         var d = (b.left + b.width / 2 - cx) / b.width, ad = Math.min(Math.abs(d), 2.2);
-        c.style.transform = "perspective(800px) rotateY(" + (Math.max(-1.2, Math.min(1.2, d)) * -22).toFixed(1) + "deg) scale(" + (1 - ad * 0.1).toFixed(3) + ")";
+        c.style.transform = (LITE ? "" : "perspective(800px) rotateY(" + (Math.max(-1.2, Math.min(1.2, d)) * -22).toFixed(1) + "deg) ") + "scale(" + (1 - ad * 0.1).toFixed(3) + ")";
         c.style.setProperty("--po", (1 - Math.min(ad, 1.5) * 0.32).toFixed(2));
         c.style.zIndex = String(10 - Math.round(ad * 3));
         c.classList.toggle("on", ad < 0.4);

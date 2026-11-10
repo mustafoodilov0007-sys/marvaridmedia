@@ -127,6 +127,16 @@
     });
     page.appendChild(h("h3", "group-title", "Mavzu"));
     page.appendChild(seg);
+    page.appendChild(h("h3", "group-title", "Tezlik"));
+    var pf = ""; try { pf = localStorage.getItem("perf") || ""; } catch (e) {}
+    var perf = h("div", "seg");
+    [["", "Avto"], ["lite", "Yengil"], ["full", "To'liq"]].forEach(function (o) {
+      var b = h("button", o[0] === pf ? "on" : "", o[1]);
+      b.onclick = function () { if (o[0] !== pf) { haptic(); setPerf(o[0]); } };
+      perf.appendChild(b);
+    });
+    page.appendChild(perf);
+    page.appendChild(h("p", "pnote", "Telefon sekin ishlasa — «Yengil» ni tanlang: animatsiyalar va xira effektlar kamayadi."));
     page.appendChild(h("h3", "group-title", "Interfeys tili"));
     page.appendChild(langSeg());
     // havolalar

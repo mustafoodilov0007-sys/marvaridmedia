@@ -1,0 +1,25 @@
+/* ⚡ Tezlik. Kichik elementlar (belgilar, chiplar, tugmalar) uchun xiralashtiruvchi fon (backdrop-filter) olib tashlandi: har bir kartada
+   bir nechtasi bo'lib, o'rta telefonlarda kechikish berardi. Rang ozgina quyuqroq — ko'rinishi deyarli bir xil. */
+.tag, .badge.glass, .gpill, .qb, .cfhint, .ibtn, .hnav button, .pl-btn, .eqbox { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.tag { background: rgba(0, 0, 0, .68); }
+.badge.glass { background: rgba(38, 34, 42, .74); }
+.gpill { background: rgba(255, 255, 255, .2); }
+.top:not(.solid) .ibtn { background: rgba(18, 16, 20, .78); }
+.section.rv { content-visibility: auto; contain-intrinsic-size: auto 320px; }          /* ekrandan pastdagi bo'limlar ko'ringuncha hisoblanmaydi */
+
+/* ⚡ YENGIL REJIM: animatsiyalar va og'ir effektlar kamayadi (sekin telefonlarda avto yoqiladi; Profil → Tezlik) */
+html.lite *, html.lite *::before, html.lite *::after { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+html.lite .top.solid, html.lite .nav, html.lite .fdpanel, html.lite .cfwrap > .cfinfo .cfin, html.lite .ptr { background: var(--bg-soft, var(--surface)) !important; }
+html.lite .amb { display: none !important; }
+html.lite .sheet-top .bg { filter: none !important; transform: none !important; }
+html.lite .sheet-top .bg:not(.ph) { opacity: .55; }
+html.lite .slide.on .bg, html.lite .slide .bg { animation: none !important; }
+html.lite .grid > .card, html.lite .section:not(.rv) .rail > .card, html.lite .rv.in .rail > .card { animation: none !important; }
+html.lite .rv { opacity: 1 !important; transform: none !important; transition: none !important; }
+html.lite .poster .ph::after { display: none !important; }
+html.lite .cfc .poster, html.lite .card .poster { box-shadow: none !important; }
+html.lite .cfc.on .poster { box-shadow: 0 0 0 2px var(--gold) !important; }
+html.lite .pop svg, html.lite .rbtn.vpop, html.lite .cm-btn.like.hpop svg, html.lite #bTheme.spin svg { animation: none !important; }
+html.lite #view.enter > * { animation-duration: .18s !important; }
+html.lite .sbg { filter: blur(18px) brightness(.45) !important; }
+html.lite.theming, html.lite.theming * { transition: none !important; }

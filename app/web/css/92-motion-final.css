@@ -20,8 +20,7 @@ html.theming, html.theming *, html.theming *::before, html.theming *::after {
 .card.leaving { animation: cardOut .3s ease-in forwards; pointer-events: none; }
 
 /* 6) Poster rasmi xiradan aniqqa yumshoq o'tadi */
-.poster img { filter: blur(8px); transform: scale(1.06); transition: opacity .45s ease, filter .6s ease, transform .6s cubic-bezier(.2, .8, .2, 1); }
-.poster img.ok { filter: none; transform: none; }
+.poster img { transition: opacity .4s ease; }
 
 /* 5) Bo'sh holat belgisi bir marta ozgina tebranadi */
 @keyframes emptyWobble { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-8deg) scale(1.06); } 60% { transform: rotate(6deg); } }

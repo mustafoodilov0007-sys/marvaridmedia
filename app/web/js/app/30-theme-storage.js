@@ -113,6 +113,7 @@
 
   // ───── qurilma imkoniyatlari ─────
   var HOVER = !!(window.matchMedia && matchMedia("(hover: hover) and (pointer: fine)").matches);
+  var LITE = liteInit();          // sekin telefonlar uchun yengil rejim (94-perf.js)
   var REDUCE = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
   var MONTHS = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentyabr", "oktyabr", "noyabr", "dekabr"];
   function fmtDate(ts) {
