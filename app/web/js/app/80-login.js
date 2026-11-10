@@ -115,6 +115,7 @@
       h("div", null, [h("b", null, String(PUB ? localHist.length : "—")), h("span", null, "Ko'rilgan")]),
       h("div", null, [h("b", null, String(((me.counts || {}).movie || 0) + ((me.counts || {}).serial || 0) + ((me.counts || {}).cartoon || 0))), h("span", null, "Jami kino")])
     ]));
+    yearCard(page);
     // mavzu
     var seg = h("div", "seg");
     [["dark", "🌙 Qorong'i"], ["light", "☀️ Yorug'"]].forEach(function (o) {

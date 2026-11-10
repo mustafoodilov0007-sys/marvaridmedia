@@ -557,6 +557,22 @@ class Database:
         return self.q("SELECT code FROM promos WHERE used_by=0 AND days=? ORDER BY created_at DESC LIMIT ?",
                       (days, limit))
 
+    def user_stats(self, uid: int, since: int) -> dict:
+        """«Sizning yilingiz»: shu yilda ko'rilgan kinolar, sevimli janrlar, soat, yoqtirganlari, izohlari, taklif qilgan do'stlari."""
+        rows = self.q("SELECT m.genres, m.duration FROM history h JOIN movies m ON m.id=h.movie_id"
+                      " WHERE h.user_id=? AND h.at>=?", (uid, since))
+        freq: Dict[str, int] = {}
+        secs = 0
+        for r in rows:
+            secs += r["duration"] or 0
+            for g in genres.parse(r["genres"]):
+                freq[g] = freq.get(g, 0) + 1
+        top = [k for k, _ in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))[:3]]
+        return {"watched": len(rows), "hours": round(secs / 3600, 1), "genres": top,
+                "likes": self.val("SELECT COUNT(*) FROM ratings WHERE user_id=? AND value=1", (uid,)),
+                "comments": self.val("SELECT COUNT(*) FROM comments WHERE user_id=? AND status='ok'", (uid,)),
+                "referrals": self.referral_count(uid)}
+
     def referral_count(self, uid: int) -> int:
         return self.val("SELECT COUNT(*) FROM users WHERE ref_by=?", (uid,))
 

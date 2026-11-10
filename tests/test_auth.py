@@ -171,6 +171,19 @@ class Ads(AuthCase):
         self.assertEqual(webp[8:12], b"WEBP")
         self.assertLess(len(webp), len(jpg))
 
+    def test_my_stats_card(self):
+        tok, done = self.telegram_login(uid=31, name="Aziza")
+        sess = done["session"]
+        from app.handlers import audit  # noqa: F401
+        self.app.db.touch_history(31, self.mid)
+        self.app.db.rate(31, self.mid, 1)
+        st, r = self.api("GET", "/api/mystats", sess)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["watched"], 1)
+        self.assertEqual(r["likes"], 1)
+        self.assertIn("year", r)
+        self.assertFalse(self.api("GET", "/pub/mystats")[1].get("ok"))        # mehmonlar uchun server hisoblamaydi — qurilmadagi tarixdan
+
     def test_legal_pages(self):
         import urllib.request
         for path, word in (("/shartlar", "Foydalanish shartlari"), ("/maxfiylik", "Maxfiylik siyosati")):

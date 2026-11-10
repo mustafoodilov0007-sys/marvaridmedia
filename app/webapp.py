@@ -27,7 +27,8 @@ from . import genres, keyboards, seo
 from .core import App, Ctx, router, start_payload
 from .database import CATEGORIES
 from .telegram import Forbidden, TelegramError
-from .utils import normalize, truncate
+from datetime import datetime
+from .utils import TZ, normalize, truncate
 
 log = logging.getLogger("webapp")
 
@@ -423,6 +424,18 @@ def api_collection(app: App, user: dict, qs: dict) -> dict:
     premium_on = app.setting_bool("premium_enabled")
     return {"ok": True, "title": col["title"],
             "items": [_item(r, premium_on, vip) for r in app.db.collection_movies(col["id"])]}
+
+
+def api_mystats(app: App, user: dict) -> dict:
+    """«Sizning yilingiz» kartasi: faqat kirgan foydalanuvchi uchun, joriy yil (Toshkent vaqti) bo'yicha."""
+    uid = user["id"]
+    if not uid or uid < 0:
+        return {"ok": False, "reason": "auth"}
+    now_t = datetime.now(TZ)
+    since = int(datetime(now_t.year, 1, 1, tzinfo=TZ).timestamp())
+    st = app.db.user_stats(uid, since)
+    st["genres"] = [{"key": k, "label": genres.label(k)} for k in st["genres"]]
+    return dict(st, ok=True, year=now_t.year)
 
 
 def api_myratings(app: App, user: dict) -> dict:
@@ -1633,6 +1646,8 @@ def make_handler(app: App):
                         return self._json(api_collection(app, user, qs))
                     if path == "/api/myratings":
                         return self._json(api_myratings(app, user))
+                    if path == "/api/mystats":
+                        return self._json(api_mystats(app, user))
                     if path == "/api/support":
                         return self._json(api_support(app, user))
                     if path == "/api/admin/stats":
