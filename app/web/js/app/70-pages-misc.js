@@ -62,7 +62,7 @@
       haptic("medium");
       if (guest()) { needLogin("⭐ Baho berish uchun hisobingizga kiring"); return; }
       api("/api/rate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: it.id, v: v }) })
-        .then(function (r) { if (r.ok) { paint(r); notify("success"); } else toast("⚠️ Baho saqlanmadi"); })
+        .then(function (r) { if (r.ok) { paint(r); animOnce(v === 1 ? up : down, "vpop", 500); notify("success"); } else toast("⚠️ Baho saqlanmadi"); })
         .catch(function () { toast("⚠️ Ulanishda xatolik"); });
     }
     up.onclick = function () { vote(1); };

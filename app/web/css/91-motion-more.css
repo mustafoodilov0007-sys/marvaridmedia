@@ -1,0 +1,27 @@
+/* 🎬 Qo'shimcha mayda animatsiyalar: sahifa o'tishi, 👍👎, izohlar, pastki menyu. Faqat transform/opacity. */
+
+/* 2) Sahifalar orasida o'tish: yangi sahifa pastdan yumshoq ko'tarilib paydo bo'ladi */
+@keyframes pgIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+#view.enter { animation: none; }
+#view.enter > * { animation: pgIn .36s cubic-bezier(.2, .8, .2, 1) both; }
+
+/* 4) 👍 / 👎: tugma sakraydi, raqam «tepaga ko'tarilib» yangilanadi */
+@keyframes vPop { 0% { transform: scale(1); } 40% { transform: scale(1.22) rotate(-6deg); } 70% { transform: scale(.94); } 100% { transform: scale(1); } }
+@keyframes numBump { 0% { transform: translateY(6px); opacity: 0; } 100% { transform: none; opacity: 1; } }
+.rbtn.vpop { animation: vPop .45s cubic-bezier(.2, 1.4, .4, 1); }
+.rbtn.vpop b { display: inline-block; animation: numBump .35s ease-out; }
+
+/* 5) Izohlar: yangi izoh tepadan tushadi, yoqtirish yuragi sakraydi */
+@keyframes cmDrop { 0% { opacity: 0; transform: translateY(-14px) scale(.98); background: rgba(226, 180, 80, .14); } 60% { background: rgba(226, 180, 80, .10); }
+  100% { opacity: 1; transform: none; background: transparent; } }
+@keyframes heartPop { 0% { transform: scale(1); } 30% { transform: scale(1.55); } 60% { transform: scale(.88); } 100% { transform: scale(1); } }
+.cm.cm-new { animation: cmDrop .6s cubic-bezier(.2, .8, .2, 1); border-radius: 12px; }
+.cm-btn.like.hpop svg { animation: heartPop .5s cubic-bezier(.2, 1.4, .4, 1); }
+
+/* 8) Pastki menyu: tanlangan belgi sakraydi, tepadagi oltin chiziq bo'limga siljib boradi */
+@keyframes navBounce { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(-4px) scale(1.18); } 100% { transform: none; } }
+.nav button.on svg { animation: navBounce .45s cubic-bezier(.2, 1.5, .4, 1); }
+.nav .navind { position: absolute; top: 0; left: 0; width: 28px; height: 3px; border-radius: 0 0 3px 3px; background: var(--grad); pointer-events: none;
+  transition: transform .38s cubic-bezier(.3, 1.15, .4, 1), opacity .2s; will-change: transform; }
+.nav .navind.first { transition: none; }
+.nav.hasind button.on::before { display: none; }

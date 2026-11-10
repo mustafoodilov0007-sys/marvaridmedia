@@ -71,7 +71,7 @@
         if (guest()) { needLogin("Izohlarni baholash uchun hisobingizga kiring"); return; }
         haptic();
         api("/api/comment/like", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cid: c.id }) })
-          .then(function (r) { if (!r.ok) return; c.liked = r.liked; c.likes = r.likes; like.classList.toggle("on", r.liked); like.lastChild.textContent = r.likes ? String(r.likes) : ""; });
+          .then(function (r) { if (!r.ok) return; c.liked = r.liked; c.likes = r.likes; like.classList.toggle("on", r.liked); if (r.liked) animOnce(like, "hpop", 550); like.lastChild.textContent = r.likes ? String(r.likes) : ""; });
       };
       var act = h("div", "cm-act", [like]);
       var repliesBox = h("div", "cm-replies");
@@ -87,7 +87,7 @@
             slotR.replaceChildren(); setTotal(st.total + 1);
             var host = top ? repliesBox : row.parentNode;
             r.item.parentId = top ? c.id : c.parentId;
-            host.appendChild(node(r.item, false));
+            var nn = node(r.item, false); nn.classList.add("cm-new"); host.appendChild(nn);
           }, "@" + c.name + " ga javob...", true));
         };
         act.appendChild(rb);
@@ -136,7 +136,7 @@
           slot.replaceChildren();
           if (d.can_post) slot.appendChild(composer(0, function (r) {
             setTotal(r.total); var first = list.querySelector(".cm-empty"); if (first) first.remove();
-            r.item.replies = []; list.insertBefore(node(r.item, true), list.firstChild);
+            r.item.replies = []; var nn = node(r.item, true); nn.classList.add("cm-new"); list.insertBefore(nn, list.firstChild);
           }));
           else if (guest()) slot.appendChild(cmtCta(it));
           else slot.appendChild(h("div", "cm-note", "Izoh qoldirish sizga cheklangan."));

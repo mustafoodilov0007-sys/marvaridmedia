@@ -37,6 +37,19 @@
     else if (!st.v && current !== "home") show("home", { nopush: true });
   });
 
+  // pastki menyudagi oltin chiziq tanlangan bo'limga siljib boradi
+  function moveNavInd() {
+    var nav = $("nav");
+    if (!nav) return;
+    var ind = nav.querySelector(".navind"), first = false;
+    if (!ind) { ind = document.createElement("i"); ind.className = "navind first"; nav.appendChild(ind); nav.classList.add("hasind"); first = true; }
+    var on = nav.querySelector("button.on");
+    if (!on) { ind.style.opacity = "0"; return; }
+    ind.style.transform = "translateX(" + Math.round(on.offsetLeft + on.offsetWidth / 2 - 14) + "px)";
+    ind.style.opacity = "1";
+    if (first) requestAnimationFrame(function () { requestAnimationFrame(function () { ind.classList.remove("first"); }); });
+  }
+  window.addEventListener("resize", function () { var i = document.querySelector(".nav .navind"); if (i) { i.classList.add("first"); moveNavInd(); requestAnimationFrame(function () { i.classList.remove("first"); }); } });
   function show(name, opts) {
     opts = opts || {};
     if (name === "catalog") name = "video";          // «Katalog» tugmasi — barcha turlar (tepada tur tablari bor)
@@ -56,6 +69,7 @@
       b.classList.toggle("on", on);
       if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
+    moveNavInd();
     window.scrollTo(0, 0);
     onScroll();
     updateBack();
