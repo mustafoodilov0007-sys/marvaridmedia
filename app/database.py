@@ -1173,6 +1173,15 @@ class Database:
         return self.q(_CATALOG_ROW.replace("FROM movies m", "FROM history h JOIN movies m ON m.id = h.movie_id")
                       + " WHERE h.user_id=? AND m.category<>'music' ORDER BY h.at DESC LIMIT ?", (uid, limit))
 
+    def resume_parts(self, uid: int, movie_ids: list) -> dict:
+        """{kino id: oxirgi ko'rilgan qism raqami} — faqat ko'p qismli kinolar uchun."""
+        if not movie_ids:
+            return {}
+        marks = ",".join("?" * len(movie_ids))
+        rows = self.q("SELECT h.movie_id AS mid, p.part_no AS no FROM history h JOIN parts p ON p.id=h.part_id"
+                      f" WHERE h.user_id=? AND h.part_id>0 AND h.movie_id IN ({marks})", (uid, *movie_ids))
+        return {r["mid"]: r["no"] for r in rows}
+
     def clear_history(self, uid: int) -> int:
         return self.x("DELETE FROM history WHERE user_id=?", (uid,)).rowcount
 

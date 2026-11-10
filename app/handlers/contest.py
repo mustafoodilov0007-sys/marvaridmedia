@@ -246,10 +246,12 @@ def start_contest(app):
     return announce_contest(app)
 
 
-def award_period(app, start: int, end: int) -> list:
-    """[start, end) oralig'idagi g'oliblarni mukofotlaydi: Premium — darhol, pul — adminga hisobot. [(o'rin, uid, soni, mukofot)]."""
+def award_period(app, start: int, end: int, exclude=()) -> list:
+    """[start, end) oralig'idagi g'oliblarni mukofotlaydi: Premium — darhol, pul — adminga hisobot. [(o'rin, uid, soni, mukofot)].
+    exclude — admin chiqarib tashlagan (firibgar) foydalanuvchilar: ularning o'rniga keyingilar o'tadi."""
     pz = prizes(app)
-    rows = [r for r in app.db.top_referrers(start, end, len(pz)) if r["n"] >= MIN_REFS]
+    skip = {int(x) for x in exclude}
+    rows = [r for r in app.db.top_referrers(start, end, len(pz) + len(skip)) if r["n"] >= MIN_REFS and r["uid"] not in skip][:len(pz)]
     won = []
     for i, r in enumerate(rows):
         p = pz[i]
@@ -282,6 +284,52 @@ def award_period(app, start: int, end: int) -> list:
     return won
 
 
+# ───── g'oliblarni qo'lda tasdiqlash ─────
+
+def approval_on(app) -> bool:
+    return app.setting("contest_approve") != "0"        # standart: yoqilgan
+
+
+def _candidates(app, start: int, end: int) -> list:
+    pz = prizes(app)
+    return [r for r in app.db.top_referrers(start, end, len(pz) + 4) if r["n"] >= MIN_REFS]
+
+
+def _pending(app):
+    try:
+        d = json.loads(app.setting("contest_pending") or "")
+        return d if isinstance(d, dict) and "start" in d else None
+    except ValueError:
+        return None
+
+
+def _save_pending(app, d) -> None:
+    app.set_setting("contest_pending", json.dumps(d) if d else "")
+
+
+def pending_view(app):
+    d = _pending(app)
+    if not d:
+        return "Tasdiqlashni kutayotgan musobaqa yo'q.", ikb()
+    pz, skip = prizes(app), {int(x) for x in d["ex"]}
+    rows = _candidates(app, d["start"], d["end"])
+    lines = [f"🏆 Musobaqa ({fmt_dt(d['start'])[:10]} — {fmt_dt(d['end'])[:10]})", ""]
+    kb, place = [], 0
+    for r in rows:
+        out = r["uid"] in skip
+        if not out and place < len(pz):
+            tag = f"{place_mark(place)} → {prize_text(pz[place])}"
+            place += 1
+        else:
+            tag = "🚫 chiqarilgan" if out else "zaxira"
+        lines.append(f"• {_name(r)} (<code>{r['uid']}</code>) — <b>{r['n']}</b> ta do'st · {tag}")
+        kb.append([btn(("↩️ Qaytarish: " if out else "🚫 Chiqarish: ") + (r["first_name"] or str(r["uid"]))[:24], f"cn:px:{r['uid']}",
+                       style=PRIMARY if out else DANGER)])
+    lines += ["", "Shubhali (soxta akkaunt) ishtirokchini chiqaring — o'rniga keyingisi o'tadi. Tayyor bo'lsa «Tasdiqlash» ni bosing."]
+    kb.append([btn("✅ Tasdiqlash va mukofotlash", "cn:pok", style=SUCCESS), btn("🗑 Mukofotsiz yopish", "cn:pno", style=DANGER)])
+    return "\n".join(lines), ikb(*kb)
+
+
 def finish_contest(app, award: bool = True) -> list:
     """Faol musobaqani tugatadi. award=True — g'oliblarni mukofotlaydi; False — bekor qilish (mukofotsiz, kanaldagi e'lon ham o'chiriladi)."""
     per = active_period(app)
@@ -293,7 +341,18 @@ def finish_contest(app, award: bool = True) -> list:
     app.set_setting("contest_on", "0")
     app.set_setting("contest_last_start", str(per[0]))
     app.set_setting("contest_last_end", str(end))
-    return award_period(app, start, end) if award else []
+    if not award:
+        return []
+    if approval_on(app) and _candidates(app, start, end):
+        _save_pending(app, {"start": start, "end": end, "ex": []})
+        text, kb = pending_view(app)
+        for oid in app.config.owners:
+            try:
+                app.bot.send_message(oid, "⏳ <b>Musobaqa tugadi — g'oliblarni tasdiqlang</b>\n\n" + text, kb)
+            except TelegramError as exc:
+                log.warning("Tasdiqlash so'rovi yetmadi (%s): %s", oid, exc)
+        return []
+    return award_period(app, start, end)
 
 
 @router.task
@@ -332,6 +391,9 @@ def _admin_view(app):
         rows.append([btn(f"▶️ Boshlash ({human_len(ln)}) va kanalga e'lon qilish", "cn:tog", style=SUCCESS)])
     rows.append([btn(("✅ " if ln == d else "") + human_len(d), f"cn:l:{d}", style=SUCCESS if ln == d else PRIMARY) for d in LEN_PRESETS])
     rows.append([btn("✏️ Boshqa muddat (kun)", "cn:lc", style=PRIMARY)])
+    if _pending(app):
+        rows.insert(0, [btn("⏳ G'oliblarni tasdiqlash", "cn:pv", style=SUCCESS)])
+    rows.append([btn("🔒 G'oliblarni qo'lda tasdiqlash: " + ("yoqilgan ✅" if approval_on(app) else "o'chiq"), "cn:apr", style=PRIMARY)])
     rows.append([btn("➖ O'rin", "cn:del", style=PRIMARY), btn(f"{len(pz)} ta g'olib", "cn:noop", style=PRIMARY), btn("➕ O'rin", "cn:add", style=PRIMARY)])
     for i, p in enumerate(pz):
         rows.append([btn(f"✏️ {place_mark(i)}: {prize_text(p)}", f"cn:e:{i}", style=SUCCESS)])
@@ -372,7 +434,36 @@ def cb_contest(ctx: Ctx) -> None:
     parts = ctx.data.split(":")
     act = parts[1] if len(parts) > 1 else ""
     pz = prizes(app)
-    if act == "cx":                                    # bekor qilish — avval tasdiq so'raladi
+    if act in ("px", "pok", "pno", "pv"):              # g'oliblarni qo'lda tasdiqlash
+        d = _pending(app)
+        if not d:
+            ctx.answer("Tasdiqlanadigan musobaqa yo'q", alert=True)
+            return
+        if act == "px" and len(parts) > 2 and parts[2].isdigit():
+            ex = {int(x) for x in d["ex"]} ^ {int(parts[2])}
+            d["ex"] = sorted(ex)
+            _save_pending(app, d)
+            ctx.answer()
+        elif act == "pok":
+            _save_pending(app, None)
+            won = award_period(app, d["start"], d["end"], d["ex"])
+            ctx.answer(f"🏁 Mukofotlandi: {len(won)} ta g'olib", alert=True)
+            ctx.edit(f"✅ Tasdiqlandi — {len(won)} ta g'olib mukofotlandi.")
+            return
+        elif act == "pno":
+            _save_pending(app, None)
+            ctx.answer("Mukofotsiz yopildi")
+            ctx.edit("🗑 Musobaqa mukofotsiz yopildi.")
+            return
+        else:
+            ctx.answer()
+        text, kb = pending_view(app)
+        ctx.edit("⏳ <b>G'oliblarni tasdiqlang</b>\n\n" + text, kb)
+        return
+    if act == "apr":                                   # tasdiqlash rejimini almashtirish
+        app.set_setting("contest_approve", "0" if approval_on(app) else "1")
+        ctx.answer("🔒 Qo'lda tasdiqlash: " + ("yoqildi" if approval_on(app) else "o'chdi"))
+    elif act == "cx":                                  # bekor qilish — avval tasdiq so'raladi
         ctx.answer()
         ctx.edit("❌ <b>Musobaqani bekor qilasizmi?</b>\n\nMukofot berilmaydi, kanaldagi «boshlandi» e'loni o'chiriladi. "
                  "Keyin to'g'ri sozlamalar bilan qaytadan boshlashingiz mumkin.",
@@ -405,7 +496,9 @@ def cb_contest(ctx: Ctx) -> None:
                 ctx.send(f"⚠️ Musobaqa boshlandi, lekin e'lon kanalga yuborilmadi: {esc(why)}")
     elif act == "fin":
         won = finish_contest(app, award=True)
-        ctx.answer(f"🏁 Yakunlandi: {len(won)} ta g'olib", alert=True)
+        ctx.answer(f"🏁 Yakunlandi: {len(won)} ta g'olib" if not _pending(app) else "⏳ Yakunlandi — g'oliblarni tasdiqlang", alert=True)
+        if _pending(app):
+            ctx.send("⏳ <b>G'oliblarni tasdiqlang</b>\n\n" + pending_view(app)[0], pending_view(app)[1])
     elif act == "ann":
         ok, why = announce_contest(app)
         ctx.answer("📣 Yuborildi" if ok else "⚠️ Yuborilmadi", alert=not ok)

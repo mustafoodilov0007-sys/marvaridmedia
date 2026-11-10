@@ -611,6 +611,11 @@ def _api_home(app: App, user: dict) -> dict:
     with_poster = [r for r in newest if r["poster_id"]]
     hero = (with_poster + [r for r in newest if not r["poster_id"]])[:6]
     history = pack(db.history(user["id"], 15)) if user["id"] else []
+    if history:   # serialda qaysi qismda to'xtagani — «Davom ettiring» kartasida «3-qism» belgisi
+        resume = db.resume_parts(user["id"], [x["id"] for x in history])
+        for x in history:
+            if resume.get(x["id"]):
+                x["resume"] = resume[x["id"]]
     foryou = pack(db.recommend(user["id"], 15)) if user["id"] else []
     from .handlers.user import search_ids  # aylanma importdan qochish uchun
     searched = []

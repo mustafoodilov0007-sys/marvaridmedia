@@ -600,6 +600,7 @@ class AddFlow(AdminCase):
         self.assertIn("← siz", self.last(501))
         self.assertIn("Tugashiga", self.last(501))
         self.app.set_setting("contest_end", str(end))                              # muddat o'tdi — avtomatik yakunlanadi
+        self.app.set_setting("contest_approve", "0")                               # bu testda tasdiqsiz mukofotlanadi
         won = contest.finish_contest(self.app, award=True)
         self.assertEqual([(o, u) for o, u, _, _ in won], [(1, 501), (2, 502), (3, 503)])
         self.assertFalse(contest.enabled(self.app))
@@ -618,6 +619,46 @@ class AddFlow(AdminCase):
         self.assertIn("Tabriklaymiz, siz g'olibsiz", self.last(501))
         self.press(1, "cn:add")
         self.assertEqual(len(contest.prizes(self.app)), 4)                         # g'oliblar sonini admin belgilaydi
+
+    def test_contest_winners_manual_approval(self):
+        from app.handlers import contest
+        db = self.app.db
+        contest.save_prizes(self.app, [{"t": "p", "v": 30}, {"t": "p", "v": 7}])
+        self.press(1, "cn:tog")
+        start, end = contest.active_period(self.app)
+        shift = 31 * 86400
+        start, end = start - shift, end - shift
+        self.app.set_setting("contest_start", str(start))
+        self.app.set_setting("contest_end", str(end))
+        self._make_referrals(start, ((501, 5), (502, 4), (503, 3)))
+        self.assertEqual(contest.finish_contest(self.app, award=True), [])         # tasdiqsiz mukofot berilmaydi
+        self.assertEqual(db.premium_until(501), 0)
+        self.assertIn("tasdiqlang", " ".join(self.app.bot.texts(1)))
+        self.press(1, "cn:px:501")                                                 # 501 shubhali — chiqariladi
+        self.press(1, "cn:pok")
+        self.assertEqual(db.premium_until(501), 0)                                 # chiqarilgan
+        self.assertGreater(db.premium_until(502), 0)                               # 502 — 1-o'rin
+        self.assertGreater(db.premium_until(503), 0)                               # zaxiradagi 503 — 2-o'rin
+        self.assertEqual(contest._pending(self.app), None)
+
+    def test_shortscheck_finds_and_removes_broken(self):
+        from app.handlers import shortscheck
+        from app.telegram import TelegramError
+        mid = add_movie(self.app, 960, "Shortsli kino")
+        good, bad = self.app.db.add_short(mid, "GOOD", "video"), self.app.db.add_short(mid, "BAD", "video")
+        real = self.app.bot.call
+
+        def fake(method, params=None, **k):
+            if method == "getFile" and params["file_id"] == "BAD":
+                raise TelegramError("getFile", 400, "Bad Request: file is too big")
+            return {"file_path": "x", "file_size": 1000}
+        self.app.bot.call = fake
+        self.assertEqual([i for i, _, _ in shortscheck.check_shorts(self.app)], [bad])
+        self.msg(1, "/shortstekshir")
+        self.assertIn("1 ta shorts yuklanmaydi", " ".join(self.app.bot.texts(1)))
+        self.press(1, "sc:del")
+        self.assertEqual([r["id"] for r in self.app.db.movie_shorts(mid)], [good])
+        self.app.bot.call = real
 
     def test_trailer_link_bot_and_site(self):
         from app import webapp

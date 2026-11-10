@@ -453,7 +453,11 @@
     if ((data.collections || []).length) add(collectionsRail(data.collections));
     if (weekly.length >= 3) add(coverflow({ title: "🔥 Haftaning TOP'i", items: weekly, cat: "video", sort: "top" }));
     var hist = guest() ? localHist : (data.history || []);          // «Davom ettiring» — haftaning TOP'idan keyin
-    if (hist.length) add(rail({ title: "🕘 Davom ettiring", items: hist, cls: "hist" }));
+    if (hist.length) add(rail({ title: "🕘 Davom ettiring", items: hist, cls: "hist", wrapItem: function (it) {
+      var c = card(it);
+      if (it.resume) { var pill = h("span", "resume", "▶ " + it.resume + "-qism"); (c.querySelector(".poster") || c).appendChild(pill); }
+      return c;
+    } }));
     if (data.foryou && data.foryou.length) add(rail({ title: "🎯 Siz uchun", items: data.foryou }));
     var nw = byKey["new"]; if (nw && nw.items.length) add(rail(nw));
     if (topRail && weekly.length < 3) add(topRail);
