@@ -158,3 +158,12 @@ class Growth(unittest.TestCase):
         from app.handlers.user import ref_next
         self.assertEqual(ref_next(3), (10, 10))
         self.assertIsNone(ref_next(50))
+
+    def test_me_has_invite_info(self):
+        web = WebServer(self.app)
+        try:
+            ref = web.json("/api/me", uid=5)[1]["ref"]
+            self.assertTrue(ref["link"].endswith("?start=r5"))
+            self.assertEqual((ref["n"], ref["next"], ref["bonus"]), (0, 3, 3))
+        finally:
+            web.close()
