@@ -40,6 +40,7 @@ def og_tags(brand: str, title: str, desc: str, image: str, url: str) -> str:
             f'<meta property="og:type" content="website">\n<meta property="og:site_name" content="{_e(brand, True)}">\n'
             f'<meta property="og:title" content="{_e(title, True)}">\n<meta property="og:description" content="{_e(desc, True)}">\n'
             f'<meta property="og:url" content="{_e(url, True)}">\n<meta property="og:image" content="{_e(image, True)}">\n'
+            + ('<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">\n' if "/og/" in image else "") +
             f'<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:title" content="{_e(title, True)}">\n'
             f'<meta name="twitter:description" content="{_e(desc, True)}">\n<meta name="twitter:image" content="{_e(image, True)}">')
 
@@ -71,6 +72,12 @@ def movie_page(app, base: str, code: int, poster_key) -> Optional[Dict]:
     desc = " • ".join(bits) + ((" — " + truncate((m["description"] or "").strip(), 150)) if (m["description"] or "").strip() else
                                f". {brand} saytida tomosha qiling.")
     image = _poster_url(base, m, poster_key)
+    try:
+        from . import sharecard
+        if sharecard.available():          # katta ulashish kartochkasi (poster, nom, yil, reyting) — havola chiroyli ko'rinadi
+            image = f"{base}/og/{m['id']}.jpg?v={poster_key(m['poster_id']) if m['poster_id'] else 0}"
+    except Exception:  # noqa: BLE001
+        pass
     ld: Dict = {"@context": "https://schema.org", "@type": "TVSeries" if m["category"] == "serial" else "Movie",
                 "name": m["title"], "url": url, "image": image, "description": truncate((m["description"] or desc), 300),
                 "inLanguage": "uz"}

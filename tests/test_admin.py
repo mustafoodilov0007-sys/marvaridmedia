@@ -598,6 +598,41 @@ class AddFlow(AdminCase):
         self.assertEqual(got["❤"], "4")
         self.assertEqual(got["⭐"], "5")                       # «=» yo'q — premium emojining o'z ko'rinishi (eski usul)
 
+    def test_saved_sync_site_and_bot(self):
+        from app import webapp
+        app, db = self.app, self.app.db
+        a, b2 = add_movie(app, 701, "Sevimli A"), add_movie(app, 702, "Sevimli B")
+        db.upsert_user({"id": 801, "first_name": "S"})
+        self.assertEqual(webapp.api_saved(app, {"id": 0})["reason"], "login")
+        self.assertTrue(webapp.api_saved_set(app, {"id": 801}, {"id": a, "on": True})["on"])
+        self.assertEqual(webapp.api_saved_set(app, {"id": 801}, {"ids": [b2, a, 99999]})["added"], 1)   # mavjud bo'lmagan kino o'tkazib yuboriladi
+        self.assertEqual({x["id"] for x in webapp.api_saved(app, {"id": 801})["items"]}, {a, b2})
+        self.assertFalse(webapp.api_saved_set(app, {"id": 801}, {"id": a, "on": False})["on"])
+        self.assertEqual([x["id"] for x in webapp.api_saved(app, {"id": 801})["items"]], [b2])
+        # botda: «🔖 Saqlash» tugmasi va /saqlangan ro'yxati — saytdagi bilan bir xil
+        self.press(801, f"svt:{a}")
+        self.assertTrue(db.is_saved(801, a))
+        self.msg(801, "/saqlangan")
+        out = self.last(801)
+        self.assertIn("Sevimli A", out); self.assertIn("Sevimli B", out)
+        self.press(801, f"svt:{a}")
+        self.assertFalse(db.is_saved(801, a))
+
+    def test_share_card_image_and_og_tag(self):
+        from app import sharecard, seo, webapp
+        if not sharecard.available():
+            self.skipTest("Pillow yo'q")
+        import io as _io
+        from PIL import Image
+        img = Image.new("RGB", (400, 600), (180, 40, 40)); buf = _io.BytesIO(); img.save(buf, "JPEG")
+        data = sharecard.render(buf.getvalue(), "Sinov kinosi: juda uzun nom bilan ikki qatorga tushadi", "Kino · 2024 · AQSH", "Jangari · Drama", "8.1", 123)
+        im = Image.open(_io.BytesIO(data))
+        self.assertEqual(im.size, (1200, 630))
+        self.assertEqual(sharecard.render(None, "Postersiz", "Kino", "", "", 0)[:2], b"\xff\xd8")   # postersiz ham ishlaydi
+        mid = add_movie(self.app, 777, "OG kino")
+        page = seo.movie_page(self.app, "https://site.test", 777, webapp._poster_key)
+        self.assertIn(f"/og/{mid}.jpg", str(page))
+
     def test_marvarid_tv_empty_and_deleted_movie(self):
         from app import tv, webapp
         tv._mem.clear()

@@ -92,10 +92,35 @@
     }
     haptic("medium");
     persistSaved();
+    if (!guest()) api("/api/saved", { method: "POST", headers: { "Content-Type": "application/json" },     // serverga: botda va boshqa qurilmalarda ham ko'rinadi
+      body: JSON.stringify({ id: it.id, on: !!saved[key] }) }).catch(function () {});
     return !!saved[key];
   }
+  // 🔖 Sevimlilarni server bilan sinxronlash: birinchi marta — shu qurilmadagilar serverga qo'shiladi (birlashtiriladi),
+  // keyin esa server asosiy manba (boshqa qurilmada o'chirilgani bu yerda ham o'chadi)
+  var savedSyncing = false;
+  function syncSaved() {
+    if (guest() || savedSyncing) return;
+    savedSyncing = true;
+    api("/api/saved").then(function (d) {
+      savedSyncing = false;
+      if (!d || !d.ok) return;
+      var first = !store.get("svsync"), srv = {};
+      d.items.forEach(function (it) { srv["b" + it.id] = snap(it); });
+      if (first) {
+        var localOnly = Object.keys(saved).filter(function (k) { return !srv[k]; }).map(function (k) { return +k.slice(1); }).filter(Boolean);
+        if (localOnly.length) api("/api/saved", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: localOnly }) }).catch(function () {});
+        Object.keys(saved).forEach(function (k) { if (!srv[k]) srv[k] = saved[k]; });
+        store.set("svsync", "1");
+      }
+      Object.keys(srv).forEach(function (k) { if (saved[k] && saved[k].t) srv[k].t = saved[k].t; });   // tartib (qachon saqlangani) saqlanib qoladi
+      saved = srv;
+      persistSaved();
+      if (current === "saved") show("saved", { nopush: true });
+    }).catch(function () { savedSyncing = false; });
+  }
   function isSaved(it) { return !!saved["b" + it.id]; }
-  if (cloud) {
+  if (cloud && !store.get("svsync")) {            // server bilan sinxronlangandan keyin eski Telegram bulut nusxasi o'qilmaydi
     cloud.getKeys(function (err, keys) {
       if (err || !keys) return;
       keys = keys.filter(function (k) { return /^b\d+$/.test(k); });

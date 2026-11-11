@@ -510,6 +510,31 @@ def api_tv(app: App, user: dict) -> dict:
     return {"ok": True, "now": ts, "slots": out, "cur": tv.current([[0, o["s"], o["e"]] for o in out], ts), "channels": chans}
 
 
+def api_saved(app: App, user: dict) -> dict:
+    """🔖 Foydalanuvchining sevimlilari (sayt, Telegram ilova va bot uchun bitta ro'yxat)."""
+    if not user["id"]:
+        return {"ok": False, "reason": "login"}
+    _, vip = _user_flags(app, user["id"])
+    premium_on = app.setting_bool("premium_enabled")
+    return {"ok": True, "items": [_item(r, premium_on, vip) for r in app.db.catalog_rows(app.db.saved_ids(user["id"]))]}
+
+
+def api_saved_set(app: App, user: dict, body: dict) -> dict:
+    """{id, on} — bitta kino; {ids: [...]} — qurilmadagi ro'yxatni serverga qo'shish (birinchi sinxronlash)."""
+    if not user["id"]:
+        return {"ok": False, "reason": "login"}
+    if isinstance(body.get("ids"), list):
+        ids = [int(x) for x in body["ids"] if isinstance(x, int) or (isinstance(x, str) and x.isdigit())]
+        return {"ok": True, "added": app.db.add_saved_many(user["id"], ids)}
+    try:
+        mid = int(body.get("id"))
+    except (TypeError, ValueError):
+        return {"ok": False, "reason": "bad"}
+    if not app.db.get_movie(mid):
+        return {"ok": False, "reason": "notfound"}
+    return {"ok": True, "on": app.db.set_saved(user["id"], mid, bool(body.get("on")))}
+
+
 def api_tv_trial(app: App, user: dict) -> dict:
     """🎁 TV uchun bepul sinov Premium'ni (bir marta) oladi — hali olmagan har bir foydalanuvchi."""
     from .handlers import trial
@@ -1034,6 +1059,41 @@ def _thumb(data: bytes, width: int, webp: bool = False) -> bytes:
         return out.getvalue()
     except Exception:               # noqa: BLE001 — buzuq rasm: asl nusxa qaytadi
         return data
+
+
+def share_card_bytes(app: App, movie_id: int, cache_dir: Path) -> Optional[bytes]:
+    """🖼 Ulashish kartochkasi (1200×630 JPEG) — bir marta yasaladi va diskda saqlanadi (nom/poster o'zgarsa — yangisi)."""
+    from . import sharecard
+    if not sharecard.available():
+        return None
+    m = app.db.get_movie(movie_id)
+    if not m or m["category"] == "music":
+        return None
+    keys = m.keys()
+    year = genres.year_text(m["year"], m["year_end"] if "year_end" in keys else 0) if m["year"] else ""
+    country = genres.country_label(m["country"]).split(" ", 1)[-1] if "country" in keys and m["country"] else ""
+    cat = {"movie": "Kino", "serial": "Serial", "cartoon": "Multfilm"}.get(m["category"], "Kino")
+    meta = " · ".join(x for x in (cat, year, country) if x)
+    gl = " · ".join(genres.name(k) for k in genres.parse(m["genres"])[:3])
+    imdb = m["imdb"] if "imdb" in keys and m["imdb"] else ""
+    sig = hashlib.sha1(f"{m['title']}|{meta}|{gl}|{imdb}|{m['code']}|{m['poster_id']}|v1".encode()).hexdigest()[:10]
+    path = cache_dir / f"og_{movie_id}_{sig}.jpg"
+    if path.exists():
+        return path.read_bytes()
+    poster = poster_bytes(app, movie_id, cache_dir, 720) if m["poster_id"] else None
+    data = sharecard.render(poster, m["title"], meta, gl, imdb, m["code"], app.brand)
+    if not data:
+        return None
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    for old in cache_dir.glob(f"og_{movie_id}_*.jpg"):
+        try:
+            old.unlink()
+        except OSError:
+            pass
+    tmp = path.with_suffix(f".{threading.get_ident()}.tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, path)
+    return data
 
 
 def poster_bytes(app: App, movie_id: int, cache_dir: Path, width: int = 0, webp: bool = False) -> Optional[bytes]:
@@ -1657,6 +1717,14 @@ def make_handler(app: App):
                     return self._send(200, (WEB_DIR / path.lstrip("/")).read_bytes(), STATIC_FILES[path], "public, max-age=604800")
                 if path == "/healthz":
                     return self._send(200, b"ok", "text/plain")
+                m = re.fullmatch(r"/og/(\d+)\.jpg", path)
+                if m:                                # 🖼 ulashish kartochkasi (Telegram/ijtimoiy tarmoq ko'rinishi uchun)
+                    if self._limited(api_user, api_ip):
+                        return
+                    data = share_card_bytes(app, int(m.group(1)), cache_dir)
+                    if data is None:
+                        return self._send(404, b"", "text/plain")
+                    return self._send(200, data, "image/jpeg", "public, max-age=86400")
                 m = re.fullmatch(r"/api/poster/(\d+)", path)
                 if m:
                     if self._limited(api_user, api_ip):
@@ -1714,6 +1782,8 @@ def make_handler(app: App):
                         return self._json(api_similar(app, user, qs))
                     if path == "/api/collections":
                         return self._json(api_collections(app, user))
+                    if path == "/api/saved":
+                        return self._json(api_saved(app, user))
                     if path == "/api/tv":
                         d = api_tv(app, user)
                         if self._kids:
@@ -1809,6 +1879,8 @@ def make_handler(app: App):
                     return self._json(api_watch(app, user, body))
                 if path == "/api/request":
                     return self._json(api_request(app, user, body))
+                if path == "/api/saved":
+                    return self._json(api_saved_set(app, user, body))
                 if path == "/api/tv/trial":
                     return self._json(api_tv_trial(app, user))
                 if path == "/api/history/clear":

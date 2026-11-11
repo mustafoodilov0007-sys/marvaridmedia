@@ -276,6 +276,13 @@ CREATE TABLE IF NOT EXISTS follows (
 );
 CREATE INDEX IF NOT EXISTS idx_follows_topic ON follows(topic);
 
+CREATE TABLE IF NOT EXISTS saved (
+    user_id  INTEGER NOT NULL,
+    movie_id INTEGER NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+    at       INTEGER NOT NULL,
+    PRIMARY KEY (user_id, movie_id)
+);
+
 CREATE TABLE IF NOT EXISTS tv_channels (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     name       TEXT    NOT NULL,
@@ -702,6 +709,30 @@ class Database:
                 return False
             c.execute("UPDATE users SET trial_used=1 WHERE user_id=?", (uid,))
             return True
+
+    # ───────── 🔖 Sevimlilar (sayt va bot uchun umumiy) ─────────
+
+    def saved_ids(self, uid: int, limit: int = 300) -> List[int]:
+        return [r[0] for r in self.q("SELECT s.movie_id FROM saved s JOIN movies m ON m.id = s.movie_id WHERE s.user_id=?"
+                                     " ORDER BY s.at DESC LIMIT ?", (uid, limit))]
+
+    def is_saved(self, uid: int, movie_id: int) -> bool:
+        return self.q1("SELECT 1 FROM saved WHERE user_id=? AND movie_id=?", (uid, movie_id)) is not None
+
+    def set_saved(self, uid: int, movie_id: int, on: bool) -> bool:
+        if on:
+            self.x("INSERT OR IGNORE INTO saved(user_id, movie_id, at) VALUES (?,?,?)", (uid, movie_id, now()))
+        else:
+            self.x("DELETE FROM saved WHERE user_id=? AND movie_id=?", (uid, movie_id))
+        return on
+
+    def add_saved_many(self, uid: int, ids: list) -> int:
+        t, n = now(), 0
+        with self.tx() as c:
+            for i, mid in enumerate(ids[:300]):
+                if c.execute("SELECT 1 FROM movies WHERE id=?", (mid,)).fetchone():
+                    n += c.execute("INSERT OR IGNORE INTO saved(user_id, movie_id, at) VALUES (?,?,?)", (uid, mid, t - i)).rowcount
+        return n
 
     # ───────── 📺 TV: jonli kanallar ─────────
 

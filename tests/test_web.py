@@ -60,7 +60,7 @@ class Pages(WebCase):
         st, body, _ = self.web.get("/?k=101")
         page = body.decode()
         self.assertIn("Avatar Suv yo&#x27;li", page)          # nom kartochkada
-        self.assertIn(f"/api/poster/{self.m1}?v=", page)       # poster rasmi kartochkada
+        self.assertTrue(f"/og/{self.m1}.jpg?v=" in page or f"/api/poster/{self.m1}?v=" in page)   # ulashish kartochkasi (Pillow bo'lmasa — poster)
 
     def test_manifest_service_worker_and_icons(self):
         st, body, _ = self.web.get("/manifest.webmanifest")

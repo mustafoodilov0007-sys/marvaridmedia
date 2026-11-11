@@ -79,13 +79,42 @@
         if (en.isIntersecting && en.intersectionRatio > .6) {
           if (v.dataset.src) { v.src = v.dataset.src; v.removeAttribute("data-src"); }   // iOS: src o'rnatilgach ijro etiladi
           v.muted = shortsMuted;
+          if (!shortsMuted) fadeVolume(v);                                                   // ovoz keskin emas, yumshoq kiradi
           var p = v.play(); if (p && p.catch) p.catch(function () { el.classList.add("is-paused"); });
           el.classList.remove("is-paused");
           var idx = +el.dataset.idx;
+          around(idx);
           if (more && !loading && idx >= feed.children.length - 3) load();
         } else { v.pause(); }
       });
     }, { root: feed, threshold: [0, .6, 1] });
+    // ⏭ qo'shnilar: keyingi va oldingi video oldindan yuklanadi (surganda qora ekran/kutish yo'q),
+    // uzoqdagilari esa bo'shatiladi (telefon xotirasi va video dekoderlari to'lib, qotib qolmasin)
+    function around(idx) {
+      Array.prototype.forEach.call(feed.children, function (c, k) {
+        var vv = c.querySelector && c.querySelector("video");
+        if (!vv) return;
+        var d = Math.abs(k - idx);
+        if (d === 1) {
+          if (vv.dataset.src) { vv.src = vv.dataset.src; vv.removeAttribute("data-src"); }
+          if (vv.preload !== "auto") { vv.preload = "auto"; try { vv.load(); } catch (e) {} }
+        } else if (d > 2 && vv.getAttribute("src") && !vv.dataset.src) {
+          try { vv.pause(); } catch (e) {}
+          vv.dataset.src = vv.getAttribute("src"); vv.removeAttribute("src"); vv.preload = "metadata";
+          try { vv.load(); } catch (e) {}
+        }
+      });
+    }
+    function fadeVolume(vv) {
+      if (REDUCE) { vv.volume = 1; return; }
+      var t0 = performance.now();
+      vv.volume = 0;
+      (function step(t) {
+        var k = Math.min(1, (t - t0) / 380);
+        try { vv.volume = k * k; } catch (e) { return; }
+        if (k < 1) requestAnimationFrame(step);
+      })(t0);
+    }
     // videoni faqat yaqinlashganda yuklaymiz (trafikni tejash)
     shortsLoadIO = new IntersectionObserver(function (entries) {
       entries.forEach(function (en) {

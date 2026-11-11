@@ -99,3 +99,6 @@ html[data-vtdir="back"]::view-transition-new(root) { animation-name: vtInLeft; }
 @keyframes vtOutLeft { to { transform: translate3d(-10%, 0, 0); opacity: 0; } }
 @keyframes vtOutRight { to { transform: translate3d(10%, 0, 0); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { ::view-transition-old(root), ::view-transition-new(root) { animation: none; } }
+
+/* ───── 🎞 Shorts: video kelguncha poster ko'rinadi (video «poster» atributi), fon yumshoq almashadi ───── */
+.short .sbg { transition: opacity .4s ease; }

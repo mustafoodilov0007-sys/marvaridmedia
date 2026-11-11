@@ -838,7 +838,8 @@ def part_kb(app, movie, part, total: int, extra_rows=None) -> dict:
     if movie["category"] != "music":
         r = app.db.rating(movie["id"])
         rows.append([btn(f"👍 {r['likes']}", f"rt:{movie['id']}:{part['id']}:1", style=SUCCESS),
-                     btn(f"👎 {r['dislikes']}", f"rt:{movie['id']}:{part['id']}:-1", style=DANGER)])
+                     btn(f"👎 {r['dislikes']}", f"rt:{movie['id']}:{part['id']}:-1", style=DANGER),
+                     btn("🔖 Saqlash", f"svt:{movie['id']}", style=PRIMARY)])
     link = (movie["group_link"] if "group_link" in movie.keys() else "") or ""
     if link and movie["category"] in ("serial", "cartoon"):
         rows.append([btn("📺 Qolgan qismlar", url=link, style=SUCCESS)])
@@ -1028,3 +1029,49 @@ def _inline_query(ctx: Ctx) -> None:
         })
     except Exception:
         log.warning("Inline javob yuborilmadi", exc_info=True)
+
+
+# ═════════════════════════ 🔖 Sevimlilar (sayt bilan umumiy) ═════════════════════════
+
+@router.callback("svt")
+def cb_save_toggle(ctx: Ctx) -> None:
+    try:
+        mid = int(ctx.data.split(":")[1])
+    except (IndexError, ValueError):
+        ctx.answer()
+        return
+    if not ctx.db.get_movie(mid):
+        ctx.answer("😔 Kino topilmadi", alert=True)
+        return
+    on = not ctx.db.is_saved(ctx.user_id, mid)
+    ctx.db.set_saved(ctx.user_id, mid, on)
+    ctx.answer("🔖 Sevimlilarga qo'shildi — /saqlangan" if on else "Sevimlilardan olib tashlandi")
+
+
+def saved_view(app, uid: int, page: int = 0):
+    ids = app.db.saved_ids(uid)
+    if not ids:
+        return ("🔖 <b>Sevimlilar</b>\n\nHali hech narsa saqlanmagan. Kinoni ochib, «🔖 Saqlash» tugmasini bosing — "
+                "u shu yerda va saytda ham ko'rinadi."), None
+    pages = max(1, math.ceil(len(ids) / PER_PAGE))
+    page %= pages
+    rows = app.db.movie_rows(ids[page * PER_PAGE:(page + 1) * PER_PAGE])
+    return build_list(f"🔖 <b>Sevimlilar</b> — {len(ids)} ta (saytda ham shu ro'yxat)", rows, page * PER_PAGE, page, pages,
+                      "svp", fmt_item, hint="👇 Tanlang:")
+
+
+@router.command("saqlangan", "sevimlilar")
+def cmd_saved(ctx: Ctx) -> None:
+    text, kb = saved_view(ctx.app, ctx.user_id)
+    ctx.send(text, kb)
+
+
+@router.callback("svp")
+def cb_saved_page(ctx: Ctx) -> None:
+    try:
+        page = int(ctx.data.split(":")[1])
+    except (IndexError, ValueError):
+        page = 0
+    text, kb = saved_view(ctx.app, ctx.user_id, page)
+    ctx.answer()
+    edit_or_send(ctx, text, kb)

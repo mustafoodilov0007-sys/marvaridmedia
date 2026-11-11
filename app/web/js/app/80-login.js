@@ -9,6 +9,7 @@
     return api("/api/me").then(function (d) {
       if (d && d.ok) { me = d; setAvatar({ first_name: d.name, photo_url: d.photo }); if (d.admin) { $("bStats").classList.remove("hidden"); document.querySelector(".top").classList.add("adm"); } }
       notify("success"); toast("✅ Xush kelibsiz, " + (name || (d && d.name) || "") + "!");
+      syncSaved();
       show("profile");
     });
   }
@@ -215,14 +216,17 @@
     drow("🔎 Qidiruv tarixini tozalash", function () { store.set("recentq", "[]"); toast("🧹 Qidiruv tarixi tozalandi"); });
     drow("🔖 Sevimlilarni tozalash", function () {
       askConfirm("Barcha sevimlilar o'chirilsinmi?", function () {
-        Object.keys(saved).forEach(function (k) { if (cloud) cloud.removeItem(k); });
+        Object.keys(saved).forEach(function (k) {
+          if (cloud) cloud.removeItem(k);
+          if (!guest()) api("/api/saved", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: +k.slice(1), on: false }) }).catch(function () {});
+        });
         saved = {}; persistSaved(); toast("🧹 Sevimlilar tozalandi"); renderProfile(view);
       });
     });
     if (AUTHED) drow("🚪 Hisobdan chiqish", function () {
       askConfirm("Hisobdan chiqasizmi?", function () {
         api("/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(function () {})
-          .then(function () { dropSession(); location.reload(); });
+          .then(function () { dropSession(); store.set("svsync", ""); store.set("saved", "{}"); location.reload(); });
       });
     });
     page.appendChild(h("h3", "group-title", "Ma'lumotlar"));

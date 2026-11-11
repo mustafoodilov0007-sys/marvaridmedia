@@ -98,6 +98,7 @@
     setBrand(d.brand);
     if (d.channel) $("bChannel").classList.remove("hidden");
     if (d.admin) { $("bStats").classList.remove("hidden"); document.querySelector(".top").classList.add("adm"); }
+    syncSaved();
   });
 //WELCOME
   (function () {
