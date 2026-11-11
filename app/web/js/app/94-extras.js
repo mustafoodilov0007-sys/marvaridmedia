@@ -35,7 +35,7 @@
 
   function togetherBtn(it) {
     if (it.cat === "music" || it.locked) return null;
-    var b = h("button", "btn soft", [icon("users"), "Birga ko'ramiz"]);
+    var b = h("button", "btn soft half", [icon("users"), "Birga ko'ramiz"]);
     b.onclick = function (e) {
       e.stopPropagation(); haptic();
       var base = location.origin + moviePath(it), nm = (me.name || "").trim().slice(0, 24);

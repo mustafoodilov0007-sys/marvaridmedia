@@ -21,16 +21,16 @@
         if (!list || !list.length) return;
         var row = h("div", "gchips wrapchips");
         list.forEach(function (g) {
-          var b = h("button", "gchip", [g.label, h("i", null, String(g.n))]);
+          var b = h("button", "gchip", [gname(g), h("i", null, String(g.n))]);
           b.onclick = function () { haptic(); var f = {}; f[key] = g.key; show("video", { f: f }); };
           row.appendChild(b);
         });
         more.appendChild(h("h3", "group-title", title));
         more.appendChild(row);
       }
-      block("🎭 Janrlar", d.genres, "genre");
-      block("🌍 Davlatlar", (d.filters || {}).country, "country");
-      block("🗣 Tillar", (d.filters || {}).lang, "lang");
+      block("Janrlar", d.genres, "genre");
+      block("Davlatlar", (d.filters || {}).country, "country");
+      block("Tillar", (d.filters || {}).lang, "lang");
     });
     api("/api/collections").then(function (d) {
       if (my !== reqId || !d.ok || !d.items.length) return;

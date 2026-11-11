@@ -306,7 +306,7 @@
     closeBtn.setAttribute("aria-label", "Yopish");
     closeBtn.onclick = function () { closeSheet(); };
     var chips = h("div", "chips");
-    (it.genres || []).forEach(function (g) { chips.appendChild(h("span", "chip g", g.label)); });
+    (it.genres || []).forEach(function (g) { chips.appendChild(h("span", "chip g", gname(g))); });
     if (it.premium) chips.appendChild(h("span", "chip gold", "PREMIUM"));
     var metaBits = [NAMES[it.cat] || "Kino"];
     if (it.year) metaBits.push(yr(it));
@@ -314,10 +314,10 @@
     if (it.country) metaBits.push(it.country);
     var metaLine = h("div", "smeta", [it.age ? h("span", "agebox", it.age + "+") : null, h("span", null, metaBits.join(" · "))]);
     var stats = h("div", "stats");
-    if (it.views > 0) stats.appendChild(h("span", null, "👁 " + fmt(it.views) + " ko'rilgan"));
+    if (it.views > 0) stats.appendChild(h("span", null, fmt(it.views) + " ko'rilgan"));
     var sc = score(it);
-    if (sc !== null) stats.appendChild(h("span", null, "👍 " + sc + "% yoqdi"));
-    if (it.added) stats.appendChild(h("span", null, "📅 " + fmtDate(it.added) + " qo'shilgan"));
+    if (sc !== null) stats.appendChild(h("span", null, sc + "% yoqdi"));
+    if (it.added) stats.appendChild(h("span", null, fmtDate(it.added) + " qo'shilgan"));
     var desc = null;
     if (it.desc) {
       desc = h("div", "descbox");

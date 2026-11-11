@@ -144,7 +144,7 @@
   }
 
   // filtrlar: janr (chiplar) + davlat, yil, til (tanlash maydonlari)
-  var FILTERS = [["country", "🌍 Davlat"], ["year", "📅 Yil"], ["lang", "🗣 Til"]];
+  var FILTERS = [["country", "Davlat"], ["year", "Yil"], ["lang", "Til"]];
   function renderCategory(view, cat, sort, my, f) {
     f = f || {};
     var any = !!(f.genre || f.country || f.year || f.lang);
@@ -174,7 +174,7 @@
         all.onclick = function () { if (f.genre) go({ genre: "" }); };
         chipsRow.replaceChildren(all);
         genresList.forEach(function (g) {
-          var c = h("button", "gchip" + (g.key === f.genre ? " on" : ""), [g.label, h("i", null, String(g.n))]);
+          var c = h("button", "gchip" + (g.key === f.genre ? " on" : ""), [gname(g), h("i", null, String(g.n))]);
           c.onclick = function () { go({ genre: g.key === f.genre ? "" : g.key }); };
           chipsRow.appendChild(c);
         });

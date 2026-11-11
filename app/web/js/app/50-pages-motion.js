@@ -57,7 +57,7 @@
       row.appendChild(rnd);
     }
     (genresList || []).forEach(function (g) {
-      var c = h("button", "gchip", [g.label, h("i", null, String(g.n))]);
+      var c = h("button", "gchip", [gname(g), h("i", null, String(g.n))]);
       c.onclick = function () { haptic(); show("video", { f: { genre: g.key } }); };
       row.appendChild(c);
     });

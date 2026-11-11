@@ -12,7 +12,7 @@
   // kino oynasidagi «Ro'yxatga» tugmasi: ro'yxatlar tanlanadi yoki yangisi yaratiladi
   function listBtn(it) {
     if (it.cat === "music") return null;
-    var b = h("button", "btn soft", [icon("bookmark"), "Ro'yxatga"]);
+    var b = h("button", "btn soft half", [icon("plus"), "Ro'yxatga"]);
     b.onclick = function (e) {
       e.stopPropagation(); haptic();
       if (guest()) { toast("Ro'yxat yaratish uchun hisobingizga kiring"); show("login"); return; }

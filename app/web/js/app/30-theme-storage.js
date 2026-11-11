@@ -30,7 +30,7 @@
              views: it.views, premium: it.premium, locked: it.locked, year: it.year, year_end: it.year_end, desc: (it.desc || "").slice(0, 300),
              genres: it.genres || [], country: it.country || "", lang: it.lang || "", quality: it.quality || "", t: Date.now() };
   }
-  function gname(g) { return (g.label || "").replace(/^\S+\s/, ""); }
+  function gname(g) { return (g.label || "").replace(/^[^\p{L}\p{N}]+\s*/u, ""); }
   function score(it) {
     var n = (it.likes || 0) + (it.dislikes || 0);
     return n >= 3 ? Math.round(it.likes * 100 / n) : null;
