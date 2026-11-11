@@ -47,8 +47,8 @@
     if (it.premium) p.appendChild(h("span", "tag r", "PREMIUM"));
     else if (it.free && it.cat !== "music") p.appendChild(h("span", "tag r free", "BEPUL"));
     var qlt = topQuality(it), lc = langCode(it);
-    if (qlt) p.appendChild(h("span", "tag bl", qlt));
-    if (lc) p.appendChild(h("span", "tag br", lc));
+    if (qlt) p.appendChild(h("span", "tag bl q-" + qlt.toLowerCase(), qlt));     // sifatga qarab rang (4K oltin, 1080p ko'k ...)
+    if (lc) p.appendChild(h("span", "tag br l-" + lc.toLowerCase(), lc));          // tilga qarab rang (UZ yashil, RU qizil-ko'k, EN binafsha)
     main.appendChild(p);
     main.appendChild(h("div", "t", it.title));
     main.appendChild(h("div", "m", shortMeta(it)));

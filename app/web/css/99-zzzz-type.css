@@ -52,3 +52,16 @@ button, input, textarea, select { font-feature-settings: inherit; letter-spacing
 .stab.on::after { transform: scaleX(1); }
 .stab { transition: color .25s ease; }
 @media (prefers-reduced-motion: reduce) { .stab::after { transition: none; } }
+
+/* 🎨 Poster ustidagi sifat va til belgilari — rangli (bir qarashda ajraladi) */
+.tag.bl, .tag.br { color: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .18); text-shadow: 0 1px 1px rgba(0, 0, 0, .25); }
+/* sifat */
+.tag.q-4k    { background: linear-gradient(135deg, #f8e3a0, #d9a943 55%, #a8741f); color: #2a1a03; text-shadow: none; }
+.tag.q-2k    { background: linear-gradient(135deg, #b48cff, #7b4dff); }
+.tag.q-1080p { background: linear-gradient(135deg, #4fa3ff, #1f6fe5); }
+.tag.q-720p  { background: linear-gradient(135deg, #2fd1b5, #11998e); }
+.tag.q-480p, .tag.q-360p { background: rgba(70, 70, 78, .85); }
+/* til */
+.tag.l-uz { background: linear-gradient(135deg, #1eb53a, #0099b5); }
+.tag.l-ru { background: linear-gradient(135deg, #2b59d6, #d52b1e); }
+.tag.l-en { background: linear-gradient(135deg, #6a5cff, #3b2bb8); }
