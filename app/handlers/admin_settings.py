@@ -35,8 +35,8 @@ def settings_menu(app: App):
     t = TEXT_TITLES
     text = ("⚙️ <b>Matnlar va sozlamalar</b>\n\n"
             "O'zgartirmoqchi bo'lgan bo'limni tanlang 👇\n\n"
-            "🔒 <b>Kontent himoyasi</b> yoqilganda oddiy foydalanuvchilar kinolarni saqlay olmaydi va "
-            "forward qila olmaydi (Premium a'zolar va adminlar bundan mustasno).")
+            "📤 <b>Ulashish</b> ruxsat etilganda obunachilar botdagi kinolarni do'stlariga forward qila oladi va saqlab olishi mumkin.\n"
+            "🔒 <b>Himoya</b> yoqilsa — oddiy foydalanuvchilar forward qila olmaydi va saqlay olmaydi (Premium a'zolar va adminlar bundan mustasno).")
     rows = [
         [btn(t["start_text"][0], "st:k:start_text", style=PRIMARY),
          btn(t["sub_text"][0], "st:k:sub_text", style=SUCCESS)],
@@ -46,8 +46,8 @@ def settings_menu(app: App):
          btn(OTHER_TITLES["card_number"], "st:k:card_number", style=SUCCESS)],
         [btn(OTHER_TITLES["card_holder"], "st:k:card_holder", style=SUCCESS),
          btn(OTHER_TITLES["post_channel"], "st:k:post_channel", style=PRIMARY)],
-        [btn("🔒 Kontent himoyasi: " + ("✅ Yoqilgan" if protect else "❌ O'chiq"),
-             "st:tog:protect_content", style=SUCCESS if protect else DANGER)],
+        [btn("📤 Ulashish: ❌ Taqiqlangan (himoya yoqiq)" if protect else "📤 Ulashish: ✅ Ruxsat etilgan",
+             "st:tog:protect_content", style=DANGER if protect else SUCCESS)],
     ]
     return text, ikb(*rows)
 

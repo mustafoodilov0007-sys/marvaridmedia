@@ -300,7 +300,7 @@ class App:
             "card_number": config.card_number,
             "card_holder": config.card_holder,
             "post_channel": channel_ref(config.channels[0]) or "" if config.channels else "",
-            "protect_content": "1",
+            "protect_content": "0",
             "premium_enabled": "1",
             "premium_card": "1",
             "premium_provider": "1",
@@ -358,6 +358,9 @@ class App:
     def load_settings(self) -> None:
         with self._lock:
             self._settings = self.db.get_settings()
+        if "protect_v2" not in self._settings:          # bir martalik: obunachilar kinolarni ulasha olsin (keyin admin o'zi boshqaradi)
+            self.set_setting("protect_content", "0")
+            self.set_setting("protect_v2", "1")
         self.sync_emoji()
 
     def emoji_mapping(self) -> dict:

@@ -75,3 +75,24 @@ class Lists(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShareSetting(unittest.TestCase):
+    def setUp(self):
+        self.app = make_app()
+
+    def tearDown(self):
+        cleanup(self.app)
+
+    def test_default_allows_sharing_and_admin_toggles(self):
+        from app.core import process_update
+        from tests.harness import message, press
+        self.app.load_settings()                                              # ishga tushish
+        process_update(self.app, message(1, "/start"))
+        self.assertFalse(self.app.setting_bool("protect_content"))            # obunachilar ulasha oladi
+        process_update(self.app, press(1, "st:tog:protect_content"))          # admin himoyani yoqadi
+        self.assertTrue(self.app.setting_bool("protect_content"))
+        self.app.load_settings()                                              # qayta yuklash (restart) tanlovni buzmaydi
+        self.assertTrue(self.app.setting_bool("protect_content"))
+        process_update(self.app, press(1, "st:tog:protect_content"))
+        self.assertFalse(self.app.setting_bool("protect_content"))
