@@ -8,9 +8,20 @@
     box.appendChild(ph);
     var url = posterUrl(it, w || 360);
     if (url) {
+      var lq = null;
+      if (!LITE) {                          // blur-up: avval 32 px li xira nusxa (≈1 KB) — bo'sh joy ko'rinmaydi, so'ng aniq rasm ustidan so'nib chiqadi
+        lq = new Image(); lq.alt = ""; lq.className = "lq"; lq.decoding = "async"; lq.loading = "lazy";
+        lq.onload = function () { lq.classList.add("in"); };
+        lq.onerror = function () { lq.remove(); };
+        lq.src = posterUrl(it, 32);
+        box.appendChild(lq);
+      }
       var img = new Image();
       img.alt = ""; img.loading = "lazy"; img.decoding = "async";
-      img.onload = function () { img.classList.add("ok"); ph.remove(); };
+      img.onload = function () {
+        img.classList.add("ok"); ph.remove();
+        if (lq) setTimeout(function () { lq.remove(); }, 700);       // aniq rasm chiqqach xira nusxa olib tashlanadi
+      };
       img.onerror = function () { img.remove(); };   // rasm yuklanmasa — rangli joy egasi qoladi
       img.src = url;
       box.appendChild(img);

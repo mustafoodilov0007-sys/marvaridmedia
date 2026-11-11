@@ -231,6 +231,48 @@
     if (tp) tp.style.visibility = "";
     if (flySrc) flySrc.style.visibility = "";
   }
+  // 🎨 Poster rangi: kichik nusxadan o'rtacha «jonli» rang olinadi — kino sahifasi shu tusda yorishadi (Apple TV / Spotify uslubi)
+  var tintCache = {};
+  function tintFromImg(im) {
+    try {
+      var c = document.createElement("canvas"); c.width = 12; c.height = 18;
+      var x = c.getContext("2d", { willReadFrequently: true });
+      x.drawImage(im, 0, 0, 12, 18);
+      var d = x.getImageData(0, 0, 12, 18).data, r = 0, g = 0, bl = 0, ws = 0;
+      for (var i = 0; i < d.length; i += 4) {
+        var R = d[i], G = d[i + 1], B = d[i + 2], mx = Math.max(R, G, B), mn = Math.min(R, G, B);
+        var sat = (mx - mn) / 255, lum = (mx + mn) / 510;
+        var w = 0.08 + sat * sat * 3 * (lum > 0.1 && lum < 0.9 ? 1 : 0.15);    // to'q-yorqin ranglar ustun, kulrang/qora deyarli hisobga olinmaydi
+        r += R * w; g += G * w; bl += B * w; ws += w;
+      }
+      r /= ws; g /= ws; bl /= ws;
+      var M = Math.max(r, g, bl) / 255, m = Math.min(r, g, bl) / 255, L = (M + m) / 2, S = 0, H = 0, dd = M - m;
+      if (dd > 0.001) {
+        S = dd / (1 - Math.abs(2 * L - 1));
+        var rr = r / 255, gg = g / 255, bb = bl / 255;
+        H = M === rr ? ((gg - bb) / dd) % 6 : M === gg ? (bb - rr) / dd + 2 : (rr - gg) / dd + 4;
+        H = Math.round(H * 60 + 360) % 360;
+      }
+      return "hsl(" + H + " " + Math.round(Math.max(0.32, Math.min(0.72, S)) * 100) + "% " + Math.round(Math.max(0.30, Math.min(0.42, L)) * 100) + "%)";
+    } catch (e) { return null; }
+  }
+  function applyTint(s, it, src) {
+    var layer = s.querySelector(".stint");
+    if (!layer || LITE) return;
+    function set(col) {
+      if (!col) return;
+      tintCache[it.id] = col;
+      s.style.setProperty("--tint", col);
+      requestAnimationFrame(function () { layer.classList.add("on"); });
+    }
+    if (tintCache[it.id]) return set(tintCache[it.id]);
+    var im = src && src.querySelector && src.querySelector("img.ok");
+    if (im && im.complete && im.naturalWidth) return set(tintFromImg(im));
+    if (!it.poster) return;
+    var t = new Image(); t.decoding = "async";
+    t.onload = function () { if (layer.isConnected) set(tintFromImg(t)); };
+    t.src = posterUrl(it, 32);
+  }
   function openSheet(it, fromPop, srcPoster) {
     haptic();
     if (!fromPop) pushSheet(it);
@@ -335,6 +377,7 @@
     var parts = [
       h("div", "sheet-top", topKids),
       h("div", "sbody", [      // poster joyida turadi, shu qism (matn, tugmalar, yorliqlar) surilganda uning ustiga chiqadi
+        h("div", "stint"),
         h("div", "sheet-main", [posterNode(it, 720), h("div", "info", [h("h3", null, it.title), metaLine, ratingBadges(it), chips, stats.childNodes.length ? stats : null])]),
         acts,
         me.admin ? adminBar(it) : null,
@@ -357,6 +400,8 @@
       }, 480);
     }
     if (heroVid) { var pv = heroVid.play(); if (pv && pv.catch) pv.catch(function () {}); }
+    var tintSrc = srcPoster;           // rangni o'qish (GPU'dan pikseli olish) ochilish harakatidan keyin — kadr tushmasin
+    setTimeout(function () { if (sheetOpen) applyTint(s, it, tintSrc); }, url ? M_OPEN + 80 : 160);
     s.style.transition = "none";
     s.style.transform = "";
     $("veil").classList.add("on");
@@ -372,9 +417,9 @@
       var myFly = flyEl, myAnim = flyAnim;
       Promise.all([myAnim.finished.catch(function () {}), decodeUrl(it.poster ? posterUrl(it, 720) : "", 900)]).then(function () {
         if (flyEl !== myFly) return;
-        if (bgEl) bgEl.style.opacity = "";
+        if (bgEl) { bgEl.style.transition = "none"; bgEl.style.opacity = ""; }      // ostida darhol to'liq (o'sha rasm) — xiralashish yo'q
         if (flySrc) flySrc.style.visibility = "";
-        var fade = myFly.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, easing: "ease-out", fill: "forwards" });
+        var fade = myFly.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 320, easing: "ease-in-out", fill: "forwards" });
         fade.onfinish = function () { myFly.remove(); if (flyEl === myFly) flyEl = null; finishOpen(); };
         flyAnim = null;
       });

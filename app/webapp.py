@@ -1028,7 +1028,7 @@ def _thumb(data: bytes, width: int, webp: bool = False) -> bytes:
             im.thumbnail((width, width * 2))
         out = io.BytesIO()
         if webp:                      # WebP: JPEG ga qaraganda ~30% kichik — sahifa tezroq ochiladi
-            im.save(out, "WEBP", quality=78, method=4)
+            im.save(out, "WEBP", quality=40 if width <= 64 else 78, method=4)
         else:
             im.save(out, "JPEG", quality=80, optimize=True, progressive=True)
         return out.getvalue()
@@ -1661,7 +1661,7 @@ def make_handler(app: App):
                 if m:
                     if self._limited(api_user, api_ip):
                         return
-                    width = int(qs["w"]) if qs.get("w") in ("360", "720") else 0
+                    width = int(qs["w"]) if qs.get("w") in ("32", "360", "720") else 0      # 32 — xira «oldindan ko'rinish» (blur-up)
                     webp = bool(width) and "image/webp" in self.headers.get("Accept", "") and _webp_ok()
                     data = poster_bytes(app, int(m.group(1)), cache_dir, width, webp)
                     if data is None:

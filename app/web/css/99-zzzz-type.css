@@ -65,3 +65,37 @@ button, input, textarea, select { font-feature-settings: inherit; letter-spacing
 .tag.l-uz { background: linear-gradient(135deg, #1eb53a, #0099b5); }
 .tag.l-ru { background: linear-gradient(135deg, #2b59d6, #d52b1e); }
 .tag.l-en { background: linear-gradient(135deg, #6a5cff, #3b2bb8); }
+
+/* ───── 🖼 blur-up: xira nusxa (bir marta chiziladi), aniq rasm ustidan yumshoq paydo bo'ladi ───── */
+.poster { position: relative; overflow: hidden; }
+.poster .lq { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(14px) saturate(1.15);
+  transform: scale(1.15); opacity: 0; transition: opacity .25s ease; pointer-events: none; }
+.poster .lq.in { opacity: 1; }
+.poster img:not(.lq) { position: relative; transition: opacity .55s cubic-bezier(.22, 1, .36, 1) !important; }
+.rail.hist .poster .lq, .tvcard .poster .lq { object-position: center 25%; }
+
+/* ───── 🎨 kino sahifasi poster rangida yorishadi ───── */
+.sbody { position: relative; isolation: isolate; }
+.sbody > .stint { position: absolute; left: 0; right: 0; top: 0; height: 1200px; z-index: -1; pointer-events: none; opacity: 0;
+  transition: opacity .9s ease;
+  background: radial-gradient(130% 55% at 50% 0%, color-mix(in srgb, var(--tint, transparent) 46%, transparent), transparent 72%),
+              linear-gradient(180deg, color-mix(in srgb, var(--tint, transparent) 24%, transparent) 0, transparent 1000px); }
+.sbody > .stint.on { opacity: 1; }
+.sheet-main + .actions .btn.soft, .sheet .actions .btn.sq { background: color-mix(in srgb, var(--tint, var(--surface-2)) 22%, var(--surface-2)); }
+.stab.on::after { background: color-mix(in srgb, var(--tint, var(--accent)) 30%, var(--accent)); }
+
+/* ───── 🧭 bo'limlar o'rtasida yo'nalishli o'tish (View Transitions) ───── */
+.top { view-transition-name: mm-top; }
+.nav { view-transition-name: mm-nav; }
+::view-transition-old(mm-top), ::view-transition-old(mm-nav) { display: none; }
+::view-transition-new(mm-top), ::view-transition-new(mm-nav), ::view-transition-group(mm-top), ::view-transition-group(mm-nav) { animation: none; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .42s; animation-timing-function: cubic-bezier(.32, .72, 0, 1); animation-fill-mode: both; }
+html[data-vtdir="fwd"]::view-transition-old(root) { animation-name: vtOutLeft; }
+html[data-vtdir="fwd"]::view-transition-new(root) { animation-name: vtInRight; }
+html[data-vtdir="back"]::view-transition-old(root) { animation-name: vtOutRight; }
+html[data-vtdir="back"]::view-transition-new(root) { animation-name: vtInLeft; }
+@keyframes vtInRight { from { transform: translate3d(18%, 0, 0); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes vtInLeft { from { transform: translate3d(-18%, 0, 0); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes vtOutLeft { to { transform: translate3d(-10%, 0, 0); opacity: 0; } }
+@keyframes vtOutRight { to { transform: translate3d(10%, 0, 0); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { ::view-transition-old(root), ::view-transition-new(root) { animation: none; } }

@@ -54,6 +54,19 @@
   }
   window.addEventListener("resize", function () { var i = document.querySelector(".nav .navind"); if (i) { i.classList.add("first"); moveNavInd(); requestAnimationFrame(function () { i.classList.remove("first"); }); } });
   var curOpts = {};
+  // 🧭 Bo'limlar o'rtasida yo'nalishli o'tish (View Transitions): o'ngdagi bo'limga — sahifa o'ngdan keladi, chapdagiga — chapdan.
+  // Brauzer ikkala holatni rasm qilib, kompozitorda suradi (qotmaydi). Qo'llamaydigan brauzerda — oddiy yumshoq paydo bo'lish.
+  var NAV_ORDER = ["home", "movie", "serial", "cartoon", "shorts", "music", "tv"], inVT = false;
+  function navTo(name) {
+    if (name === current) { window.scrollTo({ top: 0, behavior: REDUCE ? "auto" : "smooth" }); return; }
+    var a = NAV_ORDER.indexOf(navKey(current)), b = NAV_ORDER.indexOf(navKey(name));
+    if (!document.startViewTransition || REDUCE || LITE || sheetOpen || a < 0 || b < 0) { show(name); return; }
+    document.documentElement.dataset.vtdir = b > a ? "fwd" : "back";
+    try {
+      var vt = document.startViewTransition(function () { inVT = true; try { show(name); } finally { inVT = false; } });
+      vt.finished.then(function () { delete document.documentElement.dataset.vtdir; }, function () { delete document.documentElement.dataset.vtdir; });
+    } catch (e) { inVT = false; show(name); }
+  }
   function show(name, opts) {
     opts = opts || {};
     curOpts = opts;
@@ -79,7 +92,7 @@
     onScroll();
     updateBack();
     var view = $("view");
-    if (!REDUCE && view.animate) {                        // sahifa almashganda: bitta yumshoq paydo bo'lish (kompozitorda)
+    if (!REDUCE && !inVT && view.animate) {               // sahifa almashganda: bitta yumshoq paydo bo'lish (kompozitorda)
       try { view.getAnimations().forEach(function (a) { a.cancel(); }); } catch (e) {}
       view.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: "cubic-bezier(.22,1,.36,1)" });
     }

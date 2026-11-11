@@ -26,14 +26,14 @@
     var n = NAV[b.dataset.view];
     b.replaceChildren(icon(n[0]), h("span", null, n[1]));
     b.setAttribute("aria-label", n[1]);
-    b.onclick = function () { haptic(); show(b.dataset.view); };
+    b.onclick = function () { haptic(); navTo(b.dataset.view); };
   });
   // katta ekranda — sarlavhadagi gorizontal menyu
   [["home", "Bosh sahifa"], ["movie", "Kinolar"], ["serial", "Seriallar"], ["cartoon", "Multfilmlar"], ["music", "Musiqa"],
    ["shorts", "Shorts"], ["tv", "Marvarid TV"]].forEach(function (n) {
     var b = h("button", n[0] === "home" ? "on" : "", n[1]);
     b.dataset.view = n[0];
-    b.onclick = function () { haptic(); show(n[0]); };
+    b.onclick = function () { haptic(); navTo(n[0]); };
     $("dnav").appendChild(b);
   });
   onKey($("avatar"), function () { haptic(); show("profile"); });
