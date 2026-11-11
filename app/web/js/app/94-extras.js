@@ -54,3 +54,29 @@
     if (!who) return;
     setTimeout(function () { toast("👥 " + who + " sizni birga kino ko'rishga taklif qildi 🍿"); }, 1800);
   })();
+
+  // 🤝 profildagi «Do'stlarni taklif qiling» kartasi: havola, bosqichlar va qolgan do'stlar
+  function inviteCard() {
+    var r = me.ref;
+    if (!r || guest()) return null;
+    var pct = r.next ? Math.min(100, Math.round(r.n / r.next * 100)) : 100;
+    var bar = h("div", "pbar", [h("i")]);
+    bar.firstChild.style.transform = "scaleX(" + Math.max(0.04, pct / 100).toFixed(3) + ")";
+    var sub = r.next ? "Yana " + (r.next - r.n) + " ta do'st → +" + r.bonus + " kun bonus" : "Barcha bosqichlar ochildi 🏆";
+    var text = "🎬 Eng yaxshi kino, serial va multfilmlar — qo'shiling!";
+    var send = h("button", "btn primary", [icon("share"), "Do'stga yuborish"]);
+    send.onclick = function () {
+      haptic();
+      if (PUB && navigator.share) { navigator.share({ text: text, url: r.link }).catch(function () {}); return; }
+      openLink("https://t.me/share/url?url=" + encodeURIComponent(r.link) + "&text=" + encodeURIComponent(text));
+    };
+    var copy = h("button", "btn soft", "🔗 Nusxa");
+    copy.onclick = function () {
+      haptic();
+      try { navigator.clipboard.writeText(r.link).then(function () { toast("✅ Havola nusxalandi"); }, function () { toast(r.link); }); } catch (e) { toast(r.link); }
+    };
+    return h("div", "invcard", [
+      h("div", "inv-t", [h("b", null, "🤝 Do'stlarni taklif qiling"), h("span", null, "Har bir do'st uchun ikkalangizga +" + r.days + " kun 💎 Premium")]),
+      h("div", "inv-n", [h("b", null, String(r.n)), h("span", null, "taklif qilingan · " + sub)]),
+      bar, h("div", "inv-b", [send, copy])]);
+  }

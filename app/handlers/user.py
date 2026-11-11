@@ -28,6 +28,7 @@ CODE_RE = re.compile(r"#?\s*(\d{1,9})")
 MUSIC_RE = re.compile(r"m(\d{1,9})")  # musiqa havolasi: ?start=m3
 REF_RE = re.compile(r"r(\d{1,12})")   # taklif havolasi: ?start=r123456
 REF_DAYS = 1       # har bir taklif qilingan do'st uchun Premium kun
+REF_MILESTONES = {3: 3, 10: 10, 25: 30, 50: 60}     # nechta do'st -> qo'shimcha Premium kun (bosqich bonusi)
 REF_MAX = 60       # bitta odam ko'pi bilan nechta do'st uchun mukofot oladi
 
 _reported_parts = set()
@@ -87,6 +88,14 @@ def run_special_payload(ctx: Ctx, payload: str) -> bool:
     return False
 
 
+def ref_next(n: int):
+    """Keyingi bosqich: (nechta do'st, bonus kun) yoki None."""
+    for target in sorted(REF_MILESTONES):
+        if n < target:
+            return target, REF_MILESTONES[target]
+    return None
+
+
 def apply_referral(ctx: Ctx, payload: str) -> None:
     """r<ID> havolasi: yangi (1 soat ichida qo'shilgan) foydalanuvchi bo'lsa — ikkalasiga bonus."""
     ref = REF_RE.fullmatch(payload or "")
@@ -134,11 +143,17 @@ def _reward_referrer(ctx: Ctx, ref_uid: int) -> None:
     except Exception:
         pass
     name = esc(ctx.user.get("first_name") or "Do'stingiz")
+    bonus = REF_MILESTONES.get(n, 0)
+    if bonus:                                            # 🏆 bosqich bonusi: 3, 10, 25, 50-do'st
+        until = db.grant_premium(ref_uid, bonus)
+    nxt = ref_next(n)
     try:
         ctx.bot.send_message(ref_uid, f"🎉 <b>{name}</b> sizning havolangiz orqali botga qo'shildi!\n\n"
                                       f"💎 Sizga <b>+{REF_DAYS} kun Premium</b> berildi.\n"
-                                      f"👥 Jami taklif qilganlar: <b>{n}</b>\n"
-                                      f"⏳ Premium: <b>{fmt_datetime(until)}</b> gacha")
+                                      + (f"🏆 <b>{n} ta do'st bosqichi!</b> Qo'shimcha <b>+{bonus} kun Premium</b> sovg'a.\n" if bonus else "")
+                                      + f"👥 Jami taklif qilganlar: <b>{n}</b>\n"
+                                      + (f"🎯 Keyingi bonus: {nxt[0]} ta do'st → <b>+{nxt[1]} kun</b> (yana {nxt[0] - n} ta)\n" if nxt else "")
+                                      + f"⏳ Premium: <b>{fmt_datetime(until)}</b> gacha")
     except Exception:
         log.info("Referal xabari %s ga yetmadi", ref_uid)
 
@@ -158,6 +173,8 @@ def send_invite(ctx: Ctx) -> None:
              f"Har bir do'stingiz shu havola orqali botga kirsa, <b>ikkalangizga ham +{REF_DAYS} kun 💎 Premium</b> beriladi.\n\n"
              f"🔗 Sizning havolangiz:\n<code>{link}</code>\n\n"
              f"👥 Taklif qilganlar: <b>{n}</b>\n"
+             + (f"🎯 Keyingi bonus: <b>{ref_next(n)[0]} ta do'st → +{ref_next(n)[1]} kun</b> (yana {ref_next(n)[0] - n} ta)\n" if ref_next(n) else "")
+             + "🏅 Bosqich bonuslari: 3 → +3 kun, 10 → +10, 25 → +30, 50 → +60\n"
              "🏆 Taklif musobaqasi va reyting: /reyting",
              ikb([btn("📤 Do'stlarga yuborish", url=share, style=SUCCESS)]))
 

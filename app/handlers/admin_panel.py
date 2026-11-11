@@ -367,9 +367,24 @@ def _auto_backup(app) -> None:
         tmp = db.path.with_name("auto_backup_tmp.db")
         try:
             db.backup_to(tmp)
+            import sqlite3
+            chk = sqlite3.connect(str(tmp))
+            try:
+                verdict = chk.execute("PRAGMA integrity_check").fetchone()[0]
+            finally:
+                chk.close()
+            if verdict != "ok":
+                raise RuntimeError(f"integrity_check: {verdict}")
             data = tmp.read_bytes()
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
             log.exception("Avto-zaxira yaratib bo'lmadi")
+            fails = int(app.db.get_settings().get("backup_fails", "0") or 0) + 1
+            app.db.set_setting("backup_fails", str(fails))
+            if fails in (1, 3, 24):                       # har safar emas: birinchi, 3-chi va 24-chi muvaffaqiyatsizlikda
+                for uid in app.config.owners:
+                    app.bot.safe("sendMessage", {"chat_id": uid, "parse_mode": "HTML",
+                                                 "text": f"⚠️ <b>Avto-zaxira yaratilmadi</b> ({fails}-urinish)\n<code>{esc(str(exc))[:200]}</code>\n\n"
+                                                         "Qo'lda nusxa olish: admin panel → 💾 Zaxira."})
             app.stopping.wait(3600)
             continue
         finally:
@@ -378,6 +393,7 @@ def _auto_backup(app) -> None:
             except OSError:
                 pass
         db.set_setting("last_auto_backup", str(int(time.time())))
+        db.set_setting("backup_fails", "0")
         data = gzip.compress(data, 6)
         _keep_local(db, data)
         if len(data) > 49 * 1024 * 1024:

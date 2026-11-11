@@ -295,6 +295,7 @@ class App:
         self.me: dict = {}
         self.stopping = threading.Event()
         self.started_at = now()
+        self.last_poll = now()          # Telegram bilan oxirgi muvaffaqiyatli aloqa (/healthz/deep uchun)
         self.defaults: Dict[str, str] = dict(DEFAULT_TEXTS)
         self.defaults.update({
             "card_number": config.card_number,
@@ -552,6 +553,7 @@ class App:
                 try:
                     updates = self.bot.get_updates(offset, 30, ALLOWED_UPDATES)
                     errors = 0
+                    self.last_poll = now()
                 except Unauthorized:
                     log.error("❌ BOT_TOKEN noto'g'ri yoki bekor qilingan! .env faylini tekshiring.")
                     raise SystemExit(2)

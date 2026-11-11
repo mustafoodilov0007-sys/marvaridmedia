@@ -449,6 +449,7 @@
     if (PUB && me.miniapp) view.appendChild(openInTelegram());
     var pb = premiumBanner(); if (pb) view.appendChild(pb);
     var ib = installBanner(); if (ib) view.appendChild(ib);
+    var plr = popularListsRail(data.lists); if (plr) view.appendChild(plr);
     view.appendChild(tvHomeCard());
     if (data.daily) view.appendChild(dailyCard(data.daily));
     var any = false;

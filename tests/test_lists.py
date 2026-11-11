@@ -96,3 +96,65 @@ class ShareSetting(unittest.TestCase):
         self.assertTrue(self.app.setting_bool("protect_content"))
         process_update(self.app, press(1, "st:tog:protect_content"))
         self.assertFalse(self.app.setting_bool("protect_content"))
+
+
+class Growth(unittest.TestCase):
+    def setUp(self):
+        self.app = make_app()
+        self.db = self.app.db
+
+    def tearDown(self):
+        cleanup(self.app)
+
+    def test_popular_lists_only_public_and_big_enough(self):
+        ids = [add_movie(self.app, i, f"K{i}") for i in range(1, 5)]
+        pub = self.db.create_user_list(5, "Ommaviy")
+        priv = self.db.create_user_list(5, "Yopiq")
+        small = self.db.create_user_list(5, "Kichik")
+        for m in ids[:3]:
+            self.db.user_list_add(pub, m)
+            self.db.user_list_add(priv, m)
+        self.db.user_list_add(small, ids[0])
+        for lid in (pub, priv, small):
+            self.db.set_list_public(lid, True) if lid != priv else None
+        self.assertEqual([r["title"] for r in self.db.popular_lists()], ["Ommaviy"])
+        web = WebServer(self.app)
+        try:
+            tok = self.db.get_user_list(pub)["token"]
+            web.json(f"/api/list?t={tok}", uid=6)                       # begona ko'rdi -> ko'rishlar +1
+            web.json(f"/api/list?t={tok}", uid=5)                       # egasi — hisoblanmaydi
+            self.assertEqual(self.db.get_user_list(pub)["views"], 1)
+            home = web.json("/api/home", uid=6)[1]
+            self.assertEqual([x["title"] for x in home["lists"]], ["Ommaviy"])
+            self.assertTrue(web.post("/api/list", {"act": "public", "id": pub, "on": False}, uid=5)[1]["ok"])
+            self.assertEqual(web.json("/api/home", uid=6)[1]["lists"], [])
+            self.assertEqual(web.post("/api/list", {"act": "public", "id": pub, "on": True}, uid=6)[1].get("reason"), "forbidden")
+            self.assertTrue(web.post("/api/list", {"act": "delete", "id": pub}, uid=1)[1]["ok"])      # admin o'chira oladi
+        finally:
+            web.close()
+
+    def test_deep_health(self):
+        web = WebServer(self.app)
+        try:
+            st, body, _ = web.get("/healthz/deep")
+            self.assertEqual((st, body), (200, b"ok"))
+            self.app.last_poll = 0                                       # bot Telegram bilan aloqani yo'qotdi
+            st, body, _ = web.get("/healthz/deep")
+            self.assertEqual(st, 503)
+            self.assertIn(b"bot_poll", body)
+        finally:
+            web.close()
+
+    def test_referral_milestone(self):
+        from app.core import process_update
+        from tests.harness import message
+        process_update(self.app, message(100, "/start"))
+        for i in range(3):
+            process_update(self.app, message(200 + i, f"/start r100"))
+        self.assertEqual(self.db.referral_count(100), 3)
+        # 3 × (+1) + 3-do'st bosqichi (+3) = 6 kun
+        left = (self.db.premium_until(100) - int(__import__("time").time())) / 86400
+        self.assertGreater(left, 5.5)
+        from app.handlers.user import ref_next
+        self.assertEqual(ref_next(3), (10, 10))
+        self.assertIsNone(ref_next(50))

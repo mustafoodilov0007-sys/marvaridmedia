@@ -102,7 +102,23 @@
         tapTwice(del, "Aniqmi?", function () {
           post("/api/list", { act: "delete", id: d.id }).then(function (r) { if (r.ok) { toast("🗑 O'chirildi"); show("lists"); } });
         });
-        tools.appendChild(rn); tools.appendChild(del);
+        var pub = h("button", "btn soft" + (d.public ? " on" : ""), d.public ? "🌍 Hammaga ko'rinadi" : "🔒 Faqat havola bilan");
+        pub.onclick = function () {
+          haptic();
+          post("/api/list", { act: "public", id: d.id, on: !d.public }).then(function (r) {
+            if (!r.ok) return;
+            d.public = !d.public; pub.classList.toggle("on", d.public);
+            pub.textContent = d.public ? "🌍 Hammaga ko'rinadi" : "🔒 Faqat havola bilan";
+            toast(d.public ? "🌍 Ro'yxat bosh sahifadagi «Ommabop»ga qo'shiladi (3+ kino bo'lsa)" : "🔒 Endi faqat havola bilan ochiladi");
+          });
+        };
+        tools.appendChild(pub); tools.appendChild(rn); tools.appendChild(del);
+      } else if (d.admin) {
+        var adel = h("button", "btn soft danger", "🗑 O'chirish (admin)");
+        tapTwice(adel, "Aniqmi?", function () {
+          post("/api/list", { act: "delete", id: d.id }).then(function (r) { if (r.ok) { toast("🗑 O'chirildi"); show("home"); } });
+        });
+        tools.appendChild(adel);
       }
       page.appendChild(tools);
       if (!d.items.length) { page.appendChild(emptyBox("film", "Ro'yxat bo'sh", "Kino sahifasidagi «Ro'yxatga» tugmasi bilan kino qo'shing.")); return; }
@@ -149,4 +165,22 @@
       var a = document.createElement("a"); a.href = URL.createObjectURL(bl); a.download = "izoh.jpg";
       document.body.appendChild(a); a.click(); a.remove(); toast("🖼 Rasm yuklab olindi");
     }).catch(function () { if (btn) btn.disabled = false; fallback(); });
+  }
+
+  // 🔥 bosh sahifa: ommabop ro'yxatlar
+  function popularListsRail(lists) {
+    if (!lists || !lists.length) return null;
+    var sec = h("section", "section"), rail = h("div", "rail cols");
+    sec.appendChild(h("div", "sec-head", [h("h2", null, "🔥 Ommabop ro'yxatlar")]));
+    lists.forEach(function (l) {
+      var strip = h("div", "cstrip");
+      (l.covers || []).slice(0, 4).forEach(function (cv) {
+        var im = new Image(); im.alt = ""; im.loading = "lazy"; im.decoding = "async"; im.src = posterUrl(cv, 360); strip.appendChild(im);
+      });
+      var b = h("button", "colcard", [strip, h("b", null, l.title), h("span", null, (l.owner ? l.owner + " · " : "") + l.n + " ta kino")]);
+      b.type = "button"; b.onclick = function () { haptic(); show("ulist", { t: l.token }); };
+      rail.appendChild(b);
+    });
+    sec.appendChild(h("div", "railwrap", [rail]));
+    return sec;
   }

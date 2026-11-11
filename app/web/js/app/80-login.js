@@ -116,6 +116,7 @@
       pc.appendChild(h("div", "pprem", [h("div", "pprem-row", [h("span", "pbadge", [icon("gem"), "PREMIUM"]), h("em", null, left), ext]), pbar]));
     }
     page.appendChild(pc);
+    var ic = inviteCard(); if (ic) page.appendChild(ic);
     if (guest()) {
       var lc = h("button", "logincard", [h("div", null, [h("b", null, "Hisobingizga kiring"),
         h("span", null, "Izoh yozish, baho berish va kinoni Telegramga yuborish uchun")]), h("em", null, "Kirish")]);

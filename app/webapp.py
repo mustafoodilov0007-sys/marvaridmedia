@@ -773,8 +773,11 @@ def api_list(app: App, user: dict, qs: dict) -> dict:
         return {"ok": False, "reason": "not_found"}
     _, vip = _user_flags(app, user["id"])
     premium_on = app.setting_bool("premium_enabled")
+    mine = bool(user["id"]) and lst["user_id"] == user["id"]
+    if not mine:
+        app.db.bump_list_views(lst["id"])
     return {"ok": True, "id": lst["id"], "title": lst["title"], "token": lst["token"], "owner": lst["owner"] or "",
-            "mine": bool(user["id"]) and lst["user_id"] == user["id"],
+            "mine": mine, "public": bool(lst["public"]), "admin": bool(user["id"]) and app.is_admin(user["id"]),
             "items": [_item(r, premium_on, vip) for r in app.db.user_list_movies(lst["id"])]}
 
 
@@ -804,8 +807,11 @@ def api_list_set(app: App, user: dict, body: dict) -> dict:
     except (TypeError, ValueError):
         return {"ok": False, "reason": "bad"}
     lst = app.db.get_user_list(lid)
-    if not lst or lst["user_id"] != uid:
+    if not lst or (lst["user_id"] != uid and not (act == "delete" and app.is_admin(uid))):     # admin nomaqbul ro'yxatni o'chira oladi
         return {"ok": False, "reason": "forbidden"}
+    if act == "public":
+        app.db.set_list_public(lid, bool(body.get("on")))
+        return {"ok": True}
     if act == "delete":
         app.db.delete_user_list(lid)
         return {"ok": True}
@@ -967,6 +973,9 @@ def _api_home(app: App, user: dict) -> dict:
         "ok": True,
         "history": history,
         "fresh": fresh,
+        "lists": [{"token": r["token"], "title": r["title"], "owner": r["owner"], "n": r["n"],
+                   "covers": [{"id": m["id"], "poster": _poster_key(m["poster_id"])} for m in app.db.user_list_movies(r["id"])[:4] if m["poster_id"]]}
+                  for r in app.db.popular_lists(8)],
         "daily": next(iter(pack(app.db.catalog_rows([dm["id"]])) if (dm := daily_movie(app)) and dm["category"] != "music" else []), None),
         "foryou": foryou,
         "searched": searched,
@@ -1004,6 +1013,18 @@ def _channel_url(app: App) -> Optional[str]:
     return None
 
 
+def _ref_info(app: App, user: dict) -> Optional[dict]:
+    """🤝 Do'st taklif qilish kartasi uchun: havola, soni, keyingi bosqich (faqat Telegram hisobi)."""
+    from .handlers.user import REF_DAYS, REF_MILESTONES, ref_next
+    uid = user["id"]
+    if uid <= 0 or not app.bot_username:
+        return None
+    n = app.db.referral_count(uid)
+    nxt = ref_next(n)
+    return {"link": f"https://t.me/{app.bot_username}?start=r{uid}", "n": n, "days": REF_DAYS,
+            "next": nxt[0] if nxt else 0, "bonus": nxt[1] if nxt else 0, "steps": sorted(REF_MILESTONES)}
+
+
 def api_me(app: App, user: dict) -> dict:
     is_admin, vip = _user_flags(app, user["id"])
     if user["id"] > 0 and not user.get("_web"):   # tahlil: Telegram foydalanuvchisi saytni ochdi (kuniga bir marta), manba — start_param
@@ -1025,6 +1046,7 @@ def api_me(app: App, user: dict) -> dict:
         "premium_on": app.setting_bool("premium_enabled"),
         "premium_until": app.db.premium_until(user["id"]) if user["id"] else 0,
         "miniapp": app.miniapp_link(),
+        "ref": _ref_info(app, user),
         "admin": bool(is_admin and user["id"]),
         "counts": dict(app.db.count_by_category(), shorts=app.db.count_shorts()),
         "channel": _channel_url(app),
@@ -2012,6 +2034,16 @@ def make_handler(app: App):
                     return self._send(200, (WEB_DIR / path.lstrip("/")).read_bytes(), STATIC_FILES[path], "public, max-age=604800")
                 if path == "/healthz":
                     return self._send(200, b"ok", "text/plain")
+                if path == "/healthz/deep":          # 🩺 chuqur tekshiruv: baza ishlayaptimi va bot Telegram bilan aloqadami (monitoring uchun)
+                    problems = []
+                    try:
+                        app.db.val("SELECT 1")
+                    except Exception:  # noqa: BLE001
+                        problems.append("db")
+                    age = int(time.time()) - int(getattr(app, "last_poll", 0) or 0)
+                    if age > 180:
+                        problems.append(f"bot_poll_{age}s")
+                    return self._send(503 if problems else 200, ("FAIL " + ",".join(problems) if problems else "ok").encode(), "text/plain")
                 m = re.fullmatch(r"/og/c/(\d+)\.jpg", path)
                 if m:                                # 🖼 izoh kartochkasi
                     if self._limited(api_user, api_ip):

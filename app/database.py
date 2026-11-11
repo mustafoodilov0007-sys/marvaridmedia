@@ -113,7 +113,9 @@ CREATE TABLE IF NOT EXISTS user_lists (  -- foydalanuvchi ro'yxatlari (havola or
     user_id    INTEGER NOT NULL,
     title      TEXT    NOT NULL,
     token      TEXT    NOT NULL UNIQUE,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    public     INTEGER NOT NULL DEFAULT 0,   -- 1: bosh sahifadagi «Ommabop ro'yxatlar»da ko'rinadi
+    views      INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_user_lists_user ON user_lists(user_id);
 
@@ -465,6 +467,10 @@ class Database:
         pcols = {r[1] for r in self.conn.execute("PRAGMA table_info(parts)").fetchall()}
         if "duration" not in pcols:
             self.conn.execute("ALTER TABLE parts ADD COLUMN duration INTEGER NOT NULL DEFAULT 0")
+        lcols = {r[1] for r in self.conn.execute("PRAGMA table_info(user_lists)").fetchall()}
+        if lcols and "public" not in lcols:  # 📚 ommabop ro'yxatlar: ommaviy belgisi va ko'rishlar
+            self.conn.execute("ALTER TABLE user_lists ADD COLUMN public INTEGER NOT NULL DEFAULT 0")
+            self.conn.execute("ALTER TABLE user_lists ADD COLUMN views INTEGER NOT NULL DEFAULT 0")
         ucols = {r[1] for r in self.conn.execute("PRAGMA table_info(users)").fetchall()}
         if "src" not in ucols:  # 📈 foydalanuvchi qayerdan kelgani (tahlil uchun)
             self.conn.execute("ALTER TABLE users ADD COLUMN src TEXT NOT NULL DEFAULT ''")
@@ -1287,6 +1293,20 @@ class Database:
             return None
         return self.x("INSERT INTO user_lists(user_id, title, token, created_at) VALUES (?,?,?,?)",
                       (uid, title[:60], secrets.token_urlsafe(6), now())).lastrowid
+
+    def set_list_public(self, lid: int, on: bool) -> None:
+        self.x("UPDATE user_lists SET public=? WHERE id=?", (1 if on else 0, lid))
+
+    def bump_list_views(self, lid: int) -> None:
+        self.x("UPDATE user_lists SET views=views+1 WHERE id=?", (lid,))
+
+    def popular_lists(self, limit: int = 8, min_items: int = 3) -> List[sqlite3.Row]:
+        """Ommaviy ro'yxatlar: ko'rishlar va kinolar soni bo'yicha (kamida min_items ta kino bo'lsa)."""
+        return self.q(
+            "SELECT l.id, l.title, l.token, l.views, COALESCE(u.first_name, w.name, '') AS owner,"
+            " (SELECT COUNT(*) FROM user_list_items i WHERE i.list_id=l.id) AS n FROM user_lists l"
+            " LEFT JOIN users u ON u.user_id=l.user_id LEFT JOIN web_accounts w ON l.user_id = -w.id"
+            " WHERE l.public=1 AND n >= ? ORDER BY l.views DESC, n DESC, l.id DESC LIMIT ?", (min_items, limit))
 
     def rename_user_list(self, lid: int, title: str) -> None:
         self.x("UPDATE user_lists SET title=? WHERE id=?", (title[:60], lid))
