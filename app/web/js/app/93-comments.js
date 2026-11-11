@@ -96,6 +96,9 @@
       var mb = h("button", "cm-btn more", [icon("dots")]); mb.setAttribute("aria-label", "Yana");
       mb.onclick = function (e) { e.stopPropagation(); tools.classList.toggle("hidden"); };
       act.appendChild(mb);
+      var shb = h("button", "cm-tool", [icon("share"), h("span", null, "Rasm qilib ulashish")]);
+      shb.onclick = function (e) { e.stopPropagation(); haptic(); shareComment(c, it, shb); tools.classList.add("hidden"); };
+      tools.appendChild(shb);
       if (!c.mine && !guest()) {
         var fb = h("button", "cm-tool", [icon("flag"), h("span", null, "Shikoyat")]);
         tapTwice(fb, "Aniqmi?", function () {
@@ -336,9 +339,11 @@
     var hasMain = useMain(it);
     s.classList.toggle("hasmain", hasMain);
     var similar = it.cat === "music" ? null : h("div", "similar");
+    var also = it.cat === "music" ? null : h("div", "similar");
     s.setAttribute("aria-label", it.title);
     var acts = actionRow(it, false);
     var tg2 = togetherBtn(it); if (tg2) acts.appendChild(tg2);
+    var lb2 = listBtn(it); if (lb2) acts.appendChild(lb2);
     if (it.parts > 1 && !guest() && (!PUB || me.tg)) {        // 📺 serial: «N-qismdan davom etish» (bot bilan bir xil tarix)
       var resumeBox = h("div", "resume-row hidden");
       api("/api/resume?id=" + it.id).then(function (r) {
@@ -356,7 +361,7 @@
       : it.cat === "music" ? "«Tinglash» — shu yerning o'zida eshitasiz. Yonidagi tugma qo'shiqni Telegram botga yuboradi."
       : PUB ? "«Kinoni ko'rish» bosilsa, Telegram'da botimiz ochiladi va kinoni yuboradi."
       : "«Kinoni ko'rish» bosilsa, bot kinoni chatga yuboradi.");
-    var tabList = [{ label: "Umumiy", nodes: [desc, it.glink ? glinkRow(it) : null, it.cat === "music" ? null : rateRow(it), noteNode, similar] }];
+    var tabList = [{ label: "Umumiy", nodes: [desc, it.glink ? glinkRow(it) : null, it.cat === "music" ? null : rateRow(it), noteNode, similar, also] }];
     if (it.cat !== "music") tabList.push({ label: "Izohlar", lazy: function () { return [commentsSection(it)]; } });   // izohlar yorliq ochilganda quriladi (sahifa ochilishi yengil)
     if (it.trailer || it.turl) {
       var trBtn = h("button", "strailer", [posterNode(it, 720), h("span", "play", [icon("play")]), h("b", null, "Treylerni ko'rish")]);
@@ -412,6 +417,7 @@
           d.items.forEach(function (x) { list.appendChild(card(x)); });
           similar.replaceChildren(h("div", "sec-head", [h("h2", null, "🎭 O'xshash kinolar")]), list);
         }).catch(function () {});
+        alsoRail(also, it);
       }, 480);
     }
     if (heroVid) { var pv = heroVid.play(); if (pv && pv.catch) pv.catch(function () {}); }

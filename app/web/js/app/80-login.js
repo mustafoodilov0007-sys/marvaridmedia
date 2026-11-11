@@ -183,6 +183,7 @@
     }
     if (me.bot) row("🤖 Telegram botni ochish", "@" + me.bot, function () { openLink("https://t.me/" + me.bot); });
     if (me.channel) row("📢 Kanalimiz", "Yangiliklar va e'lonlar", function () { openLink(me.channel); });
+    if (!guest()) row("📚 Ro'yxatlarim", "O'z kolleksiyalaringiz — havola bilan ulashing", function () { show("lists"); });
     if (!guest()) row("⭐ Baholarim", "Siz 👍/👎 bergan kinolar", function () { show("ratings"); });
     if (!PUB || (AUTHED && me.tg)) row("💎 Obuna va xaridlar", me.premium ? "Premium faol" : "Premium, promokod, taklif", function () { show("sub"); });
     var kidsRow = h("button", "crow", [h("b", null, "👶 Bolalar rejimi: " + (kidsMode ? "yoqilgan" : "o'chiq")),

@@ -157,3 +157,60 @@ def render(poster: Optional[bytes], title: str, meta: str, genres_line: str, imd
     out = io.BytesIO()
     bg.save(out, "JPEG", quality=86, optimize=True, progressive=True)
     return out.getvalue()
+
+
+def render_review(poster: Optional[bytes], title: str, body: str, author: str, likes: int = 0,
+                  brand: str = "Marvarid Media") -> Optional[bytes]:
+    """💬 Izoh kartochkasi 1080×1080: xira poster foni, tepada kichik poster va kino nomi, o'rtada izoh, pastda muallif."""
+    if not available():
+        return None
+    S = 1080
+    try:
+        p = Image.open(io.BytesIO(poster)).convert("RGB") if poster else None
+    except Exception:  # noqa: BLE001
+        p = None
+    if p is not None:
+        bg = _cover(p, S, S).filter(ImageFilter.GaussianBlur(40))
+        bg = Image.blend(bg, Image.new("RGB", (S, S), (8, 7, 10)), 0.68)
+    else:
+        bg = Image.new("RGB", (S, S), (14, 12, 18))
+    d = ImageDraw.Draw(bg)
+    m = 76
+    d.text((m, 64), brand.upper(), font=_font("inter-semibold.otf", 26), fill=GOLD)
+    y = 130
+    if p is not None:
+        pw, ph = 120, 180
+        pc = _cover(p, pw, ph)
+        mk = Image.new("L", (pw, ph), 0)
+        ImageDraw.Draw(mk).rounded_rectangle((0, 0, pw, ph), 16, fill=255)
+        bg.paste(pc, (m, y), mk)
+        d = ImageDraw.Draw(bg)
+        tx = m + pw + 28
+    else:
+        tx = m
+    ft = _font("interdisplay-bold.otf", 46)
+    ty = y + 30
+    for ln in _wrap(d, title, ft, S - tx - m, 2):
+        d.text((tx, ty), ln, font=ft, fill=(250, 246, 238))
+        ty += 56
+    # izoh matni: katta, shriftni sig'diriladi
+    top, bottom = 360, 880
+    size = 54
+    while True:
+        f = _font("inter-medium.otf", size)
+        lines = _wrap(d, body.strip(), f, S - 2 * m - 40, 12)
+        if len(lines) * round(size * 1.34) <= bottom - top or size <= 30:
+            break
+        size -= 4
+    d.text((m, top - 120), "“", font=_font("interdisplay-bold.otf", 200), fill=(233, 196, 106))
+    yy = top
+    for ln in lines:
+        d.text((m + 20, yy), ln, font=f, fill=(244, 240, 232))
+        yy += round(size * 1.34)
+    d.rounded_rectangle((m, 936, m + 8, 1000), 4, fill=GOLD)
+    d.text((m + 28, 934), author, font=_font("inter-semibold.otf", 36), fill=(250, 246, 238))
+    sub = "izoh" + (f" \u00b7 {likes} yoqdi" if likes else "")
+    d.text((m + 28, 978), sub, font=_font("inter-medium.otf", 26), fill=(170, 162, 150))
+    out = io.BytesIO()
+    bg.save(out, "JPEG", quality=88, optimize=True, progressive=True)
+    return out.getvalue()

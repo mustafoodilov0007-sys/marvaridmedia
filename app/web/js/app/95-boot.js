@@ -163,7 +163,10 @@
   try { startView = new URLSearchParams(location.search).get("v") || ""; } catch (e) {}
   var pI = pathInfo(), qParam = "";
   try { qParam = (new URLSearchParams(location.search).get("q") || "").trim().slice(0, 80); } catch (e) {}     // Google qidiruv kutisidan: /?q=nom
-  if (qParam) { searchQ = qParam; show("search"); }
+  var lParam = "";
+  try { lParam = (new URLSearchParams(location.search).get("l") || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 20); } catch (e) {}
+  if (lParam) show("ulist", { t: lParam });
+  else if (qParam) { searchQ = qParam; show("search"); }
   else if (pI.genre) show("video", { f: { genre: pI.genre } });
   else if (pI.colId) show("col", { id: pI.colId });
   else show(pI.view || (["stats", "support", "search", "saved", "tv", "movie", "serial", "cartoon", "music", "shorts", "profile", "catalog", "sub", "login", "ratings", "cols", "foryou"].indexOf(startView) >= 0 ? startView : "home"));

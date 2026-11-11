@@ -101,6 +101,29 @@ CREATE TABLE IF NOT EXISTS view_days (   -- kunlik ko'rishlar (haftalik TOP uchu
 );
 CREATE INDEX IF NOT EXISTS idx_view_days_day ON view_days(day);
 
+CREATE TABLE IF NOT EXISTS view_hours (  -- ko'rishlar soatlar bo'yicha (kun × soat)
+    day  INTEGER NOT NULL,
+    hour INTEGER NOT NULL,
+    n    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, hour)
+);
+
+CREATE TABLE IF NOT EXISTS user_lists (  -- foydalanuvchi ro'yxatlari (havola orqali ulashiladi)
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    title      TEXT    NOT NULL,
+    token      TEXT    NOT NULL UNIQUE,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_user_lists_user ON user_lists(user_id);
+
+CREATE TABLE IF NOT EXISTS user_list_items (
+    list_id  INTEGER NOT NULL,
+    movie_id INTEGER NOT NULL,
+    at       INTEGER NOT NULL,
+    PRIMARY KEY (list_id, movie_id)
+);
+
 CREATE TABLE IF NOT EXISTS hits (        -- sayt tashriflari (mehmonlar): kun × manba
     day INTEGER NOT NULL,
     src TEXT    NOT NULL,
@@ -911,8 +934,12 @@ class Database:
             c.execute("UPDATE parts SET views=views+1 WHERE id=?", (part_id,))
             c.execute("INSERT INTO view_days(movie_id, day, n) VALUES (?,?,1)"
                       " ON CONFLICT(movie_id, day) DO UPDATE SET n=n+1", (movie_id, (now() + 18000) // 86400))
+            t = now() + 18000
+            c.execute("INSERT INTO view_hours(day, hour, n) VALUES (?,?,1)"
+                      " ON CONFLICT(day, hour) DO UPDATE SET n=n+1", (t // 86400, t % 86400 // 3600))
 
     def prune_views(self, keep_days: int = 60) -> None:
+        self.x("DELETE FROM view_hours WHERE day < ?", ((now() + 18000) // 86400 - keep_days,))
         self.x("DELETE FROM view_days WHERE day < ?", ((now() + 18000) // 86400 - keep_days,))
 
     def weekly_top(self, limit: int = 10, days: int = 7) -> List[sqlite3.Row]:
@@ -1239,6 +1266,62 @@ class Database:
                 self.add_to_collection(cid, movie_id)
             elif row:
                 self.remove_from_collection(row["id"], movie_id)
+
+    # ───────── 📚 foydalanuvchi ro'yxatlari ─────────
+
+    MAX_LISTS, MAX_LIST_ITEMS = 20, 200
+
+    def user_lists(self, uid: int) -> List[sqlite3.Row]:
+        return self.q("SELECT l.id, l.title, l.token, (SELECT COUNT(*) FROM user_list_items i WHERE i.list_id=l.id) AS n"
+                      " FROM user_lists l WHERE l.user_id=? ORDER BY l.id DESC", (uid,))
+
+    def get_user_list(self, lid: int = 0, token: str = ""):
+        if token:
+            return self.q1("SELECT l.*, COALESCE(u.first_name, w.name, '') AS owner FROM user_lists l"
+                           " LEFT JOIN users u ON u.user_id=l.user_id LEFT JOIN web_accounts w ON l.user_id = -w.id WHERE l.token=?", (token,))
+        return self.q1("SELECT * FROM user_lists WHERE id=?", (lid,))
+
+    def create_user_list(self, uid: int, title: str) -> Optional[int]:
+        import secrets
+        if self.val("SELECT COUNT(*) FROM user_lists WHERE user_id=?", (uid,)) >= self.MAX_LISTS:
+            return None
+        return self.x("INSERT INTO user_lists(user_id, title, token, created_at) VALUES (?,?,?,?)",
+                      (uid, title[:60], secrets.token_urlsafe(6), now())).lastrowid
+
+    def rename_user_list(self, lid: int, title: str) -> None:
+        self.x("UPDATE user_lists SET title=? WHERE id=?", (title[:60], lid))
+
+    def delete_user_list(self, lid: int) -> None:
+        self.x("DELETE FROM user_list_items WHERE list_id=?", (lid,))
+        self.x("DELETE FROM user_lists WHERE id=?", (lid,))
+
+    def user_list_add(self, lid: int, movie_id: int) -> bool:
+        if self.val("SELECT COUNT(*) FROM user_list_items WHERE list_id=?", (lid,)) >= self.MAX_LIST_ITEMS:
+            return False
+        self.x("INSERT OR IGNORE INTO user_list_items(list_id, movie_id, at) VALUES (?,?,?)", (lid, movie_id, now()))
+        return True
+
+    def user_list_remove(self, lid: int, movie_id: int) -> None:
+        self.x("DELETE FROM user_list_items WHERE list_id=? AND movie_id=?", (lid, movie_id))
+
+    def user_list_movies(self, lid: int) -> List[sqlite3.Row]:
+        return self.q(_CATALOG_ROW.replace("FROM movies m", "FROM user_list_items ci JOIN movies m ON m.id = ci.movie_id")
+                      + " WHERE ci.list_id=? ORDER BY ci.at DESC, ci.movie_id DESC LIMIT ?", (lid, self.MAX_LIST_ITEMS))
+
+    def lists_with_movie(self, uid: int, movie_id: int) -> set:
+        return {r["list_id"] for r in self.q(
+            "SELECT i.list_id FROM user_list_items i JOIN user_lists l ON l.id=i.list_id WHERE l.user_id=? AND i.movie_id=?", (uid, movie_id))}
+
+    def also_watched(self, movie_id: int, limit: int = 12, min_users: int = 2) -> List[sqlite3.Row]:
+        """«Tomoshabinlar ham ko'rdi»: shu kinoni ko'rganlar tarixida eng ko'p uchraydigan boshqa kinolar (kamida min_users kishi)."""
+        ids = [r["movie_id"] for r in self.q(
+            "SELECT h2.movie_id FROM history h1 JOIN history h2 ON h2.user_id=h1.user_id AND h2.movie_id<>h1.movie_id"
+            " WHERE h1.movie_id=? GROUP BY h2.movie_id HAVING COUNT(*) >= ? ORDER BY COUNT(*) DESC, h2.movie_id DESC LIMIT ?",
+            (movie_id, min_users, limit))]
+        if not ids:
+            return []
+        rows = {r["id"]: r for r in self.catalog_rows(ids)}
+        return [rows[i] for i in ids if i in rows and rows[i]["category"] != "music"]
 
     def remove_from_collection(self, cid: int, movie_id: int) -> None:
         self.x("DELETE FROM collection_items WHERE collection_id=? AND movie_id=?", (cid, movie_id))

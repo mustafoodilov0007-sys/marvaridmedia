@@ -150,6 +150,11 @@ def build(db, t: Optional[int] = None) -> Dict:
         "SELECT m.category, SUM(v.n) AS n FROM view_days v JOIN movies m ON m.id=v.movie_id"
         " WHERE v.day >= ? GROUP BY m.category ORDER BY n DESC", (d14,))]
 
-    return {"ok": True, "generated": t, "top7": top7, "cats": cats, "new_daily": new_daily, "new_total": grand, "sources": sources, "active": active,
+    hrs = [0] * 24
+    for r in db.q("SELECT hour, SUM(n) AS n FROM view_hours WHERE day >= ? GROUP BY hour", (d14,)):
+        hrs[r["hour"]] = r["n"]
+    hours = [{"h": i, "n": n} for i, n in enumerate(hrs)]
+
+    return {"ok": True, "generated": t, "hours": hours, "top7": top7, "cats": cats, "new_daily": new_daily, "new_total": grand, "sources": sources, "active": active,
             "retention": {"cohorts": cohorts, "d1": overall(1), "d7": overall(7), "d30": overall(30)},
             "funnel": funnel, "revenue": list(rev.values()), "daily14": daily14, "site_sources": site_sources}

@@ -741,6 +741,125 @@ def api_similar(app: App, user: dict, qs: dict) -> dict:
     return {"ok": True, "items": [_item(r, premium_on, vip) for r in app.db.similar(movie_id, 12)]}
 
 
+def api_also(app: App, user: dict, qs: dict) -> dict:
+    """👥 «Tomoshabinlar ham ko'rdi» — boshqalarning tomosha tarixi asosida."""
+    try:
+        movie_id = int(qs.get("id", "0"))
+    except ValueError:
+        return {"ok": False, "reason": "not_found"}
+    _, vip = _user_flags(app, user["id"])
+    premium_on = app.setting_bool("premium_enabled")
+    return {"ok": True, "items": [_item(r, premium_on, vip) for r in app.db.also_watched(movie_id, 12)]}
+
+
+def api_lists(app: App, user: dict, qs: dict) -> dict:
+    """📚 Mening ro'yxatlarim; ?movie=ID bo'lsa — qaysilarida shu kino borligi ham."""
+    if not user["id"]:
+        return {"ok": False, "reason": "login"}
+    has = set()
+    try:
+        has = app.db.lists_with_movie(user["id"], int(qs.get("movie", "0")))
+    except ValueError:
+        pass
+    return {"ok": True, "max": app.db.MAX_LISTS,
+            "lists": [{"id": r["id"], "title": r["title"], "token": r["token"], "n": r["n"], "has": r["id"] in has}
+                      for r in app.db.user_lists(user["id"])]}
+
+
+def api_list(app: App, user: dict, qs: dict) -> dict:
+    """📚 Ro'yxat ichi: havola (token) bo'yicha hamma ko'ra oladi; egasi o'zgartira oladi."""
+    lst = app.db.get_user_list(token=(qs.get("t") or "")[:20])
+    if not lst:
+        return {"ok": False, "reason": "not_found"}
+    _, vip = _user_flags(app, user["id"])
+    premium_on = app.setting_bool("premium_enabled")
+    return {"ok": True, "id": lst["id"], "title": lst["title"], "token": lst["token"], "owner": lst["owner"] or "",
+            "mine": bool(user["id"]) and lst["user_id"] == user["id"],
+            "items": [_item(r, premium_on, vip) for r in app.db.user_list_movies(lst["id"])]}
+
+
+def api_list_set(app: App, user: dict, body: dict) -> dict:
+    """{act: create|rename|delete|add|remove, ...} — faqat o'z ro'yxatlari."""
+    uid = user["id"]
+    if not uid:
+        return {"ok": False, "reason": "login"}
+    act = body.get("act")
+    title = re.sub(r"\s+", " ", str(body.get("title") or "")).strip()[:60]
+    if act == "create":
+        if not title:
+            return {"ok": False, "reason": "bad"}
+        lid = app.db.create_user_list(uid, title)
+        if lid is None:
+            return {"ok": False, "reason": "limit"}
+        lst = app.db.get_user_list(lid)
+        try:
+            mid = int(body.get("movie") or 0)
+        except (TypeError, ValueError):
+            mid = 0
+        if mid and app.db.get_movie(mid):
+            app.db.user_list_add(lid, mid)
+        return {"ok": True, "id": lid, "token": lst["token"]}
+    try:
+        lid = int(body.get("id"))
+    except (TypeError, ValueError):
+        return {"ok": False, "reason": "bad"}
+    lst = app.db.get_user_list(lid)
+    if not lst or lst["user_id"] != uid:
+        return {"ok": False, "reason": "forbidden"}
+    if act == "delete":
+        app.db.delete_user_list(lid)
+        return {"ok": True}
+    if act == "rename" and title:
+        app.db.rename_user_list(lid, title)
+        return {"ok": True}
+    if act in ("add", "remove"):
+        try:
+            mid = int(body.get("movie"))
+        except (TypeError, ValueError):
+            return {"ok": False, "reason": "bad"}
+        if act == "remove":
+            app.db.user_list_remove(lid, mid)
+            return {"ok": True}
+        if not app.db.get_movie(mid):
+            return {"ok": False, "reason": "not_found"}
+        return {"ok": True} if app.db.user_list_add(lid, mid) else {"ok": False, "reason": "limit"}
+    return {"ok": False, "reason": "bad"}
+
+
+def comment_card_bytes(app: App, cid: int, cache_dir: Path) -> Optional[bytes]:
+    """🖼 Izohni ulashish kartochkasi (1080×1080 JPEG): poster, kino nomi, izoh matni va muallif."""
+    from . import sharecard
+    if not sharecard.available():
+        return None
+    c = app.db.get_comment(cid)
+    if not c or c["status"] != "ok":
+        return None
+    m = app.db.get_movie(c["movie_id"])
+    if not m:
+        return None
+    who = app.db.q1("SELECT COALESCE(u.first_name, w.name) AS n FROM (SELECT 1) LEFT JOIN users u ON u.user_id=? LEFT JOIN web_accounts w ON ?=-w.id",
+                    (c["user_id"], c["user_id"]))
+    name = (who["n"] if who and who["n"] else "Tomoshabin")[:30]
+    sig = hashlib.sha1(f"{c['body']}|{name}|{c['likes']}|{m['title']}|{m['poster_id']}|v1".encode()).hexdigest()[:10]
+    path = cache_dir / f"cc_{cid}_{sig}.jpg"
+    if path.exists():
+        return path.read_bytes()
+    poster = poster_bytes(app, m["id"], cache_dir, 480) if m["poster_id"] else None
+    data = sharecard.render_review(poster, m["title"], c["body"], name, c["likes"], app.brand)
+    if not data:
+        return None
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    for old in cache_dir.glob(f"cc_{cid}_*.jpg"):
+        try:
+            old.unlink()
+        except OSError:
+            pass
+    tmp = path.with_suffix(f".{threading.get_ident()}.tmp")
+    tmp.write_bytes(data)
+    tmp.replace(path)
+    return data
+
+
 _YEAR_RE = re.compile(r"\b(19[2-9]\d|20[0-4]\d)\b")
 
 
@@ -1893,6 +2012,14 @@ def make_handler(app: App):
                     return self._send(200, (WEB_DIR / path.lstrip("/")).read_bytes(), STATIC_FILES[path], "public, max-age=604800")
                 if path == "/healthz":
                     return self._send(200, b"ok", "text/plain")
+                m = re.fullmatch(r"/og/c/(\d+)\.jpg", path)
+                if m:                                # 🖼 izoh kartochkasi
+                    if self._limited(api_user, api_ip):
+                        return
+                    data = comment_card_bytes(app, int(m.group(1)), cache_dir)
+                    if data is None:
+                        return self._send(404, b"", "text/plain")
+                    return self._send(200, data, "image/jpeg", "public, max-age=86400")
                 m = re.fullmatch(r"/og/(\d+)\.jpg", path)
                 if m:                                # 🖼 ulashish kartochkasi (Telegram/ijtimoiy tarmoq ko'rinishi uchun)
                     if self._limited(api_user, api_ip):
@@ -1954,6 +2081,12 @@ def make_handler(app: App):
                         return self._json(api_shorts(app, user, qs))
                     if path == "/api/comments":
                         return self._json(api_comments(app, user, qs))
+                    if path == "/api/also":
+                        return self._json(api_also(app, user, qs))
+                    if path == "/api/lists":
+                        return self._json(api_lists(app, user, qs))
+                    if path == "/api/list":
+                        return self._json(api_list(app, user, qs))
                     if path == "/api/similar":
                         return self._json(api_similar(app, user, qs))
                     if path == "/api/collections":
@@ -2069,6 +2202,8 @@ def make_handler(app: App):
                     return self._json(api_request(app, user, body))
                 if path == "/api/saved":
                     return self._json(api_saved_set(app, user, body))
+                if path == "/api/list":
+                    return self._json(api_list_set(app, user, body))
                 if path == "/api/tv/trial":
                     return self._json(api_tv_trial(app, user))
                 if path == "/api/history/clear":

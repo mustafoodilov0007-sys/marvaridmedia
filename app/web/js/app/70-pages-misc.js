@@ -312,6 +312,16 @@
       box.appendChild(h("div", "note", "So'mda. Promokod va do'st bonuslari daromad hisoblanmaydi."));
       box.appendChild(h("h3", "group-title", "▶️ Ko'rishlar (14 kun)"));
       box.appendChild(dayChart(d.daily14, "plays", "Ko'rish"));
+      box.appendChild(h("h3", "group-title", "🕒 Soat bo'yicha faollik (14 kun, Toshkent vaqti)"));
+      var hmax = Math.max.apply(null, (d.hours || []).map(function (x) { return x.n; }).concat([1])), hb = h("div", "bars thin hours");
+      (d.hours || []).forEach(function (x) {
+        var col = h("div", null, [h("u", null, ""), h("i"), h("em", null, x.h % 3 === 0 ? String(x.h) : "")]);
+        col.querySelector("i").style.height = Math.max(2, Math.round(x.n / hmax * 78)) + "px"; col.title = x.h + ":00 — " + x.n;
+        if (x.n === hmax && x.n > 0) col.querySelector("i").style.background = "var(--gold, #e2b450)";
+        hb.appendChild(col);
+      });
+      box.appendChild(hb);
+      box.appendChild(h("div", "note", "Ko'rishlar qaysi soatda ko'p bo'lishi — kanalga post qo'yish uchun eng yaxshi vaqt."));
       box.appendChild(h("h3", "group-title", "🔥 Eng ko'p ko'rilganlar (7 kun)"));
       box.appendChild((d.top7 || []).length ? hbars(d.top7) : h("div", "note", "Hali ma'lumot yo'q"));
       box.appendChild(h("h3", "group-title", "🗂 Bo'limlar bo'yicha ko'rishlar (14 kun)"));

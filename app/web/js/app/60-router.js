@@ -7,7 +7,7 @@
     if (!HIST) return;
     try {
       var o = {};
-      if (opts) { if (opts.id != null) o.id = opts.id; if (opts.sort) o.sort = opts.sort; if (opts.f) o.f = opts.f; if (opts.start != null) o.start = opts.start; }
+      if (opts) { if (opts.id != null) o.id = opts.id; if (opts.sort) o.sort = opts.sort; if (opts.f) o.f = opts.f; if (opts.start != null) o.start = opts.start; if (opts.t) o.t = opts.t; }
       var st = { v: name, o: o };
       if (histFirst) { histFirst = false; history.replaceState(st, "", undefined); return; }   // birinchi ko'rinish: yangi yozuv yo'q
       var cur = history.state;
@@ -15,6 +15,7 @@
       var path = VIEW_PATH[name] || ("/?v=" + name);
       if (name === "col" && opts && opts.id != null) path = /^\d+$/.test(String(opts.id)) ? "/kolleksiya/" + opts.id : "/janr/" + String(opts.id).replace(/^g_/, "");
       if (name === "cols") path = "/kolleksiyalar";
+      if (name === "ulist" && opts && opts.t) path = "/?l=" + encodeURIComponent(opts.t);
       history.pushState(st, "", path);
     } catch (e) {}
   }
@@ -125,6 +126,8 @@
     if (name === "profile") return renderProfile(view);
     if (name === "login") return renderLogin(view);
     if (name === "support") return renderSupport(view, my);
+    if (name === "lists") return renderLists(view, my);
+    if (name === "ulist") return renderUList(view, opts.t, my);
     if (name === "ratings") return renderRatings(view, my);
     if (name === "sub") return renderSub(view);
     if (name === "stats") return renderStats(view, my);
