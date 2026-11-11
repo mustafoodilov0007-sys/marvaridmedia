@@ -1672,6 +1672,10 @@ def make_handler(app: App):
 
         def _ip(self) -> str:
             # Railway proksisi haqiqiy IP ni X-Forwarded-For ning OXIRIGA qo'shadi (boshidagisini soxtalashtirish mumkin)
+            if getattr(app.config, "cf_proxy", False):
+                cf = self.headers.get("CF-Connecting-IP", "").strip()
+                if cf:
+                    return cf
             xff = self.headers.get("X-Forwarded-For", "")
             return xff.split(",")[-1].strip() or self.client_address[0]
 

@@ -1672,6 +1672,12 @@ class Database:
                       " WHERE results=0 AND created_at>=? AND norm<>'' GROUP BY norm ORDER BY n DESC LIMIT ?",
                       (since, limit))
 
+    def failed_queries_detail(self, since: int, limit: int = 15) -> List[sqlite3.Row]:
+        """Topilmagan qidiruvlar: necha marta va necha xil odam qidirgan."""
+        return self.q("SELECT norm, MIN(query) AS query, COUNT(*) AS n, COUNT(DISTINCT COALESCE(user_id, 0)) AS u FROM searches"
+                      " WHERE results=0 AND created_at>=? AND norm<>'' AND LENGTH(norm)>=3 GROUP BY norm ORDER BY u DESC, n DESC LIMIT ?",
+                      (since, limit))
+
     def popular_queries(self, since: int, limit: int = 12, min_count: int = 2) -> List[sqlite3.Row]:
         """Eng ko'p qidirilgan (va natija topilgan) so'rovlar — kamida `min_count` marta, shaxsiy so'rov chiqmasin."""
         return self.q("SELECT norm, MIN(query) AS query, COUNT(*) AS n FROM searches WHERE results>0 AND created_at>=?"

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import zlib
 
+from .. import genres
 from ..core import Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, ikb
 from ..telegram import TelegramError
@@ -135,6 +136,44 @@ def cb_tools(ctx: Ctx) -> None:
         ctx.edit(*comments_view(ctx))
     elif action == "mi":
         ctx.edit(*missing_view(ctx))
+    elif action in ("af", "afy", "afu"):                  # 🤖 avto to'ldirish: ko'rib chiqish → qo'llash → qaytarish (faqat bosh adminlar)
+        from .. import autofill
+        if not ctx.is_owner:
+            ctx.send("⛔️ Faqat bosh adminlar uchun!")
+        elif action == "afu":
+            n = autofill.undo(ctx.app)
+            ctx.edit(f"↩️ Qaytarildi: <b>{n}</b> ta kino avvalgi (bo'sh) holatiga keltirildi." if n else "Qaytarish uchun ma'lumot yo'q.",
+                     ikb([btn("⬅️ Orqaga", "tl:mi", style=DANGER)]))
+        else:
+            items = autofill.plan(ctx.db)
+            if not items:
+                ctx.edit("🤖 Avto to'ldirish uchun ma'lumot topilmadi: nom va izohdan janr, yil, davlat yoki til aniqlanmadi.",
+                         ikb([btn("⬅️ Orqaga", "tl:mi", style=DANGER)]))
+            elif action == "af":
+                cnt = autofill.summary(items)
+                lines = [f"🤖 <b>Avto to'ldirish</b> — <b>{len(items)}</b> ta kino", "",
+                         "Faqat <b>bo'sh</b> maydonlar to'ldiriladi, mavjud ma'lumot o'zgarmaydi:"]
+                lines += [f"• {autofill.LABELS[k]}: <b>{n}</b> ta" for k, n in cnt.items() if n]
+                lines += ["", "<b>Namuna:</b>"]
+                for _mid, title, upd in items[:6]:
+                    bits = []
+                    if "genres" in upd:
+                        bits.append(", ".join(genres.name(k) for k in genres.parse(upd["genres"])))
+                    if "year" in upd:
+                        bits.append(str(upd["year"]))
+                    if "country" in upd:
+                        bits.append(genres.country_label(upd["country"]))
+                    if "lang" in upd:
+                        bits.append(genres.lang_label(upd["lang"]))
+                    lines.append(f"• {esc(truncate(title, 28))} → {esc(' · '.join(b for b in bits if b))}")
+                lines += ["", "Qo'llagandan keyin «↩️ Qaytarish» bilan bekor qilish mumkin."]
+                ctx.edit("\n".join(lines), ikb([btn(f"✅ Qo'llash ({len(items)} ta)", "tl:afy", style=SUCCESS)],
+                                               [btn("⬅️ Orqaga", "tl:mi", style=DANGER)]))
+            else:
+                n = autofill.apply(ctx.app, items)
+                audit(ctx.app, ctx.user_id, "movie_edit", f"avto to'ldirish: {n} ta kino")
+                ctx.edit(f"✅ <b>{n}</b> ta kino to'ldirildi.", ikb([btn("↩️ Qaytarish", "tl:afu", style=DANGER)],
+                                                                     [btn("⬅️ Orqaga", "tl:mi", style=PRIMARY)]))
     elif action == "ml" and len(ctx.data.split(":")) > 3:
         parts = ctx.data.split(":")
         ctx.edit(*missing_list_view(ctx, parts[2], int(parts[3]) if parts[3].isdigit() else 0))
@@ -161,6 +200,8 @@ def missing_view(ctx: Ctx):
     lines.append("")
     lines.append("Hammasi to'liq 🎉" if not total else "Kerakli bo'limni tanlang — kino ro'yxati chiqadi, bosganda tahrirlash oynasi ochiladi. "
                  "💡 Tahrirlash oynasida «🌐 TMDB dan avtomatik to'ldirish» tugmasi bor.")
+    if total and getattr(ctx, "is_owner", False):
+        rows.append([btn("🤖 Hammasini avto to'ldirish (nom va izohdan)", "tl:af", style=SUCCESS)])
     rows.append([btn("⬅️ Orqaga", "tl:menu", style=DANGER)])
     return "\n".join(lines), ikb(*rows)
 

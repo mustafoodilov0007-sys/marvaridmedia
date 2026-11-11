@@ -30,6 +30,7 @@ from . import tvchannels  # noqa: F401
 from . import weekly  # noqa: F401
 from . import remind  # noqa: F401
 from . import clienterrors  # noqa: F401
+from . import statcard  # noqa: F401
 from . import shortscheck  # noqa: F401
 from . import weblogin  # noqa: F401
 from .. import webapp  # noqa: F401  — 🌐 sayt (Mini App)

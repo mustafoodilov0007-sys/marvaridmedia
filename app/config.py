@@ -83,6 +83,9 @@ class Config:
         if self.webapp_url and not self.web_port:
             self.web_port = 8080
 
+        # ☁️ Cloudflare proksisi (domen Cloudflare orqali ulansa): haqiqiy IP «CF-Connecting-IP» sarlavhasida keladi.
+        # Railway'da CF_PROXY=1 qo'ying — aks holda hamma foydalanuvchi bitta (Cloudflare) IP dek ko'rinib, tezlik cheklovi ularni bloklaydi.
+        self.cf_proxy = os.getenv("CF_PROXY", "").strip() == "1"
         self.api_url = (os.getenv("TELEGRAM_API", "") or "https://api.telegram.org").rstrip("/")
         self.proxy = os.getenv("PROXY", "").strip() or None
         try:

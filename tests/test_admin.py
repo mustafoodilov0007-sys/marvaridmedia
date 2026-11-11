@@ -766,6 +766,45 @@ class AddFlow(AdminCase):
         home = seo.home_jsonld(app, "https://site.test")
         self.assertEqual(home["@graph"][0]["potentialAction"]["@type"], "SearchAction")
 
+    def test_stat_card_and_failed_queries(self):
+        from app import analytics
+        app, db = self.app, self.app.db
+        mid = add_movie(app, 770, "Bugungi kino")
+        db.inc_views(mid, db.get_parts(mid)[0]["id"])
+        for u in (961, 962, 963):
+            db.upsert_user({"id": u, "first_name": f"S{u}"})
+            db.log_search(u, "Yashirin Sherlok", "yashirin sherlok", 0)
+        db.log_search(961, "Titanik", "titanik", 1)
+        self.msg(1, "/stat")
+        out = self.last(1)
+        self.assertIn("Bugun", out); self.assertIn("Ko'rishlar", out); self.assertIn("Yangi", out)
+        self.assertIn("Yashirin Sherlok", out); self.assertIn("3 kishi", out)          # eng ko'p odam topolmagan so'rov
+        self.press(1, "st2:f")
+        self.assertIn("Topilmagan qidiruvlar", self.last(1))
+
+    def test_autofill_fills_only_empty_fields_and_undo(self):
+        from app import autofill
+        app, db = self.app, self.app.db
+        a = add_movie(app, 780, "Avto A", desc="Janr: komediya, jangari. 2018-yil. O'zbek tilida. AQSH filmi.")
+        b2 = add_movie(app, 781, "Avto B", desc="Hech narsa yo'q")
+        c = add_movie(app, 782, "Avto C", desc="Janr: drama")
+        db.x("UPDATE movies SET genres='', year=0, country='', lang='' WHERE id IN (?,?)", (a, b2))   # eski kinolar: bo'sh maydonlar
+        db.x("UPDATE movies SET genres=',horror,', year=0, country='', lang='' WHERE id=?", (c,))     # janri allaqachon bor — o'zgarmasligi kerak
+        items = {mid: upd for mid, _t, upd in autofill.plan(db)}
+        self.assertIn(a, items); self.assertNotIn(b2, items)
+        self.assertEqual(items[a]["year"], 2018)
+        self.assertNotIn("genres", items.get(c, {}))                                    # mavjud janr tegilmaydi
+        n = autofill.apply(app, autofill.plan(db))
+        self.assertGreaterEqual(n, 1)
+        self.assertEqual(db.get_movie(a)["year"], 2018)
+        self.assertEqual(db.get_movie(c)["genres"], ",horror,")
+        self.assertEqual(autofill.undo(app), n)
+        self.assertEqual(db.get_movie(a)["year"], 0)                                    # qaytarildi
+        self.assertEqual(db.get_movie(c)["genres"], ",horror,")
+        # bot menyusi: faqat bosh admin
+        self.press(1, "tl:af")
+        self.assertIn("Avto to'ldirish", self.last(1))
+
     def test_marvarid_tv_empty_and_deleted_movie(self):
         from app import tv, webapp
         tv._mem.clear()
