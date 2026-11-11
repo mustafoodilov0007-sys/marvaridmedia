@@ -121,6 +121,7 @@
       var bg = h("div", "bg" + (it.poster ? "" : " ph"));
       if (it.poster) bg.style.backgroundImage = "url('" + posterUrl(it, 720) + "')";
       var s = h("div", "slide" + (i === 0 ? " on" : ""), [bg]);
+      s._it = it;
       s.setAttribute("aria-hidden", i === 0 ? "false" : "true");
       if (i !== 0) s.inert = true;
       if (it.poster) {   // keng ekranda — o'tkir poster kartasi (orqa fon xira)
@@ -200,14 +201,42 @@
     var dots = document.querySelectorAll(".hero .dot");
     dots.forEach(function (d) { d.classList.remove("on"); });
     if (dots[heroIdx]) replayClass(dots[heroIdx], "on");       // progress qaytadan (sahifani majburan qayta hisoblamasdan)
+    heroMedia();
   }
-  function stopHero() { clearTimeout(heroTimer); heroTimer = null; }
+  // 🎬 karuselda treyler: faol slaydning kinosida treyler (shorts video) bo'lsa — poster ustida ovozsiz o'ynaydi (Netflix uslubi)
+  var HERO_VID_OK = !LITE && !REDUCE && !(navigator.connection && navigator.connection.saveData);
+  function heroMedia() {
+    var slides = document.querySelectorAll(".hero .slide");
+    Array.prototype.forEach.call(slides, function (sl) {
+      var v = sl.querySelector("video.hvid"), active = sl.classList.contains("on") && heroVis && !sheetOpen && !document.hidden && current === "home";
+      if (!active) { if (v) { try { v.pause(); } catch (e) {} v.classList.remove("on"); } return; }
+      var it = sl._it;
+      if (!HERO_VID_OK || !it || !it.trailer) return;
+      if (!v) {
+        v = document.createElement("video");
+        v.className = "hvid"; v.muted = true; v.defaultMuted = true; v.loop = true; v.playsInline = true;
+        v.setAttribute("playsinline", ""); v.setAttribute("muted", ""); v.preload = "auto";
+        v.addEventListener("playing", function () { setTimeout(function () { if (sl.classList.contains("on")) v.classList.add("on"); }, 900); });
+        v.addEventListener("error", function () { v.remove(); });
+        v.src = "/media/short/" + it.trailer;
+        var bgEl = sl.querySelector(".bg");
+        if (bgEl && bgEl.nextSibling) sl.insertBefore(v, bgEl.nextSibling); else sl.appendChild(v);
+      }
+      var pr = v.play(); if (pr && pr.catch) pr.catch(function () {});
+    });
+  }
+  function stopHero() { clearTimeout(heroTimer); heroTimer = null; document.querySelectorAll(".hero video.hvid").forEach(function (v) { try { v.pause(); } catch (e) {} }); }
   function restartHero() {
     stopHero();
     if (heroItems.length < 2 || REDUCE || !heroVis || document.hidden) return;
     var dots = document.querySelectorAll(".hero .dot");
     if (dots[heroIdx]) replayClass(dots[heroIdx], "on");
-    heroTimer = setTimeout(function () { goSlide(heroIdx + 1); restartHero(); }, HERO_MS);
+    heroMedia();
+    var curSl = document.querySelectorAll(".hero .slide")[heroIdx];
+    var ms = curSl && curSl._it && curSl._it.trailer && HERO_VID_OK ? HERO_MS * 2 : HERO_MS;      // treyler bo'lsa — slayd uzoqroq turadi
+    var dts = document.querySelectorAll(".hero .dot");
+    if (dts[heroIdx]) dts[heroIdx].style.setProperty("--hd", ms + "ms");
+    heroTimer = setTimeout(function () { goSlide(heroIdx + 1); restartHero(); }, ms);
   }
 
   document.addEventListener("visibilitychange", function () { if (document.hidden) stopHero(); else if (current === "home" && !sheetOpen) restartHero(); });

@@ -633,6 +633,23 @@ class AddFlow(AdminCase):
         page = seo.movie_page(self.app, "https://site.test", 777, webapp._poster_key)
         self.assertIn(f"/og/{mid}.jpg", str(page))
 
+    def test_site_resume_serial_part(self):
+        from app import webapp
+        app, db = self.app, self.app.db
+        mid = add_movie(app, 720, "Uzun serial", cat="serial")
+        for no in (2, 3):
+            db.add_part(mid, f"FP{no}", "video")
+        db.upsert_user({"id": 901, "first_name": "R"})
+        self.assertIsNone(webapp.api_resume(app, {"id": 901}, {"id": str(mid)})["part"])      # hali ko'rmagan
+        p2 = db.get_part_by_no(mid, 2)
+        db.touch_history(901, mid, p2["id"])
+        r = webapp.api_resume(app, {"id": 901}, {"id": str(mid)})
+        self.assertEqual((r["last"], r["part"]["no"], r["total"], r["again"]), (2, 3, 3, False))   # 2-qism ko'rilgan → 3-qismdan davom
+        res = webapp.api_watch(app, {"id": 901, "first_name": "R"}, {"id": mid, "part": r["part"]["id"]})
+        self.assertTrue(res["ok"])
+        sent = [a for nme, a, k in app.bot.sent if nme == "send_video" and a and a[0] == 901]
+        self.assertTrue(sent and sent[-1][1] == "FP3")                                              # aynan 3-qism yuborildi
+
     def test_marvarid_tv_empty_and_deleted_movie(self):
         from app import tv, webapp
         tv._mem.clear()

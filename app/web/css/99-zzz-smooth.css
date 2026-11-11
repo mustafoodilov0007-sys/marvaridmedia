@@ -14,7 +14,7 @@
 
 /* 3) karusel nuqtasi: kenglik (layout) emas — transform bilan to'ladi */
 .dot i { width: 100% !important; transform: scaleX(0); transform-origin: left center; }
-.dot.on i { animation: hprogT 6.5s linear forwards !important; }
+.dot.on i { animation: hprogT var(--hd, 6.5s) linear forwards !important; }
 @keyframes hprogT { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
 /* 4) ro'yxatlar: har bir karta alohida emas — sahifa bir marta, bitta qatlam bilan paydo bo'ladi */

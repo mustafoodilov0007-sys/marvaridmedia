@@ -206,7 +206,7 @@
     }
   });
 
-  function watch(it, btn) {
+  function watch(it, btn, partId) {
     haptic("medium");
     rememberWatch(it);
     if (guest() || (PUB && !me.tg)) {            // mehmon yoki Google hisobi: Telegram botda ochiladi
@@ -218,7 +218,7 @@
     btn.disabled = true;
     var old = Array.prototype.slice.call(btn.childNodes);
     btn.replaceChildren("Yuborilmoqda...");
-    api("/api/watch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: it.id }) })
+    api("/api/watch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(partId ? { id: it.id, part: partId } : { id: it.id }) })
       .then(function (res) {
         btn.disabled = false; btn.replaceChildren.apply(btn, old);
         var msg = {

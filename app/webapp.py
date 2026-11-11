@@ -975,7 +975,7 @@ def api_admin_stats(app: App, user: dict) -> dict:
 
 def api_watch(app: App, user: dict, body: dict) -> dict:
     """Saytda tanlangan kinoni/musiqani bot foydalanuvchiga chatda yuboradi."""
-    from .handlers.user import open_movie, premium_locked  # aylanma importdan qochish uchun
+    from .handlers.user import open_movie, premium_locked, send_part  # aylanma importdan qochish uchun
 
     try:
         movie = app.db.get_movie(int(body.get("id")))
@@ -996,13 +996,38 @@ def api_watch(app: App, user: dict, body: dict) -> dict:
         if app.router.gate_check and not app.router.gate_check(ctx):
             return {"ok": False, "reason": "sub"}  # obuna oynasi chatga yuborildi
         locked = premium_locked(ctx, movie)
-        open_movie(ctx, movie)
+        part = None
+        if not locked and str(body.get("part") or "").isdigit():          # serial: aynan shu qismni yuborish («davom etish»)
+            part = app.db.get_part(int(body["part"]))
+            if part and part["movie_id"] != movie["id"]:
+                part = None
+        if part:
+            send_part(ctx, movie, part, app.db.count_parts(movie["id"]))
+        else:
+            open_movie(ctx, movie)
     except Forbidden:
         return {"ok": False, "reason": "blocked"}
     except TelegramError as exc:
         log.warning("Saytdan yuborishda xatolik: %s", exc)
         return {"ok": False, "reason": "error"}
     return {"ok": not locked, "reason": "premium" if locked else None}
+
+
+def api_resume(app: App, user: dict, qs: dict) -> dict:
+    """📺 Serial: foydalanuvchi qaysi qismda to'xtagan va qaysi qismdan davom etadi (botdagi «Davom etish» bilan bir xil)."""
+    try:
+        mid = int(qs.get("id", ""))
+    except ValueError:
+        return {"ok": False}
+    if not user["id"]:
+        return {"ok": False, "reason": "login"}
+    last = app.db.last_part(user["id"], mid)
+    if not last:
+        return {"ok": True, "part": None}
+    total = app.db.count_parts(mid)
+    nxt = app.db.get_part_by_no(mid, last["part_no"] + 1) or last
+    return {"ok": True, "total": total, "last": last["part_no"], "part": {"id": nxt["id"], "no": nxt["part_no"]},
+            "again": nxt["id"] == last["id"]}
 
 
 def api_request(app: App, user: dict, body: dict) -> dict:
@@ -1784,6 +1809,8 @@ def make_handler(app: App):
                         return self._json(api_collections(app, user))
                     if path == "/api/saved":
                         return self._json(api_saved(app, user))
+                    if path == "/api/resume":
+                        return self._json(api_resume(app, user, qs))
                     if path == "/api/tv":
                         d = api_tv(app, user)
                         if self._kids:

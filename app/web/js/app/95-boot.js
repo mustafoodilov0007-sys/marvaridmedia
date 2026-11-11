@@ -95,6 +95,7 @@
     if (!d.ok) return;
     me = d;
     if (AUTHED) setAvatar({ first_name: d.name, photo_url: d.photo });
+    $("avatar").classList.toggle("prem", !!d.premium && !guest());     // 💎 Premium a'zo: avatar atrofida oltin halqa
     setBrand(d.brand);
     if (d.channel) $("bChannel").classList.remove("hidden");
     if (d.admin) { $("bStats").classList.remove("hidden"); document.querySelector(".top").classList.add("adm"); }
@@ -107,12 +108,10 @@
     var link = "";
     try { var qp = new URLSearchParams(location.search); link = qp.get("k") || qp.get("v") || pathInfo().k || (pathInfo().view ? "v" : ""); } catch (e) {}
     var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-    // kirish animatsiyasi faqat BIR MARTA: qurilma xotirasi (kesh) tozalanmaguncha qayta chiqmaydi
     var force = false;
     try { force = new URLSearchParams(location.search).get("welcome") === "1"; } catch (e) {}   // ?welcome=1 — qayta ko'rish (sinov uchun)
-    // wt3: kalit yangilandi — animatsiya hamma qurilmada yana bir marta chiqadi (harakatni kamaytirish yoqilgan bo'lsa ham)
-    if (!force && (link || store.get("wt3"))) { el.remove(); return; }
-    store.set("wt3", "1");
+    // kirish animatsiyasi har safar saytga kirganda o'ynaydi (bosilsa — o'tkazib yuboriladi)
+    void force; void link;
     var user = !PUB && tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
     var first = user && user.first_name ? String(user.first_name).trim().slice(0, 18) : "";
     var openGate;

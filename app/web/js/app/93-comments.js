@@ -338,6 +338,19 @@
     var similar = it.cat === "music" ? null : h("div", "similar");
     s.setAttribute("aria-label", it.title);
     var acts = actionRow(it, false);
+    if (it.parts > 1 && !guest() && (!PUB || me.tg)) {        // 📺 serial: «N-qismdan davom etish» (bot bilan bir xil tarix)
+      var resumeBox = h("div", "resume-row hidden");
+      api("/api/resume?id=" + it.id).then(function (r) {
+        if (!r || !r.ok || !r.part || !resumeBox.isConnected) return;
+        var rb = h("button", "btn resume-btn", [icon("play"), h("span", null, (r.again ? r.part.no + "-qismni qayta ko'rish" : r.part.no + "-qismdan davom etish")),
+          h("small", null, r.last + "/" + r.total + " ko'rilgan")]);
+        rb.onclick = function () { watch(it, rb, r.part.id); };
+        var bar = h("div", "resume-bar", [h("i")]);
+        bar.firstChild.style.transform = "scaleX(" + Math.min(1, r.last / Math.max(1, r.total)).toFixed(3) + ")";
+        resumeBox.replaceChildren(rb, bar);
+        resumeBox.classList.remove("hidden");
+      }).catch(function () {});
+    }
     var noteNode = h("div", "note", it.locked ? "Bu kontent Premium a'zolar uchun. Bot chatida Premium olish tugmasi chiqadi."
       : it.cat === "music" ? "«Tinglash» — shu yerning o'zida eshitasiz. Yonidagi tugma qo'shiqni Telegram botga yuboradi."
       : PUB ? "«Kinoni ko'rish» bosilsa, Telegram'da botimiz ochiladi va kinoni yuboradi."
@@ -380,6 +393,7 @@
         h("div", "stint"),
         h("div", "sheet-main", [posterNode(it, 720), h("div", "info", [h("h3", null, it.title), metaLine, ratingBadges(it), chips, stats.childNodes.length ? stats : null])]),
         acts,
+        typeof resumeBox !== "undefined" ? resumeBox : null,
         me.admin ? adminBar(it) : null,
         tabsEl
       ].concat(panels).filter(Boolean))

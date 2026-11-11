@@ -103,7 +103,19 @@
     var status = AUTHED ? (me.premium ? "💎 Premium a'zo" : (me.tg ? "Telegram hisobi" : "Google hisobi")) :
       (PUB ? "Mehmon — kirmagansiz" : (me.premium ? "💎 Premium a'zo" : "Oddiy foydalanuvchi"));
     var page = h("div", "page narrow");
-    page.appendChild(h("div", "pcard", [av, h("div", "pinfo", [h("b", null, name), h("span", null, status)])]));
+    var pc = h("div", "pcard", [av, h("div", "pinfo", [h("b", null, name), h("span", null, status)])]);
+    var pu = me.premium_until || 0, nowS = Date.now() / 1000;
+    if (me.premium && !guest()) {                       // 💎 Premium a'zo: oltin karta, qolgan kunlar va uzaytirish
+      pc.classList.add("prem");
+      var days = pu > nowS ? Math.ceil((pu - nowS) / 86400) : 0;
+      var left = days ? (days > 3650 ? "Cheksiz" : days + " kun qoldi") : "Faol";
+      var ext = h("button", "pext", [icon("gem"), "Uzaytirish"]);
+      ext.onclick = function () { haptic(); show("sub"); };
+      var pbar = h("div", "pbar", [h("i")]);
+      pbar.firstChild.style.transform = "scaleX(" + (days ? Math.max(.04, Math.min(1, days / 30)) : 1).toFixed(3) + ")";
+      pc.appendChild(h("div", "pprem", [h("div", "pprem-row", [h("span", "pbadge", [icon("gem"), "PREMIUM"]), h("em", null, left), ext]), pbar]));
+    }
+    page.appendChild(pc);
     if (guest()) {
       var lc = h("button", "logincard", [h("div", null, [h("b", null, "Hisobingizga kiring"),
         h("span", null, "Izoh yozish, baho berish va kinoni Telegramga yuborish uchun")]), h("em", null, "Kirish")]);
