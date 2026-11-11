@@ -805,6 +805,33 @@ class AddFlow(AdminCase):
         self.press(1, "tl:af")
         self.assertIn("Avto to'ldirish", self.last(1))
 
+    def test_week_card_daily_movie_and_similar_scoring(self):
+        from app import webapp
+        app, db = self.app, self.app.db
+        db.upsert_user({"id": 971, "first_name": "W"})
+        self.assertEqual(webapp.api_week(app, {"id": 0})["reason"], "login")
+        w0 = webapp.api_week(app, {"id": 971})
+        self.assertEqual((w0["watched"], w0["likes"], w0["comments"], w0["saved"]), (0, 0, 0, 0))
+        m1 = add_movie(app, 790, "Hafta drama"); m2 = add_movie(app, 791, "Hafta komediya")
+        db.x("UPDATE movies SET genres=',drama,', duration=7200 WHERE id=?", (m1,))
+        db.x("UPDATE movies SET genres=',comedy,', duration=3600 WHERE id=?", (m2,))
+        db.touch_history(971, m1); db.touch_history(971, m2)
+        db.rate(971, m1, 1); db.set_saved(971, m2, True)
+        w = webapp.api_week(app, {"id": 971})
+        self.assertEqual((w["watched"], w["minutes"], w["likes"], w["saved"]), (2, 180, 1, 1))
+        self.assertTrue(w["top"])
+        # Kunning kinosi: kun davomida barqaror
+        d1 = webapp.daily_movie(app); d2 = webapp.daily_movie(app)
+        self.assertTrue(d1 is not None and d1["id"] == d2["id"])
+        self.assertEqual(webapp.api_home(app, {"id": 971})["daily"]["id"], d1["id"])
+        # o'xshash kinolar: bir seriya (nom boshi) + davlat + yil + janr hisobga olinadi
+        a = add_movie(app, 795, "Zamonaviy Qahramon"); b2 = add_movie(app, 796, "Zamonaviy Qahramon 2"); c = add_movie(app, 797, "Boshqa nom")
+        for mid in (a, b2, c):
+            db.x("UPDATE movies SET genres=',action,', country='us', year=2020 WHERE id=?", (mid,))
+        db.x("UPDATE movies SET views=999 WHERE id=?", (c,))                           # «Boshqa nom» ko'proq ko'rilgan, lekin seriya baribir oldin
+        sim = [r["id"] for r in db.similar(a, 5)]
+        self.assertEqual(sim[0], b2)
+
     def test_marvarid_tv_empty_and_deleted_movie(self):
         from app import tv, webapp
         tv._mem.clear()

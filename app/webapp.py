@@ -510,6 +510,36 @@ def api_tv(app: App, user: dict) -> dict:
     return {"ok": True, "now": ts, "slots": out, "cur": tv.current([[0, o["s"], o["e"]] for o in out], ts), "channels": chans}
 
 
+def api_week(app: App, user: dict) -> dict:
+    """📅 Shu hafta natijalari (profil kartochkasi uchun)."""
+    if user["id"] <= 0:
+        return {"ok": False, "reason": "login"}
+    return dict(app.db.week_stats(user["id"]), ok=True)
+
+
+def daily_movie(app: App):
+    """📅 Kunning kinosi (saytda): kanalga bugun joylangani bo'lsa — o'sha, aks holda kun bo'yicha barqaror tanlov (hafta mashhurlaridan).
+    Tanlov kun davomida o'zgarmaydi."""
+    today = datetime.now(TZ).strftime("%Y%m%d")
+    saved = app.setting("site_daily")
+    if saved.startswith(today + ":") and saved.split(":")[1].isdigit():
+        m = app.db.get_movie(int(saved.split(":")[1]))
+        if m:
+            return m
+    mid = 0
+    if app.setting("daily_last") == today:                         # kanalga joylangan «Kun kinosi» bilan bir xil bo'lsin
+        hist = [x for x in app.setting("daily_history").split(",") if x.strip().isdigit()]
+        mid = int(hist[0]) if hist else 0
+    if not mid:
+        pool = [r for r in app.db.weekly_top(30) if r["poster_id"] and not r["is_premium"]] or [r for r in app.db.weekly_top(30) if r["poster_id"]]
+        if pool:
+            mid = pool[int(today) % len(pool)]["id"]
+    m = app.db.get_movie(mid) if mid else None
+    if m:
+        app.set_setting("site_daily", f"{today}:{m['id']}")
+    return m
+
+
 def api_suggest(app: App, user: dict, qs: dict) -> dict:
     """⚡ Tez qidiruv: yozish paytida 8 tagacha ixcham natija. Bo'sh so'rov — «hozir ommabop» va (kirgan bo'lsa) yaqinda ko'rilganlar."""
     from .handlers.user import search_ids
@@ -818,6 +848,7 @@ def _api_home(app: App, user: dict) -> dict:
         "ok": True,
         "history": history,
         "fresh": fresh,
+        "daily": next(iter(pack(app.db.catalog_rows([dm["id"]])) if (dm := daily_movie(app)) and dm["category"] != "music" else []), None),
         "foryou": foryou,
         "searched": searched,
         "extra": extra,
@@ -1933,6 +1964,8 @@ def make_handler(app: App):
                         return self._json(api_foryou(app, user))
                     if path == "/api/suggest":
                         return self._json(api_suggest(app, user, qs))
+                    if path == "/api/week":
+                        return self._json(api_week(app, user))
                     if path == "/api/resume":
                         return self._json(api_resume(app, user, qs))
                     if path == "/api/tv":

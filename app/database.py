@@ -1125,17 +1125,39 @@ class Database:
         return out
 
     def similar(self, movie_id: int, limit: int = 12) -> List[sqlite3.Row]:
-        """O'xshash kinolar: shu turdagi, umumiy janri ko'p bo'lganlari oldin, keyin eng ko'p ko'rilganlar."""
+        """O'xshash kinolar: shu tur ichida — umumiy janrlar (asosiy), shu davlat va til, yaqin yillar, bir xil nomli seriya
+        (masalan «Avatar» 1 va 2) hamda IMDb; tenglikda — eng ko'p ko'rilganlari."""
         movie = self.get_movie(movie_id)
         if not movie or movie["category"] == "music":
             return []
+        keys = movie.keys()
         mine = set(genres.parse(movie["genres"]))
-        rows = self.q(_CATALOG_ROW + " WHERE m.category=? AND m.id<>? ORDER BY m.views DESC, m.id DESC LIMIT 300",
+        country = movie["country"] if "country" in keys else ""
+        lang = movie["lang"] if "lang" in keys else ""
+        words = [w for w in (movie["norm_title"] or "").split() if len(w) >= 4]
+        head = words[0] if words else ""
+        rows = self.q(_CATALOG_ROW + " WHERE m.category=? AND m.id<>? ORDER BY m.views DESC, m.id DESC LIMIT 400",
                       (movie["category"], movie_id))
+
         def score(r):
             common = len(mine & set(genres.parse(r["genres"])))
-            near = 1 if movie["year"] and r["year"] and abs(movie["year"] - r["year"]) <= 3 else 0
-            return common * 10 + near
+            s = common * 10
+            if mine and common == 0:
+                s -= 4                                                     # janri umuman mos kelmaydi
+            if country and r["country"] == country:
+                s += 4
+            if lang and r["lang"] == lang:
+                s += 2
+            if movie["year"] and r["year"]:
+                gap = abs(movie["year"] - r["year"])
+                s += 3 if gap <= 3 else 1 if gap <= 8 else 0
+            if head and head in (r["title"] or "").lower():
+                s += 12                                                    # bir seriya: «Avatar» ↔ «Avatar 2»
+            try:
+                s += float(r["imdb"] or 0) / 5                             # 0..2 ball
+            except (TypeError, ValueError):
+                pass
+            return s
         ranked = sorted(enumerate(rows), key=lambda x: (-score(x[1]), x[0]))
         return [r for _, r in ranked[:limit]]
 
@@ -1710,6 +1732,24 @@ class Database:
                 scored.append((-sc, i, r))
         scored.sort(key=lambda x: (x[0], x[1]))
         return [r for _, _, r in scored[:limit]]
+
+    def week_stats(self, uid: int, days: int = 7) -> Dict:
+        """📅 Foydalanuvchining oxirgi haftasi: ko'rgan kinolari soni va taxminiy vaqti, sevimli janr, 👍, izohlar, saqlanganlar."""
+        since = now() - days * 86400
+        rows = self.q("SELECT m.genres, m.duration FROM history h JOIN movies m ON m.id=h.movie_id"
+                      " WHERE h.user_id=? AND h.at>=? AND m.category<>'music'", (uid, since))
+        freq: Dict[str, int] = {}
+        secs = 0
+        for r in rows:
+            secs += r["duration"] or 0
+            for g in genres.parse(r["genres"]):
+                freq[g] = freq.get(g, 0) + 1
+        top = sorted(freq.items(), key=lambda kv: -kv[1])[:2]
+        return {"watched": len(rows), "minutes": round(secs / 60),
+                "top": [genres.name(g) for g, _ in top],
+                "likes": self.val("SELECT COUNT(*) FROM ratings WHERE user_id=? AND value=1 AND at>=?", (uid, since)),
+                "comments": self.val("SELECT COUNT(*) FROM comments WHERE user_id=? AND created_at>=? AND status='ok'", (uid, since)),
+                "saved": self.val("SELECT COUNT(*) FROM saved WHERE user_id=? AND at>=?", (uid, since))}
 
     def genre_profile(self, uid: int) -> Dict[str, int]:
         """Foydalanuvchining janr «og'irligi»: ko'rgan, 👍 bergan va saqlagan kinolari bo'yicha."""

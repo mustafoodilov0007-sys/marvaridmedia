@@ -51,7 +51,8 @@
     }
     paintSort();
     var filters = h("div", "sfilters", [scopeRow, sortHost]);
-    var page = h("div", "page", [h("h1", null, "Qidiruv"), h("label", "searchbox", [icon("search"), input, clear]), filters, results]);
+    var mic = voiceButton(input, function (txt) { searchQ = txt; clear.classList.toggle("hidden", !txt); run(); });
+    var page = h("div", "page", [h("h1", null, "Qidiruv"), h("label", "searchbox", [icon("search"), input, clear, mic]), filters, results]);
     view.replaceChildren(page);
     if (!searchQ) setTimeout(function () { input.focus(); }, 250);
 
@@ -212,6 +213,7 @@
   }
 
   function renderError(view, reason) {
+    if (reason === "network" && navigator.onLine === false) { renderOffline(view); return; }
     if (reason === "auth") {
       view.replaceChildren(h("div", "page", [emptyBox("lock", "Bot ichidan oching",
         "Saytni Telegram botdagi «" + me.brand + "» tugmasi orqali oching.")]));

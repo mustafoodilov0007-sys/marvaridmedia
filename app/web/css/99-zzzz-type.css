@@ -184,3 +184,49 @@ html[data-vtdir="back"]::view-transition-new(root) { animation-name: vtInLeft; }
 .sugg-row > svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
 .sugg-note { padding: 6px 8px 2px; font-size: 12.5px; color: var(--muted); }
 .trend-rail { margin: 2px -16px 0; padding: 0 16px; }
+
+/* ───── 🎙 ovozli qidiruv ───── */
+.vbtn { flex: none; width: 36px; height: 36px; margin-right: -6px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); position: relative; }
+.vbtn svg { width: 19px; height: 19px; }
+.vbtn.on { color: #fff; background: #e5342f; }
+.vbtn.on::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid rgba(229, 52, 47, .55); animation: vpulse 1.2s ease-out infinite; }
+@keyframes vpulse { from { transform: scale(.8); opacity: .9; } to { transform: scale(1.35); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .vbtn.on::after { animation: none; } }
+
+/* ───── 📅 hafta natijalari (profil) ───── */
+.wcard { margin: 18px 0 0; padding: 16px; border-radius: 22px; border: 1px solid var(--line);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 12%, var(--surface)), var(--surface) 70%); }
+.whead { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.whead b { font-size: 17px; font-weight: 750; letter-spacing: -.015em; }
+.whead span { font-size: 12.5px; color: var(--muted); }
+.wbig { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.wbig b { font-size: 44px; font-weight: 800; line-height: 1; color: var(--accent-2); font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.wbig span { font-size: 15px; font-weight: 600; }
+.wbig em { font-style: normal; font-size: 13.5px; color: var(--muted); margin-left: auto; }
+.wchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.wchip { padding: 6px 11px; border-radius: 999px; background: var(--surface-2); font-size: 13px; font-weight: 650; }
+.wchip.hot { background: color-mix(in srgb, var(--accent) 22%, var(--surface-2)); color: var(--accent-2); }
+.wempty { display: flex; flex-direction: column; gap: 4px; text-align: left; width: 100%; color: var(--text); }
+.wempty b { font-size: 15px; font-weight: 650; }
+.wempty span { font-size: 13px; color: var(--accent-2); font-weight: 600; }
+
+/* ───── 🎬 kunning kinosi (bosh sahifa) ───── */
+.dcard { display: flex; gap: 14px; align-items: stretch; margin: 14px 16px 4px; padding: 12px; border-radius: 22px; cursor: pointer;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 16%, var(--surface)), var(--surface) 62%); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.dcard .poster { flex: 0 0 34%; max-width: 150px; aspect-ratio: 2 / 3; border-radius: 14px; position: relative; }
+.dbody { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+.dbody small { font-size: 11px; font-weight: 750; letter-spacing: .08em; color: var(--accent-2); }
+.dbody b { font-size: 21px; font-weight: 750; letter-spacing: -.02em; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.dbody .dmeta { font-size: 13px; color: var(--muted); font-weight: 500; }
+.dbody .rbadges { margin: 0; justify-content: flex-start; }
+.dbtns { display: flex; gap: 8px; margin-top: 4px; }
+.dbtns .btn { height: 42px; font-size: 14px; padding: 0 16px; flex: 1; }
+@media (min-width: 900px) { .dcard { max-width: 760px; margin-left: auto; margin-right: auto; } }
+
+/* ───── 📴 internet yo'q ───── */
+.offline { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 34px 10px 22px; }
+.offline .ofico { width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); }
+.offline .ofico svg { width: 32px; height: 32px; }
+.offline h2 { margin: 6px 0 0; font-size: 22px; font-weight: 750; letter-spacing: -.02em; }
+.offline p { margin: 0; max-width: 320px; color: var(--muted); font-size: 14.5px; }
+.offline .btn { margin-top: 8px; padding: 0 24px; }
