@@ -110,6 +110,7 @@
       return;
     }
     if (name === "saved") return renderSaved(view);
+    if (name === "foryou") return renderForYou(view, my);
     if (name === "tv") return renderTV(view, my);
     if (name === "shorts") {
       try { return renderShorts(view, opts.start); }

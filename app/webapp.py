@@ -510,19 +510,101 @@ def api_tv(app: App, user: dict) -> dict:
     return {"ok": True, "now": ts, "slots": out, "cur": tv.current([[0, o["s"], o["e"]] for o in out], ts), "channels": chans}
 
 
+def api_foryou(app: App, user: dict) -> dict:
+    """🎯 Siz uchun: ko'rgan, 👍 bergan va saqlagan janrlaringiz bo'yicha 12 ta tavsiya — har biri «nega» izohi bilan."""
+    uid = user["id"]
+    _, vip = _user_flags(app, uid)
+    premium_on = app.setting_bool("premium_enabled")
+    prof = app.db.genre_profile(uid) if uid > 0 else {}
+    rows = list(app.db.recommend(uid, 40)) if prof else []
+    out, per_genre = [], {}
+    for r in rows:                                         # bitta janr hamma joyni egallamasin: har janrdan ko'pi bilan 4 ta
+        gs = [g for g in genres.parse(r["genres"]) if g in prof]
+        top = max(gs, key=lambda g: prof[g]) if gs else ""
+        if top and per_genre.get(top, 0) >= 4:
+            continue
+        per_genre[top] = per_genre.get(top, 0) + 1
+        gs.sort(key=lambda g: -prof[g])
+        item = _item(r, premium_on, vip)
+        item["why"] = (", ".join(genres.name(g) for g in gs[:2]) + " ko'rganingiz uchun") if gs else ""
+        out.append(item)
+        if len(out) >= 12:
+            break
+    if out:
+        return {"ok": True, "items": out, "personal": True, "top": [genres.name(g) for g, _ in sorted(prof.items(), key=lambda x: -x[1])[:3]]}
+    pop = [_item(r, premium_on, vip) for r in app.db.weekly_top(12)]       # tarix yo'q: hozir ommabop
+    for it in pop:
+        it["why"] = "Hozir ommabop"
+    return {"ok": True, "items": pop, "personal": False, "top": [], "guest": uid <= 0}
+
+
 def api_saved(app: App, user: dict) -> dict:
     """🔖 Foydalanuvchining sevimlilari (sayt, Telegram ilova va bot uchun bitta ro'yxat)."""
     if not user["id"]:
         return {"ok": False, "reason": "login"}
     _, vip = _user_flags(app, user["id"])
     premium_on = app.setting_bool("premium_enabled")
-    return {"ok": True, "items": [_item(r, premium_on, vip) for r in app.db.catalog_rows(app.db.saved_ids(user["id"]))]}
+    return {"ok": True, "items": [_item(r, premium_on, vip) for r in app.db.catalog_rows(app.db.saved_ids(user["id"]))],
+            "remind": user["id"] > 0 and "savedremind" in app.db.user_follows(user["id"]), "can_remind": user["id"] > 0}
+
+
+_CLIENT_ERRS: dict = {}          # xato kaliti -> [soni, birinchi marta, oxirgi xabar vaqti, matn, qurilma]
+_ERR_NOISE = re.compile(r"ResizeObserver|Script error|Non-Error promise|Failed to fetch|Load failed|NetworkError|AbortError|"
+                        r"The operation was aborted|cancelled|extension://|play\(\) request was interrupted|signal is aborted", re.I)
+_err_notify = [0.0, 0]           # soat boshi, shu soatda yuborilgan xabarlar soni
+
+
+def _device(ua: str) -> str:
+    ua = ua or ""
+    os_ = ("iPhone" if "iPhone" in ua else "iPad" if "iPad" in ua else "Android" if "Android" in ua else "Windows" if "Windows" in ua
+           else "Mac" if "Mac OS" in ua else "Linux" if "Linux" in ua else "?")
+    br = ("Telegram" if "Telegram" in ua else "Chrome" if "Chrome" in ua else "Safari" if "Safari" in ua else "Firefox" if "Firefox" in ua else "?")
+    m = re.search(r"(?:Chrome|Version)/(\d+)", ua)
+    return f"{os_} · {br}{' ' + m.group(1) if m else ''}"
+
+
+def api_client_error(app: App, body: dict, ua: str) -> dict:
+    """🛠 Saytdagi JavaScript xatosi haqida egalarga qisqa xabar: bir xil xato 6 soatda bir marta, soatiga ko'pi bilan 8 ta xabar."""
+    msg = str(body.get("m") or "")[:220].strip()
+    src = str(body.get("s") or "")[:90]
+    if not msg or _ERR_NOISE.search(msg) or "extension" in src:
+        return {"ok": True}
+    key = hashlib.sha1(f"{msg}|{src}|{body.get('l')}".encode()).hexdigest()[:12]
+    now_t = time.time()
+    rec = _CLIENT_ERRS.get(key)
+    if rec is None:
+        if len(_CLIENT_ERRS) > 300:
+            _CLIENT_ERRS.clear()
+        rec = _CLIENT_ERRS[key] = [0, now_t, 0.0, msg, _device(ua)]
+    rec[0] += 1
+    if now_t - rec[2] < 6 * 3600:
+        return {"ok": True}
+    if now_t - _err_notify[0] > 3600:
+        _err_notify[0], _err_notify[1] = now_t, 0
+    if _err_notify[1] >= 8:
+        return {"ok": True}
+    _err_notify[1] += 1
+    rec[2] = now_t
+    text = (f"🛠 <b>Saytda xatolik</b>\n\n<code>{html.escape(msg)}</code>\n"
+            f"📄 {html.escape(src.split('/')[-1] or '—')}:{html.escape(str(body.get('l') or '?'))}\n"
+            f"📱 {html.escape(rec[4])} · bo'lim: {html.escape(str(body.get('v') or '?')[:20])}\n"
+            f"🔁 Shu xato jami: <b>{rec[0]}</b> marta" + (f" (versiya {html.escape(str(body.get('ver') or '')[:12])})" if body.get("ver") else ""))
+    for oid in app.config.owners:
+        app.bot.safe("sendMessage", {"chat_id": oid, "text": text, "parse_mode": "HTML"})
+    return {"ok": True}
 
 
 def api_saved_set(app: App, user: dict, body: dict) -> dict:
     """{id, on} — bitta kino; {ids: [...]} — qurilmadagi ro'yxatni serverga qo'shish (birinchi sinxronlash)."""
     if not user["id"]:
         return {"ok": False, "reason": "login"}
+    if "remind" in body:                                  # 🔔 «Keyin ko'raman» eslatmasini yoqish/o'chirish (faqat Telegram orqali kirganlar)
+        if user["id"] < 0:
+            return {"ok": False, "reason": "no_telegram"}
+        on = "savedremind" in app.db.user_follows(user["id"])
+        if on != bool(body["remind"]):
+            app.db.follow_toggle(user["id"], "savedremind")
+        return {"ok": True, "remind": bool(body["remind"])}
     if isinstance(body.get("ids"), list):
         ids = [int(x) for x in body["ids"] if isinstance(x, int) or (isinstance(x, str) and x.isdigit())]
         return {"ok": True, "added": app.db.add_saved_many(user["id"], ids)}
@@ -1809,6 +1891,8 @@ def make_handler(app: App):
                         return self._json(api_collections(app, user))
                     if path == "/api/saved":
                         return self._json(api_saved(app, user))
+                    if path == "/api/foryou":
+                        return self._json(api_foryou(app, user))
                     if path == "/api/resume":
                         return self._json(api_resume(app, user, qs))
                     if path == "/api/tv":
@@ -1872,6 +1956,10 @@ def make_handler(app: App):
                     if self._limited(write_user, write_ip):
                         return
                     return self._json(api_auth(app, path, body))
+                if path == "/pub/err":                                  # 🛠 sayt xatolari (mehmon ham yuborishi mumkin)
+                    if self._limited(write_user, write_ip):
+                        return
+                    return self._json(api_client_error(app, body, self.headers.get("User-Agent", "")))
                 if path in ("/pub/play", "/pub/searched", "/pub/hit"):  # 📱 ilova / brauzer — mehmon sifatida
                     if self._limited(write_user, write_ip):
                         return

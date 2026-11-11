@@ -1056,8 +1056,13 @@ def saved_view(app, uid: int, page: int = 0):
     pages = max(1, math.ceil(len(ids) / PER_PAGE))
     page %= pages
     rows = app.db.movie_rows(ids[page * PER_PAGE:(page + 1) * PER_PAGE])
-    return build_list(f"🔖 <b>Sevimlilar</b> — {len(ids)} ta (saytda ham shu ro'yxat)", rows, page * PER_PAGE, page, pages,
-                      "svp", fmt_item, hint="👇 Tanlang:")
+    text, kb = build_list(f"🔖 <b>Sevimlilar</b> — {len(ids)} ta (saytda ham shu ro'yxat)", rows, page * PER_PAGE, page, pages,
+                          "svp", fmt_item, hint="👇 Tanlang:")
+    from .remind import enabled as remind_on
+    on = remind_on(app.db, uid)
+    kb["inline_keyboard"].insert(-1, [btn("🔕 Eslatma: yoqilgan — o'chirish" if on else "🔔 Ko'rmagan kinolarim haqida eslatib turing",
+                                          "svr:0" if on else "svr:1", style=PRIMARY if on else SUCCESS)])
+    return text, kb
 
 
 @router.command("saqlangan", "sevimlilar")

@@ -77,8 +77,26 @@
     var items = Object.keys(saved).map(function (k) { return saved[k]; })
       .sort(function (a, b) { return (b.t || 0) - (a.t || 0); });
     var page = h("div", "page", [h("h1", null, "Sevimlilar"),
-      h("p", "lead", items.length ? items.length + (PUB ? " ta — shu qurilmada saqlanadi" :
-        " ta — Telegram akkauntingizda saqlanadi") : "")]);
+      h("p", "lead", items.length ? items.length + (guest() ? " ta — shu qurilmada saqlanadi (kirsangiz, hamma joyda ko'rinadi)" :
+        " ta — hisobingizda, botda ham ko'rinadi") : "")]);
+    if (!guest() && (!PUB || me.tg)) {            // 🔔 «Keyin ko'raman» eslatmasi (bot orqali, kechqurun 19:30, 3 kunda ko'pi bilan bir marta)
+      var rem = h("button", "remind-pill", [icon("bell"), h("span", null, "Ko'rmagan kinolarim haqida eslatib tur"), h("i", "sw", [h("b")])]);
+      rem.type = "button"; rem.setAttribute("role", "switch"); rem.setAttribute("aria-checked", "false");
+      page.appendChild(rem);
+      api("/api/saved").then(function (d) {
+        if (!d || !d.ok || !rem.isConnected) return;
+        function paint(on) { rem.classList.toggle("on", on); rem.setAttribute("aria-checked", on ? "true" : "false"); }
+        paint(!!d.remind);
+        rem.onclick = function () {
+          haptic();
+          var want = !rem.classList.contains("on");
+          paint(want);
+          api("/api/saved", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ remind: want }) })
+            .then(function (r) { if (!r || !r.ok) { paint(!want); toast("⚠️ Hozir imkoni yo'q"); } else toast(want ? "🔔 Eslatma yoqildi — kechqurun 19:30 da" : "🔕 Eslatma o'chirildi"); })
+            .catch(function () { paint(!want); toast("⚠️ Ulanishda xatolik"); });
+        };
+      }).catch(function () {});
+    }
     if (!items.length) {
       page.appendChild(emptyBox("bookmark", "Hali hech narsa saqlanmagan",
         "Yoqqan kinoni 🔖 belgisi bilan saqlang — shu yerda turadi."));
@@ -91,6 +109,33 @@
       page.appendChild(grid);
     }
     view.replaceChildren(page);
+  }
+
+  // ───── 🎯 Siz uchun: shaxsiy tavsiyalar («nega» izohi bilan) ─────
+  function renderForYou(view, my) {
+    var grid = h("div", "grid foryou");
+    var lead = h("p", "lead", "Ko'rgan, yoqtirgan va saqlagan kinolaringiz asosida");
+    view.replaceChildren(h("div", "page", [h("h1", null, "🎯 Siz uchun"), lead, grid]));
+    for (var i = 0; i < 6; i++) grid.appendChild(h("div", "card", [h("div", "poster sk"), h("div", "t sk", " ")]));
+    api("/api/foryou").then(function (d) {
+      if (my !== reqId) return;
+      if (!d || !d.ok) return renderError(view, (d && d.reason) || "network");
+      grid.replaceChildren();
+      if (d.personal && d.top && d.top.length) lead.textContent = "Siz ko'proq " + d.top.join(", ") + " janrlarini yoqtirasiz";
+      else if (d.guest) { lead.textContent = "Hozir ommabop kinolar. Hisobingizga kirsangiz — shaxsiy tavsiyalar chiqadi"; }
+      else lead.textContent = "Ko'proq kino ko'rsangiz va 👍 bossangiz — tavsiyalar aniqlashadi. Hozircha ommabop kinolar:";
+      if (!d.items.length) return grid.replaceWith(emptyBox("film", "Hozircha tavsiya yo'q", "Bir nechta kino ko'rib, 👍 bosing — shu yerda paydo bo'ladi."));
+      d.items.forEach(function (it) {
+        var c = card(it);
+        if (it.why) { var w = h("div", "why", it.why); var m = c.querySelector(".cmain"); (m || c).appendChild(w); }
+        grid.appendChild(c);
+      });
+      if (d.guest) {
+        var cta = h("button", "loadmore", "Hisobga kirish");
+        cta.onclick = function () { haptic(); show("login"); };
+        view.querySelector(".page").appendChild(cta);
+      }
+    }).catch(function () { if (my === reqId) renderError(view, "network"); });
   }
 
   // ───── 👤 Profil ─────

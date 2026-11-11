@@ -650,6 +650,73 @@ class AddFlow(AdminCase):
         sent = [a for nme, a, k in app.bot.sent if nme == "send_video" and a and a[0] == 901]
         self.assertTrue(sent and sent[-1][1] == "FP3")                                              # aynan 3-qism yuborildi
 
+    def test_saved_reminder_flow(self):
+        from app.handlers import remind
+        app, db = self.app, self.app.db
+        a, b2 = add_movie(app, 731, "Eslatma A"), add_movie(app, 732, "Eslatma B")
+        db.upsert_user({"id": 911, "first_name": "E"})
+        db.set_saved(911, a, True); db.set_saved(911, b2, True)
+        self.assertEqual(remind.run_once(app), 0)                         # eslatma yoqilmagan — hech kimga yuborilmaydi
+        self.press(911, "svr:1")                                          # botdan yoqish
+        self.assertTrue(remind.enabled(db, 911))
+        self.assertEqual(remind.run_once(app), 1)
+        self.assertIn("Saqlagan kinongiz kutmoqda", " ".join(app.bot.texts(911)) + " ".join(
+            str(a_[2]) for n_, a_, k_ in app.bot.sent if n_ == "send_photo" and a_ and a_[0] == 911))
+        self.assertEqual(remind.run_once(app), 0)                         # 3 kun ichida takror yuborilmaydi
+        db.x("UPDATE remind_log SET last_at=0 WHERE user_id=911")
+        db.touch_history(911, a)                                          # A ko'rildi → faqat B qoldi
+        self.assertEqual(db.unwatched_saved(911)["id"], b2)
+        db.x("UPDATE remind_log SET last_at=0 WHERE user_id=911")
+        db.touch_history(911, b2)                                         # hammasi ko'rilgan — eslatma yo'q
+        self.assertEqual(remind.run_once(app), 0)
+        from app import webapp
+        self.assertTrue(webapp.api_saved(app, {"id": 911})["remind"])
+        self.assertFalse(webapp.api_saved_set(app, {"id": 911}, {"remind": False})["remind"])
+        self.assertFalse(remind.enabled(db, 911))
+        self.assertEqual(webapp.api_saved_set(app, {"id": -5}, {"remind": True})["reason"], "no_telegram")
+
+    def test_for_you_with_reasons_and_cold_start(self):
+        from app import webapp
+        app, db = self.app, self.app.db
+        ids = []
+        for i, g in enumerate((",drama,", ",drama,thriller,", ",comedy,", ",drama,", ",action,")):
+            mid = add_movie(app, 740 + i, f"Tavsiya {i}")
+            db.x("UPDATE movies SET genres=? WHERE id=?", (g, mid)); ids.append(mid)
+        db.upsert_user({"id": 921, "first_name": "F"})
+        cold = webapp.api_foryou(app, {"id": 921})
+        self.assertFalse(cold["personal"])                                # tarix yo'q — ommabop kinolar
+        self.assertTrue(cold["items"] and cold["items"][0]["why"] == "Hozir ommabop")
+        db.touch_history(921, ids[0])                                     # drama ko'rdi
+        db.set_saved(921, ids[3], True)                                   # yana drama saqladi
+        r = webapp.api_foryou(app, {"id": 921})
+        self.assertTrue(r["personal"])
+        titles = [x["title"] for x in r["items"]]
+        self.assertIn("Tavsiya 1", titles)                                # drama+triller — o'xshash, hali ko'rilmagan
+        self.assertNotIn("Tavsiya 0", titles); self.assertNotIn("Tavsiya 3", titles)   # ko'rgan va saqlaganlari qaytarilmaydi
+        self.assertIn("Drama", [x["why"] for x in r["items"]][0])
+        self.assertEqual(webapp.api_foryou(app, {"id": 0})["guest"], True)
+
+    def test_client_error_report_dedup_and_noise(self):
+        from app import webapp
+        app = self.app
+        webapp._CLIENT_ERRS.clear(); webapp._err_notify[:] = [0.0, 0]
+        owners = list(app.config.owners)
+        app.bot.sent.clear()
+        ua = "Mozilla/5.0 (Linux; Android 13) Chrome/120.0 Mobile Safari/537.36"
+        body = {"m": "TypeError: x is undefined", "s": "https://site/assets/app.js", "l": 42, "v": "home", "ver": "abc123"}
+        webapp.api_client_error(app, body, ua)
+        webapp.api_client_error(app, body, ua)                            # bir xil xato — ikkinchi xabar yuborilmaydi
+        msgs = [a for n, a, k in app.bot.sent if n == "sendMessage"]
+        self.assertEqual(len(msgs), len(owners))
+        self.assertIn("Saytda xatolik", str(msgs[0]))
+        self.assertIn("Android", str(msgs[0]))
+        webapp.api_client_error(app, {"m": "ResizeObserver loop limit exceeded", "s": "x", "l": 1}, ua)   # shovqin — e'tiborga olinmaydi
+        webapp.api_client_error(app, {"m": "Failed to fetch", "s": "x", "l": 2}, ua)
+        self.assertEqual(len([a for n, a, k in app.bot.sent if n == "sendMessage"]), len(owners))
+        self.assertEqual(webapp._CLIENT_ERRS[next(iter(webapp._CLIENT_ERRS))][0], 2)
+        self.msg(1, "/xatolar")
+        self.assertIn("TypeError", self.last(1))
+
     def test_marvarid_tv_empty_and_deleted_movie(self):
         from app import tv, webapp
         tv._mem.clear()

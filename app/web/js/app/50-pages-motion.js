@@ -465,7 +465,7 @@
       if (it.resume) { var pill = h("span", "resume", "▶ " + it.resume + "-qism"); (c.querySelector(".poster") || c).appendChild(pill); }
       return c;
     } }));
-    if (data.foryou && data.foryou.length) add(rail({ title: "🎯 Siz uchun", items: data.foryou }));
+    if (data.foryou && data.foryou.length) add(rail({ title: "🎯 Siz uchun", items: data.foryou, more: function () { show("foryou"); } }));
     var nw = byKey["new"]; if (nw && nw.items.length) add(rail(nw));
     if (topRail && weekly.length < 3) add(topRail);
     (data.extra || []).slice(0, 2).forEach(function (r) { add(rail(r)); });
@@ -492,4 +492,4 @@
 
   // splash animatsiyasi paytida bosh sahifa chizilmaydi (qotib qolmasin): ma'lumot oldindan olinadi, chizish animatsiya tugagach
   var splashGate = null, homePre = null;
-  function navKey(name) { return name === "video" || name === "cats" || name === "col" || name === "cols" ? "movie" : name; }
+  function navKey(name) { return name === "video" || name === "cats" || name === "col" || name === "cols" ? "movie" : name === "foryou" ? "home" : name; }

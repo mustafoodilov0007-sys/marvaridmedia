@@ -283,6 +283,12 @@ CREATE TABLE IF NOT EXISTS saved (
     PRIMARY KEY (user_id, movie_id)
 );
 
+CREATE TABLE IF NOT EXISTS remind_log (
+    user_id    INTEGER PRIMARY KEY,
+    last_at    INTEGER NOT NULL DEFAULT 0,
+    last_movie INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS tv_channels (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     name       TEXT    NOT NULL,
@@ -1668,7 +1674,8 @@ class Database:
             return []
         liked = self.q("SELECT m.id, m.genres FROM history h JOIN movies m ON m.id = h.movie_id WHERE h.user_id=?"
                        " UNION ALL SELECT m.id, m.genres FROM ratings r JOIN movies m ON m.id = r.movie_id"
-                       " WHERE r.user_id=? AND r.value=1", (uid, uid))
+                       " WHERE r.user_id=? AND r.value=1"
+                       " UNION ALL SELECT m.id, m.genres FROM saved s JOIN movies m ON m.id = s.movie_id WHERE s.user_id=?", (uid, uid, uid))
         freq: Dict[str, int] = {}
         seen = set()
         for r in liked:
@@ -1687,6 +1694,35 @@ class Database:
                 scored.append((-sc, i, r))
         scored.sort(key=lambda x: (x[0], x[1]))
         return [r for _, _, r in scored[:limit]]
+
+    def genre_profile(self, uid: int) -> Dict[str, int]:
+        """Foydalanuvchining janr «og'irligi»: ko'rgan, 👍 bergan va saqlagan kinolari bo'yicha."""
+        freq: Dict[str, int] = {}
+        if not uid:
+            return freq
+        for r in self.q("SELECT m.genres FROM history h JOIN movies m ON m.id = h.movie_id WHERE h.user_id=?"
+                        " UNION ALL SELECT m.genres FROM ratings r JOIN movies m ON m.id = r.movie_id WHERE r.user_id=? AND r.value=1"
+                        " UNION ALL SELECT m.genres FROM saved s JOIN movies m ON m.id = s.movie_id WHERE s.user_id=?", (uid, uid, uid)):
+            for g in genres.parse(r["genres"]):
+                freq[g] = freq.get(g, 0) + 1
+        return freq
+
+    # ───────── 🔔 «Keyin ko'raman» eslatmasi ─────────
+
+    def remind_candidates(self, now_ts: int) -> List[sqlite3.Row]:
+        """Eslatma yoqilgan, bloklamagan va oxirgi eslatmasidan 3 kundan ko'p o'tgan foydalanuvchilar."""
+        return self.q("SELECT f.user_id, COALESCE(r.last_movie, 0) AS last_movie FROM follows f JOIN users u ON u.user_id=f.user_id"
+                      " LEFT JOIN remind_log r ON r.user_id=f.user_id"
+                      " WHERE f.topic='savedremind' AND u.is_blocked=0 AND COALESCE(r.last_at, 0) < ?", (now_ts - 3 * 86400,))
+
+    def unwatched_saved(self, uid: int, skip_movie: int = 0) -> Optional[sqlite3.Row]:
+        """Saqlangan, lekin hali ko'rilmagan eng eski kino (oxirgi eslatilganidan boshqasi)."""
+        return self.q1(_CATALOG_ROW + " JOIN saved s ON s.movie_id = m.id WHERE s.user_id=? AND m.id<>? AND m.category<>'music'"
+                       " AND m.id NOT IN (SELECT movie_id FROM history WHERE user_id=?) ORDER BY s.at ASC LIMIT 1", (uid, skip_movie, uid))
+
+    def mark_reminded(self, uid: int, movie_id: int) -> None:
+        self.x("INSERT INTO remind_log(user_id, last_at, last_movie) VALUES (?,?,?)"
+               " ON CONFLICT(user_id) DO UPDATE SET last_at=excluded.last_at, last_movie=excluded.last_movie", (uid, now(), movie_id))
 
     # ───────── 🧩 yetishmayotgan ma'lumotlar (admin uchun) ─────────
 
