@@ -1,0 +1,54 @@
+/* 🔤 Tipografiya — yagona shkala (oxirgi qatlam). Qoidalar: matn 400–500, sarlavha 650–750, kichik yorliqlar 650–700;
+   sun'iy (soxta) qalinlik yo'q; raqamlar bir xil kenglikda; telefon shrift kattalashtirishi sahifani buzmaydi. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { font-synthesis: none; text-rendering: optimizeLegibility; -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv11" 1, "calt" 1; letter-spacing: -0.005em; line-height: 1.45; }
+button, input, textarea, select { font-feature-settings: inherit; letter-spacing: inherit; }
+
+/* sarlavhalar */
+.page h1 { font-size: 27px; font-weight: 750; letter-spacing: -0.028em; line-height: 1.15; }
+.hero-title { font-weight: 760; letter-spacing: -0.03em; }
+.sec-head h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.018em; }
+.sec-head h2 span { font-weight: 600; }
+.sheet-main h3, .sheet .info h3 { font-weight: 750; letter-spacing: -0.028em; line-height: 1.12; }
+.tvbody h2, .tvlock h2, .tvh { font-weight: 750; letter-spacing: -0.025em; }
+.group-title { font-size: 15px !important; font-weight: 700 !important; letter-spacing: -0.01em; }
+
+/* kartalar */
+.card .t { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.28; }
+.card .m { font-size: 12px; font-weight: 450; }
+.tvri b { font-size: 15.5px; font-weight: 650; letter-spacing: -0.012em; }
+.tvinfo b { font-weight: 700; letter-spacing: -0.02em; }
+
+/* matn */
+.sheet .desc, .cm-text, .tvbits, .tvleft, .page .lead { font-weight: 400; line-height: 1.5; }
+.smeta, .stats, .tvmeta { font-weight: 500; }
+
+/* tugmalar */
+.btn, .tvgo, .tvmore, .short .go { font-weight: 650; letter-spacing: -0.005em; }
+.stab { font-weight: 600; }
+.stab.on { font-weight: 650; }
+
+/* kichik yorliqlar: qalin emas, biroz keng harf oralig'i — o'qilishi oson */
+.tag, .badge, .tvtag, .livebadge, .tvpill, .agebadge, .agebox, .tvinfo small, .tvblock, .chip { font-weight: 700 !important; letter-spacing: .03em; }
+.tag { font-size: 10.5px; }
+.rb .imdb { font-weight: 800 !important; }
+
+/* raqamlar bir xil kenglikda (vaqt, reyting, statistika «sakramaydi») */
+.tvtime, .tvrow time, .tvnext small, .rb em, .stats, .pstats b, .tvbar, .rkb, .dot, .cm-time, .sprog { font-variant-numeric: tabular-nums; }
+
+/* ───── ✋ bosilganda yengil, tez «javob» (telefonda) — faqat transform ───── */
+@media (hover: none) {
+  .btn, .tvgo, .tvmore, .ibtn, .stab, .tvtab, .gchip, .fpill, .tvrow, .tvnext, .crow, .pbox, .rbtn, .more, .loadmore, .tvcard {
+    transition: transform .22s cubic-bezier(.22, 1, .36, 1), opacity .22s, background-color .2s, color .2s; }
+  :is(.btn, .tvgo, .tvmore, .ibtn, .gchip, .fpill, .crow, .pbox, .rbtn, .loadmore):active { transform: scale(.965); transition-duration: .08s; }
+  :is(.tvrow, .tvnext, .tvcard):active { transform: scale(.985); transition-duration: .08s; }
+  :is(.stab, .tvtab, .more):active { opacity: .6; transition-duration: .08s; }
+}
+
+/* yorliqlar: tagidagi chiziq yumshoq «o'sib» chiqadi (eski so'nadi) */
+.stab::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 3px; background: var(--accent);
+  transform: scaleX(0); transition: transform .32s cubic-bezier(.22, 1, .36, 1); }
+.stab.on::after { transform: scaleX(1); }
+.stab { transition: color .25s ease; }
+@media (prefers-reduced-motion: reduce) { .stab::after { transition: none; } }
