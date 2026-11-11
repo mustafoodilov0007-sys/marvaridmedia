@@ -147,8 +147,10 @@
   // ───── ⭐ Baholarim ─────
   function renderRatings(view, my) {
     var page = h("div", "page", [h("h1", null, "⭐ Baholarim")]);
+    var sk = h("div", "grid", skeletonCards(6)); page.appendChild(sk);
     view.replaceChildren(page);
     api("/api/myratings").then(function (d) {
+      sk.remove();
       if (my !== reqId) return;
       if (!d.ok) return renderError(view, d.reason);
       if (!d.items.length) {
@@ -266,7 +268,7 @@
     return bars;
   }
   function loadAnalytics(box, my) {
-    box.appendChild(h("div", "note", "Yuklanmoqda..."));
+    box.appendChild(h("div", "tiles", [1, 2, 3, 4, 5, 6].map(function () { var t = h("div", "tile sk"); t.style.height = "64px"; return t; })));
     api("/api/admin/analytics").then(function (d) {
       box.replaceChildren();
       if (!d.ok) { box.appendChild(emptyBox("lock", "Ruxsat yo'q", "Bu sahifa faqat adminlar uchun.")); return; }

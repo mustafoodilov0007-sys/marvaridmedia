@@ -251,3 +251,12 @@ html[data-vtdir="back"]::view-transition-new(root) { animation-name: vtInLeft; }
 .ltools { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; } .ltools .btn { padding: 9px 14px; font-size: 13px; }
 .card .lrm { position: absolute; top: 6px; right: 6px; z-index: 3; width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(0,0,0,.65); color: #fff; font-size: 12px; cursor: pointer; }
 .bars.hours { gap: 2px; } .bars.hours em { font-size: 10px; }
+
+/* ✨ pop va chetdan orqaga */
+@keyframes mmpop { 0% { transform: scale(1); } 38% { transform: scale(1.24); } 70% { transform: scale(.94); } 100% { transform: scale(1); } }
+.tap-pop { animation: mmpop .42s cubic-bezier(.22, 1, .36, 1); }
+.edgeback { position: fixed; left: 0; top: 50%; z-index: 600; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; pointer-events: none;
+  background: rgba(30,28,34,.92); border: 1px solid rgba(255,255,255,.14); color: #fff; opacity: 0; transform: translate3d(-44px,-50%,0); transition: opacity .15s; }
+.edgeback svg { width: 20px; height: 20px; transform: scaleX(-1); }
+.edgeback.show { opacity: 1; } .edgeback.ready { background: #e2b450; color: #1d1405; }
+@media (prefers-reduced-motion: reduce) { .tap-pop { animation: none; } }

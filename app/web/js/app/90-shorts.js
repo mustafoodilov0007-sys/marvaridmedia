@@ -1,5 +1,5 @@
   // ───── 🎞 Shorts ─────
-  var shortsMuted = true, shortsIO = null, shortsLoadIO = null, shortsRO = null, shortsKeyFn = null;
+  var shortsMuted = false, shortsIO = null, shortsLoadIO = null, shortsRO = null, shortsKeyFn = null;
   function leaveShorts() {
     document.body.classList.remove("in-shorts");
     if (shortsIO) { shortsIO.disconnect(); shortsIO = null; }
@@ -72,6 +72,17 @@
       shortsRO.observe(feed);
     }
 
+    var soundArmed = false;
+    function armSound() {
+      if (soundArmed) return; soundArmed = true;
+      function on() {
+        soundArmed = false;
+        ["pointerdown", "keydown", "touchend"].forEach(function (ev) { document.removeEventListener(ev, on, true); });
+        if (shortsMuted) return;
+        feed.querySelectorAll("video").forEach(function (v) { if (!v.paused) { v.muted = false; fadeVolume(v); } });
+      }
+      ["pointerdown", "keydown", "touchend"].forEach(function (ev) { document.addEventListener(ev, on, true); });
+    }
     shortsIO = new IntersectionObserver(function (entries) {
       entries.forEach(function (en) {
         var el = en.target, v = el.querySelector("video");
@@ -80,7 +91,14 @@
           if (v.dataset.src) { v.src = v.dataset.src; v.removeAttribute("data-src"); }   // iOS: src o'rnatilgach ijro etiladi
           v.muted = shortsMuted;
           if (!shortsMuted) fadeVolume(v);                                                   // ovoz keskin emas, yumshoq kiradi
-          var p = v.play(); if (p && p.catch) p.catch(function () { el.classList.add("is-paused"); });
+          var p = v.play();
+          if (p && p.catch) p.catch(function () {
+            if (shortsMuted) { el.classList.add("is-paused"); return; }
+            // brauzer ovozli avto-ijroni to'sdi (sahifa to'g'ridan-to'g'ri ochilgan): ovozsiz boshlaymiz, birinchi bosishda ovoz yoqiladi
+            v.muted = true;
+            var p2 = v.play(); if (p2 && p2.catch) p2.catch(function () { el.classList.add("is-paused"); });
+            armSound(); toast("🔊 Ovoz uchun ekranga tegining");
+          });
           el.classList.remove("is-paused");
           var idx = +el.dataset.idx;
           around(idx);

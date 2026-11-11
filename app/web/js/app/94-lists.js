@@ -61,7 +61,9 @@
     var page = h("div", "page narrow", [h("h1", null, "📚 Ro'yxatlarim")]);
     view.replaceChildren(page);
     if (guest()) { page.appendChild(emptyBox("bookmark", "Kirish kerak", "Ro'yxat yaratish uchun hisobingizga kiring.")); return; }
+    var sk = h("div", "clist", [1, 2, 3].map(function () { var r = h("div", "crow sk"); r.style.height = "56px"; return r; })); page.appendChild(sk);
     api("/api/lists").then(function (d) {
+      sk.remove();
       if (my !== reqId) return;
       if (!d.ok) return renderError(view, d.reason);
       if (!d.lists.length) { page.appendChild(emptyBox("bookmark", "Hali ro'yxat yo'q", "Kino sahifasida «Ro'yxatga» tugmasini bosing — o'z kolleksiyangizni yarating va do'stlarga ulashing.")); return; }
@@ -79,7 +81,9 @@
   function renderUList(view, token, my) {
     var page = h("div", "page", [h("h1", null, "📚 Ro'yxat")]);
     view.replaceChildren(page);
+    var sk = h("div", "grid", skeletonCards(6)); page.appendChild(sk);
     api("/api/list?t=" + encodeURIComponent(token)).then(function (d) {
+      sk.remove();
       if (my !== reqId) return;
       if (!d.ok) { page.replaceChildren(emptyBox("bookmark", "Ro'yxat topilmadi", "Havola eskirgan yoki ro'yxat o'chirilgan.")); return; }
       page.replaceChildren(h("h1", null, "📚 " + d.title));
