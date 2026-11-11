@@ -20,6 +20,17 @@ class Analytics(unittest.TestCase):
     def user(self, uid, joined, active, src):
         self.db.x("INSERT INTO users(user_id, first_name, joined_at, last_active, src) VALUES (?,?,?,?,?)", (uid, "u", joined, active, src))
 
+    def test_top_and_categories(self):
+        a = add_movie(self.app, 1, "Birinchi")
+        b = add_movie(self.app, 2, "Ikkinchi", cat="serial")
+        for _ in range(3):
+            self.db.inc_views(a, 0)
+        self.db.inc_views(b, 0)
+        from app import analytics
+        d = analytics.build(self.db, self.t)
+        self.assertEqual([(r["label"], r["n"]) for r in d["top7"]], [("Birinchi", 3), ("Ikkinchi", 1)])
+        self.assertEqual({c["label"]: c["n"] for c in d["cats"]}, {"Kinolar": 3, "Seriallar": 1})
+
     def test_numbers(self):
         t = self.t
         j = t - 20 * DAY

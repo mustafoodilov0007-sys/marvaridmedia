@@ -312,6 +312,10 @@
       box.appendChild(h("div", "note", "So'mda. Promokod va do'st bonuslari daromad hisoblanmaydi."));
       box.appendChild(h("h3", "group-title", "▶️ Ko'rishlar (14 kun)"));
       box.appendChild(dayChart(d.daily14, "plays", "Ko'rish"));
+      box.appendChild(h("h3", "group-title", "🔥 Eng ko'p ko'rilganlar (7 kun)"));
+      box.appendChild((d.top7 || []).length ? hbars(d.top7) : h("div", "note", "Hali ma'lumot yo'q"));
+      box.appendChild(h("h3", "group-title", "🗂 Bo'limlar bo'yicha ko'rishlar (14 kun)"));
+      box.appendChild((d.cats || []).length ? hbars(d.cats) : h("div", "note", "Hali ma'lumot yo'q"));
       box.appendChild(h("h3", "group-title", "🌐 Sayt tashriflari (14 kun)"));
       var vis = d.daily14.map(function (x) { return { day: x.day, v: x.tg + x.web }; });
       box.appendChild(dayChart(vis, "v", "Tashrif"));

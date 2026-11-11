@@ -447,6 +447,8 @@
     homeGenres = data.genres || [];
     view.replaceChildren(h("h1", "sr-only", (me.brand || "Marvarid Media") + " — kinolar, seriallar va multfilmlar"), heroView(data.hero || []));
     if (PUB && me.miniapp) view.appendChild(openInTelegram());
+    var pb = premiumBanner(); if (pb) view.appendChild(pb);
+    var ib = installBanner(); if (ib) view.appendChild(ib);
     view.appendChild(tvHomeCard());
     if (data.daily) view.appendChild(dailyCard(data.daily));
     var any = false;

@@ -338,6 +338,7 @@
     var similar = it.cat === "music" ? null : h("div", "similar");
     s.setAttribute("aria-label", it.title);
     var acts = actionRow(it, false);
+    var tg2 = togetherBtn(it); if (tg2) acts.appendChild(tg2);
     if (it.parts > 1 && !guest() && (!PUB || me.tg)) {        // 📺 serial: «N-qismdan davom etish» (bot bilan bir xil tarix)
       var resumeBox = h("div", "resume-row hidden");
       api("/api/resume?id=" + it.id).then(function (r) {

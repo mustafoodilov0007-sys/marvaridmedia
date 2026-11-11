@@ -140,6 +140,16 @@ def build(db, t: Optional[int] = None) -> Dict:
     daily14 = [{"day": d * DAY - OFF, "plays": plays.get(d, 0), "tg": visits.get(d, 0), "web": hits.get(d, 0)} for d in range(d14, today + 1)]
     site_sources = [{"src": k, "label": label(k), "n": n} for k, n in sorted(site_src.items(), key=lambda kv: -kv[1])]
 
-    return {"ok": True, "generated": t, "new_daily": new_daily, "new_total": grand, "sources": sources, "active": active,
+    # ───── eng ko'p ko'rilganlar (7 kun) va bo'limlar (14 kun) ─────
+    d7 = today - 6
+    top7 = [{"id": r["id"], "label": r["title"], "n": r["n"]} for r in db.q(
+        "SELECT m.id, m.title, SUM(v.n) AS n FROM view_days v JOIN movies m ON m.id=v.movie_id"
+        " WHERE v.day >= ? GROUP BY m.id ORDER BY n DESC, m.id DESC LIMIT 8", (d7,))]
+    cat_names = {"movie": "Kinolar", "serial": "Seriallar", "cartoon": "Multfilmlar", "music": "Musiqa", "anime": "Anime"}
+    cats = [{"label": cat_names.get(r["category"], r["category"] or "Boshqa"), "n": r["n"]} for r in db.q(
+        "SELECT m.category, SUM(v.n) AS n FROM view_days v JOIN movies m ON m.id=v.movie_id"
+        " WHERE v.day >= ? GROUP BY m.category ORDER BY n DESC", (d14,))]
+
+    return {"ok": True, "generated": t, "top7": top7, "cats": cats, "new_daily": new_daily, "new_total": grand, "sources": sources, "active": active,
             "retention": {"cohorts": cohorts, "d1": overall(1), "d7": overall(7), "d30": overall(30)},
             "funnel": funnel, "revenue": list(rev.values()), "daily14": daily14, "site_sources": site_sources}
