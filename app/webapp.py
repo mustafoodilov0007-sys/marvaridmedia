@@ -510,6 +510,31 @@ def api_tv(app: App, user: dict) -> dict:
     return {"ok": True, "now": ts, "slots": out, "cur": tv.current([[0, o["s"], o["e"]] for o in out], ts), "channels": chans}
 
 
+def api_suggest(app: App, user: dict, qs: dict) -> dict:
+    """⚡ Tez qidiruv: yozish paytida 8 tagacha ixcham natija. Bo'sh so'rov — «hozir ommabop» va (kirgan bo'lsa) yaqinda ko'rilganlar."""
+    from .handlers.user import search_ids
+    _, vip = _user_flags(app, user["id"])
+    premium_on = app.setting_bool("premium_enabled")
+    q = (qs.get("q") or "").strip()[:60]
+
+    def pack(rows):
+        return [_item(r, premium_on, vip) for r in rows]
+    if not q:
+        out = {"ok": True, "trending": pack(app.db.weekly_top(10))}
+        if user["id"] > 0:
+            out["recent"] = pack(app.db.history(user["id"], 8))
+        return out
+    norm = normalize(q)
+    if len(norm) < 2 and not norm.lstrip("#").isdigit():
+        return {"ok": True, "items": []}
+    if norm.lstrip("#").isdigit():                          # kod bo'yicha (masalan 398 yoki #398)
+        mv = app.db.get_movie_by_code(int(norm.lstrip("#")))
+        if mv and mv["category"] != "music":
+            return {"ok": True, "items": pack(app.db.catalog_rows([mv["id"]])), "fuzzy": False, "q": q}
+    ids, fuzzy = search_ids(app, norm, "video", fuzzy_ok=len(norm) >= 3)
+    return {"ok": True, "items": pack(app.db.catalog_rows(ids[:8])), "fuzzy": fuzzy, "q": q}
+
+
 def api_foryou(app: App, user: dict) -> dict:
     """🎯 Siz uchun: ko'rgan, 👍 bergan va saqlagan janrlaringiz bo'yicha 12 ta tavsiya — har biri «nega» izohi bilan."""
     uid = user["id"]
@@ -756,6 +781,11 @@ def _api_home(app: App, user: dict) -> dict:
     with_poster = [r for r in newest if r["poster_id"]]
     hero = (with_poster + [r for r in newest if not r["poster_id"]])[:6]
     history = pack(db.history(user["id"], 15)) if user["id"] else []
+    fresh = []
+    for r in (db.fresh_parts(user["id"]) if user["id"] > 0 else []):          # 🆕 ko'rganingizdan keyin yangi qism chiqqan serial/multfilmlar
+        it = _item(r, premium_on, vip)
+        it["newparts"] = r["newparts"]
+        fresh.append(it)
     if history:   # serialda qaysi qismda to'xtagani — «Davom ettiring» kartasida «3-qism» belgisi
         resume = db.resume_parts(user["id"], [x["id"] for x in history])
         for x in history:
@@ -787,6 +817,7 @@ def _api_home(app: App, user: dict) -> dict:
     return {
         "ok": True,
         "history": history,
+        "fresh": fresh,
         "foryou": foryou,
         "searched": searched,
         "extra": extra,
@@ -1696,6 +1727,9 @@ def make_handler(app: App):
             else:
                 html_text = re.sub(r"<!--OG-->.*?<!--/OG-->", lambda m: "<!--OG-->\n" + _og_block(app, base, qs.get("k", "")) + "\n<!--/OG-->",
                                    html_text, count=1, flags=re.S)
+                if not qs.get("k") and not qs.get("v"):          # bosh sahifa: sayt + tashkilot + qidiruv kutisi (Google uchun)
+                    ld = json.dumps(seo.home_jsonld(app, base), ensure_ascii=False).replace("</", "<\\/")
+                    html_text = html_text.replace("</head>", f'<link rel="canonical" href="{base}/">\n<script type="application/ld+json">{ld}</script>\n</head>', 1)
             ads = getattr(app.config, "yandex_ads_id", "")
             if ads:       # Yandex reklama kodi — </head> dan oldin (Yandex ko'rsatmasi), moderator shu kodni sahifada ko'radi
                 snippet = (f"<!-- Yandex Autoplacement {ads} -->\n"
@@ -1893,6 +1927,8 @@ def make_handler(app: App):
                         return self._json(api_saved(app, user))
                     if path == "/api/foryou":
                         return self._json(api_foryou(app, user))
+                    if path == "/api/suggest":
+                        return self._json(api_suggest(app, user, qs))
                     if path == "/api/resume":
                         return self._json(api_resume(app, user, qs))
                     if path == "/api/tv":

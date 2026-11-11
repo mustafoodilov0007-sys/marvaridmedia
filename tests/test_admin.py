@@ -717,6 +717,55 @@ class AddFlow(AdminCase):
         self.msg(1, "/xatolar")
         self.assertIn("TypeError", self.last(1))
 
+    def test_new_part_badge_for_followed_series(self):
+        from app import webapp
+        import time as _t
+        app, db = self.app, self.app.db
+        mid = add_movie(app, 750, "Yangilanuvchi serial", cat="serial")
+        p1 = db.get_parts(mid)[0]
+        db.upsert_user({"id": 931, "first_name": "N"})
+        db.touch_history(931, mid, p1["id"])                               # 1-qismni ko'rdi
+        self.assertEqual(db.fresh_parts(931), [])                         # hali yangi qism yo'q
+        db.add_part(mid, "NEW2", "video"); db.add_part(mid, "NEW3", "video")
+        db.x("UPDATE parts SET created_at=created_at+100 WHERE file_id IN ('NEW2','NEW3')")      # ko'rganidan KEYIN qo'shilgan
+        fr = db.fresh_parts(931)
+        self.assertEqual([(r["id"], r["newparts"]) for r in fr], [(mid, 2)])
+        home = webapp.api_home(app, {"id": 931})
+        self.assertEqual([(x["id"], x["newparts"]) for x in home["fresh"]], [(mid, 2)])
+        pts = db.get_parts(mid)
+        db.touch_history(931, mid, pts[-1]["id"])
+        db.x("UPDATE history SET at=at+1000 WHERE user_id=931")           # yangi qismni ko'rdi — belgi o'chadi
+        self.assertEqual(db.fresh_parts(931), [])
+
+    def test_search_suggest_trending_and_seo_graph(self):
+        from app import webapp, seo
+        app, db = self.app, self.app.db
+        a = add_movie(app, 760, "Titanik tez qidiruv")
+        db.upsert_user({"id": 941, "first_name": "Q"})
+        r = webapp.api_suggest(app, {"id": 941}, {"q": "titan"})
+        self.assertTrue(any(x["id"] == a for x in r["items"]))
+        self.assertEqual(webapp.api_suggest(app, {"id": 941}, {"q": "t"})["items"], [])    # 1 belgi — kutamiz
+        self.assertEqual(webapp.api_suggest(app, {"id": 941}, {"q": "760"})["items"][0]["id"], a)   # kod bo'yicha
+        t = webapp.api_suggest(app, {"id": 941}, {})
+        self.assertIn("trending", t); self.assertIn("recent", t)
+        # SEO: reyting (kamida 3 ovoz), non (breadcrumb), «tomosha qilish», sitemap rasmlari
+        for u in (950, 951, 952):
+            db.upsert_user({"id": u, "first_name": "V"}); db.rate(u, a, 1)
+        page = seo.movie_page(app, "https://site.test", 760, webapp._poster_key)
+        g = page["jsonld"]["@graph"]
+        movie = g[0]
+        self.assertEqual(movie["aggregateRating"]["ratingCount"], 3)
+        self.assertEqual(movie["aggregateRating"]["ratingValue"], 5.0)
+        self.assertEqual(g[1]["@type"], "BreadcrumbList")
+        self.assertEqual(movie["potentialAction"]["@type"], "WatchAction")
+        self.assertIn("max-image-preview:large", page["og"])
+        seo._cache.clear()                                                # sitemap keshi boshqa testlarga aralashmasin
+        xml = seo.sitemap(app, "https://site.test")
+        seo._cache.clear()
+        self.assertIn("image:image", xml); self.assertIn("<changefreq>", xml)
+        home = seo.home_jsonld(app, "https://site.test")
+        self.assertEqual(home["@graph"][0]["potentialAction"]["@type"], "SearchAction")
+
     def test_marvarid_tv_empty_and_deleted_movie(self):
         from app import tv, webapp
         tv._mem.clear()

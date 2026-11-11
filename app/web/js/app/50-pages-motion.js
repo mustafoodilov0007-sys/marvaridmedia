@@ -456,6 +456,12 @@
     var tp = byKey.top, weekly = data.weekly || [];
     var topRail = tp && tp.items.length ? rail(Object.assign({}, tp, { title: "Eng ko'p ko'rilgan", items: tp.items.slice(0, 10),
       cls: "rankrail", wrapItem: rankItem })) : null;
+    var fresh = guest() ? [] : (data.fresh || []);
+    ["serial", "cartoon"].forEach(function (c) {                 // 🔴 pastki menyuda: shu bo'limda yangi qism bor
+      var bt = document.querySelector('#nav button[data-view="' + c + '"]');
+      if (bt) bt.classList.toggle("dotted", fresh.some(function (x) { return x.cat === c; }));
+    });
+    if (fresh.length) add(rail({ title: "🆕 Yangi qism chiqdi", items: fresh, cls: "hist freshrail" }));
     if (weekly.length >= 1) add(topBanner(weekly));
     if ((data.collections || []).length) add(collectionsRail(data.collections));
     if (weekly.length >= 3) add(coverflow({ title: "🔥 Haftaning TOP'i", items: weekly, cat: "video", sort: "top" }));

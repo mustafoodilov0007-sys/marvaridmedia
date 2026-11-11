@@ -37,6 +37,8 @@ def movie_path(code: int, title: str) -> str:
 
 def og_tags(brand: str, title: str, desc: str, image: str, url: str) -> str:
     return (f'<meta name="description" content="{_e(desc, True)}">\n'
+            '<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">\n'
+            f'<meta property="og:locale" content="uz_UZ">\n'
             f'<meta property="og:type" content="website">\n<meta property="og:site_name" content="{_e(brand, True)}">\n'
             f'<meta property="og:title" content="{_e(title, True)}">\n<meta property="og:description" content="{_e(desc, True)}">\n'
             f'<meta property="og:url" content="{_e(url, True)}">\n<meta property="og:image" content="{_e(image, True)}">\n'
@@ -89,6 +91,35 @@ def movie_page(app, base: str, code: int, poster_key) -> Optional[Dict]:
         ld["duration"] = _iso_duration(duration)
     if "age" in keys and m["age"]:
         ld["contentRating"] = f"{m['age']}+"
+    ld["isAccessibleForFree"] = not bool(m["is_premium"])
+    if "country" in keys and m["country"]:
+        ld["countryOfOrigin"] = {"@type": "Country", "name": genres.country_label(m["country"]).split(" ", 1)[-1]}
+    r = db.rating(m["id"])
+    n = r["likes"] + r["dislikes"]
+    if n >= 3:       # faqat haqiqiy ovozlar (kamida 3 ta): 👍 ulushi 1–5 shkalaga o'tkaziladi
+        ld["aggregateRating"] = {"@type": "AggregateRating", "ratingValue": round(1 + 4 * r["likes"] / n, 1), "bestRating": 5,
+                                 "worstRating": 1, "ratingCount": n}
+    if "imdb" in keys and m["imdb"]:
+        ld["sameAs"] = []
+    ld["potentialAction"] = {"@type": "WatchAction", "target": [
+        {"@type": "EntryPoint", "urlTemplate": url, "actionPlatform": ["http://schema.org/DesktopWebPlatform", "http://schema.org/MobileWebPlatform"]},
+        {"@type": "EntryPoint", "urlTemplate": f"https://t.me/{app.bot_username}?start={m['code']}"}]}
+    tu = (m["trailer_url"] if "trailer_url" in keys else "") or ""
+    ym = re.search(r"(?:v=|youtu\.be/|embed/)([A-Za-z0-9_-]{11})", tu)
+    if ym:           # YouTube treyler: Google qidiruvida video sifatida ham chiqishi mumkin
+        ld["trailer"] = {"@type": "VideoObject", "name": f"{m['title']} — treyler", "description": truncate((m["description"] or desc), 200),
+                         "thumbnailUrl": f"https://i.ytimg.com/vi/{ym.group(1)}/hqdefault.jpg",
+                         "uploadDate": datetime.fromtimestamp(m["created_at"], TZ).strftime("%Y-%m-%d"),
+                         "embedUrl": f"https://www.youtube.com/embed/{ym.group(1)}", "contentUrl": tu}
+    if not ld.get("sameAs"):
+        ld.pop("sameAs", None)
+    crumbs = {"@type": "BreadcrumbList", "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Bosh sahifa", "item": base + "/"},
+        {"@type": "ListItem", "position": 2, "name": {"movie": "Kinolar", "serial": "Seriallar", "cartoon": "Multfilmlar"}.get(m["category"], "Kinolar"),
+         "item": base + {"movie": "/kinolar", "serial": "/seriallar", "cartoon": "/multfilmlar"}.get(m["category"], "/kinolar")},
+        {"@type": "ListItem", "position": 3, "name": m["title"], "item": url}]}
+    ld.pop("@context", None)
+    ld = {"@context": "https://schema.org", "@graph": [ld, crumbs]}
     related = db.similar(m["id"], 8)
     rel = "".join(f'<li><a href="{_e(movie_path(r["code"], r["title"]))}">{_e(r["title"])}</a></li>' for r in related if r["code"] > 0)
     info = "".join(f"<li>{_e(x)}</li>" for x in genres.info_lines(m))
@@ -188,6 +219,15 @@ def collections_index_page(app, base: str) -> Optional[Dict]:
             "noscript": noscript, "status": 200}
 
 
+def home_jsonld(app, base: str) -> Dict:
+    """Bosh sahifa: sayt + tashkilot (logotip) + Google qidiruvidagi «saytda qidirish» kutisi."""
+    return {"@context": "https://schema.org", "@graph": [
+        {"@type": "WebSite", "@id": base + "/#site", "url": base + "/", "name": app.brand, "inLanguage": "uz",
+         "potentialAction": {"@type": "SearchAction", "target": {"@type": "EntryPoint", "urlTemplate": base + "/?q={search_term_string}"},
+                             "query-input": "required name=search_term_string"}},
+        {"@type": "Organization", "@id": base + "/#org", "name": app.brand, "url": base + "/", "logo": base + "/apple-touch-icon.png"}]}
+
+
 def apply(page_html: str, seo: Dict) -> str:
     """Asosiy sahifaga SEO ma'lumotlarini kiritadi: sarlavha, OG, kanonik havola, JSON-LD, <noscript>."""
     s = page_html
@@ -212,18 +252,26 @@ def sitemap(app, base: str) -> str:
     if hit and time.time() - hit[0] < 3600 and hit[2] == base:
         return hit[1]
     db = app.db
-    urls: List[tuple] = [(base + "/", None, "1.0")]
-    urls += [(base + p, None, "0.8") for p in LIST_PAGES]
-    urls += [(f"{base}/janr/{k}", None, "0.6") for k in db.genre_counts("video")]
+    today = datetime.now(TZ).strftime("%Y-%m-%d")
+    urls: List[tuple] = [(base + "/", today, "1.0", "daily", None)]
+    urls += [(base + p, today, "0.8", "daily", None) for p in LIST_PAGES]
+    urls += [(f"{base}/janr/{k}", today, "0.6", "weekly", None) for k in db.genre_counts("video")]
     cols = [c for c in db.list_collections() if c["n"]]
     if cols:
-        urls.append((base + "/kolleksiyalar", None, "0.7"))
-        urls += [(base + collection_path(c["id"], c["title"]), None, "0.7") for c in cols]
-    for r in db.q("SELECT code, title, created_at FROM movies WHERE category<>'music' AND code>0 ORDER BY id DESC LIMIT 49000"):
-        urls.append((base + movie_path(r["code"], r["title"]), datetime.fromtimestamp(r["created_at"], TZ).strftime("%Y-%m-%d"), "0.7"))
-    out = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    for loc, last, prio in urls:
-        out.append(f"<url><loc>{_e(loc)}</loc>" + (f"<lastmod>{last}</lastmod>" if last else "") + f"<priority>{prio}</priority></url>")
+        urls.append((base + "/kolleksiyalar", today, "0.7", "weekly", None))
+        urls += [(base + collection_path(c["id"], c["title"]), today, "0.7", "weekly", None) for c in cols]
+    recent = time.time() - 30 * 86400
+    for r in db.q("SELECT id, code, title, created_at, poster_id FROM movies WHERE category<>'music' AND code>0 ORDER BY id DESC LIMIT 49000"):
+        img = f"{base}/api/poster/{r['id']}?w=720" if r["poster_id"] else None
+        urls.append((base + movie_path(r["code"], r["title"]), datetime.fromtimestamp(r["created_at"], TZ).strftime("%Y-%m-%d"),
+                     "0.8" if r["created_at"] >= recent else "0.7", "monthly", (img, r["title"])))
+    out = ['<?xml version="1.0" encoding="UTF-8"?>',
+           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">']
+    for loc, last, prio, freq, img in urls:
+        row = f"<url><loc>{_e(loc)}</loc>" + (f"<lastmod>{last}</lastmod>" if last else "") + f"<changefreq>{freq}</changefreq><priority>{prio}</priority>"
+        if img and img[0]:
+            row += f"<image:image><image:loc>{_e(img[0])}</image:loc><image:title>{_e(img[1])}</image:title></image:image>"
+        out.append(row + "</url>")
     out.append("</urlset>")
     xml = "\n".join(out)
     _cache["sitemap"] = (time.time(), xml, base)
@@ -231,5 +279,5 @@ def sitemap(app, base: str) -> str:
 
 
 def robots(base: str) -> str:
-    return ("User-agent: *\nAllow: /\nAllow: /api/poster/\nDisallow: /api/\nDisallow: /pub/\nDisallow: /media/\nDisallow: /admin\n"
+    return ("User-agent: *\nAllow: /\nAllow: /api/poster/\nAllow: /og/\nDisallow: /api/\nDisallow: /pub/\nDisallow: /media/\nDisallow: /admin\n"
             f"\nSitemap: {base}/sitemap.xml\n")

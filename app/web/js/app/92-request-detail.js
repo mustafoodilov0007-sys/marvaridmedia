@@ -80,7 +80,50 @@
         into.appendChild(row);
       }).catch(function () {});
     }
+    function suggestIdle(into) {
+      api("/api/suggest").then(function (d) {
+        if (!d || !d.ok || !into.isConnected) return;
+        function block(title, list) {
+          if (!list || !list.length) return;
+          var r = h("div", "rail trend-rail");
+          list.forEach(function (it) { r.appendChild(card(it)); });
+          into.appendChild(h("h3", "group-title", title));
+          into.appendChild(r);
+        }
+        block("🔥 Hozir ommabop", d.trending);
+        block("🕘 Yaqinda ko'rganlaringiz", d.recent);
+      }).catch(function () {});
+    }
+    // ⚡ yozish paytida darhol (120 ms): poster bilan ixcham ro'yxat; to'liq natijalar keyin uning o'rnini oladi
+    function hilite(text, q) {
+      var i = text.toLowerCase().indexOf(q.toLowerCase());
+      if (i < 0 || !q) return [document.createTextNode(text)];
+      var m = document.createElement("mark"); m.textContent = text.slice(i, i + q.length);
+      return [document.createTextNode(text.slice(0, i)), m, document.createTextNode(text.slice(i + q.length))];
+    }
+    var suggSeq = 0;
+    function instant(q) {
+      var my = ++suggSeq;
+      api("/api/suggest?q=" + encodeURIComponent(q)).then(function (d) {
+        if (my !== suggSeq || input.value.trim() !== q || results.dataset.full === q) return;
+        if (!d || !d.ok || !d.items || !d.items.length) return;
+        var box = h("div", "sugg");
+        if (d.fuzzy) box.appendChild(h("div", "sugg-note", "🤔 O'xshash nomlar:"));
+        d.items.forEach(function (it) {
+          var tx = h("div", "tx"), b = document.createElement("b");
+          hilite(it.title, q).forEach(function (n) { b.appendChild(n); });
+          tx.appendChild(b);
+          tx.appendChild(h("span", null, [NAMES[it.cat] || "Kino", it.year ? yr(it) : "", it.genres && it.genres[0] ? gname(it.genres[0]) : ""].filter(Boolean).join(" · ")));
+          var row = h("button", "sugg-row", [posterNode(it, 360), tx, icon("chev")]);
+          row.type = "button";
+          row.onclick = function () { haptic(); openSheet(it, false, row.querySelector(".poster")); pushRecent(it.title); };
+          box.appendChild(row);
+        });
+        results.replaceChildren(box);
+      }).catch(function () {});
+    }
     function idle() {
+      results.dataset.full = "";
       results.replaceChildren();
       var rec = recentList();
       if (rec.length) {
@@ -91,6 +134,8 @@
         rec.forEach(function (q) { row.appendChild(chip(q, function () { haptic(); setQuery(q); })); });
         results.appendChild(row);
       }
+      var vis = h("div"); results.appendChild(vis);
+      suggestIdle(vis);                                  // 🔥 hozir ommabop (poster bilan) va 🕘 yaqinda ko'rganlaringiz
       var pop = h("div"); results.appendChild(pop);
       popularBlock(pop, "🔥 Ommabop qidiruvlar");
       var gl = homeGenres;
@@ -105,8 +150,7 @@
         results.appendChild(h("div", "gchips", [rnd]));
       }
       if (gl.length) genreBlock(gl); else getMeta().then(function (d) { if (d && d.ok) genreBlock(d.genres); });
-      if (!rec.length) results.insertBefore(emptyBox("search", "Nimani qidiramiz?",
-        "Kino nomi, kodi, chiqqan yili yoki janrini yozing."), results.firstChild);
+      if (!rec.length) results.insertBefore(h("p", "lead", "Kino nomi, kodi, chiqqan yili yoki janrini yozing."), results.firstChild);
     }
 
     var t;
@@ -116,7 +160,9 @@
       clear.classList.toggle("hidden", !q);
       var my = ++reqId;
       if (q.length < 2) { idle(); return; }
-      results.replaceChildren(h("div", "grid", skeletonCards(6)));
+      results.dataset.full = "";
+      if (!results.querySelector(".sugg")) results.replaceChildren(h("div", "grid", skeletonCards(6)));   // tez ro'yxat bor bo'lsa — skelet qo'yilmaydi
+      instant(q);
       var numeric = /^#?\d+$/.test(q), year = /^(19[2-9]\d|20[0-4]\d)$/.test(q);
       var cats;
       if (searchScope !== "all") cats = [searchScope];
@@ -127,6 +173,7 @@
         return api("/api/catalog?cat=" + c + "&sort=" + searchSort + wide + "&q=" + encodeURIComponent(q));
       })).then(function (res) {
         if (my !== reqId) return;
+        results.dataset.full = q;
         results.replaceChildren();
         var total = 0;
         res.forEach(function (d, i) {
@@ -149,7 +196,13 @@
           body: JSON.stringify({ q: q, n: total }) }).catch(function () {});
       }).catch(function () { if (my === reqId) renderError(results, "network"); });
     }
-    input.addEventListener("input", function () { clearTimeout(t); clear.classList.toggle("hidden", !input.value); t = setTimeout(run, 350); });
+    var ti;
+    input.addEventListener("input", function () {
+      clearTimeout(t); clearTimeout(ti); clear.classList.toggle("hidden", !input.value);
+      var v = input.value.trim();
+      if (v.length >= 2) ti = setTimeout(function () { instant(v); }, 120);          // darhol
+      t = setTimeout(run, 450);                                                        // keyin — to'liq natijalar (turlar bo'yicha)
+    });
     input.addEventListener("keydown", function (e) {
       if (e.key === "Enter") { clearTimeout(t); input.blur(); run(); }
       else if (e.key === "Escape") { input.value = ""; run(); }

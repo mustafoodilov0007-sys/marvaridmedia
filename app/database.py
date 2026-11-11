@@ -1247,6 +1247,16 @@ class Database:
         return self.q(_CATALOG_ROW.replace("FROM movies m", "FROM history h JOIN movies m ON m.id = h.movie_id")
                       + " WHERE h.user_id=? AND m.category<>'music' ORDER BY h.at DESC LIMIT ?", (uid, limit))
 
+    def fresh_parts(self, uid: int, limit: int = 12) -> List[sqlite3.Row]:
+        """🆕 Foydalanuvchi ko'rgan serial/multfilmlar, ko'rganidan KEYIN yangi qism qo'shilganlari (qancha qism yangi — `newparts`)."""
+        if not uid:
+            return []
+        return self.q(_CATALOG_ROW.replace("FROM movies m", "FROM history h JOIN movies m ON m.id = h.movie_id").replace(
+            "SELECT m.id,", "SELECT (SELECT COUNT(*) FROM parts np WHERE np.movie_id = h.movie_id AND np.created_at > h.at) AS newparts, m.id,", 1)
+            + " WHERE h.user_id=? AND m.category IN ('serial','cartoon')"
+              " AND EXISTS (SELECT 1 FROM parts np WHERE np.movie_id = h.movie_id AND np.created_at > h.at)"
+              " ORDER BY (SELECT MAX(np.created_at) FROM parts np WHERE np.movie_id = h.movie_id) DESC LIMIT ?", (uid, limit))
+
     def resume_parts(self, uid: int, movie_ids: list) -> dict:
         """{kino id: oxirgi ko'rilgan qism raqami} — faqat ko'p qismli kinolar uchun."""
         if not movie_ids:

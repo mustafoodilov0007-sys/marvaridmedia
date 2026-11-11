@@ -44,7 +44,7 @@ class Seo(unittest.TestCase):
         self.assertIn("<title>Avatar: Suv yo&#x27;li (2022)", page)
         self.assertIn('rel="canonical" href="https://site.test/kino/101-avatar-suv-yoli"', page)
         self.assertIn("<noscript><article><h1>Avatar", page)
-        ld = json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>', page, re.S).group(1))
+        ld = json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>', page, re.S).group(1))["@graph"][0]
         self.assertEqual((ld["@type"], ld["datePublished"], ld["duration"], ld["contentRating"]), ("Movie", "2022", "PT3H15M", "12+"))
         self.assertEqual(ld["genre"], ["Jangari", "Fantastika"])
         # slug noto'g'ri bo'lsa ham kod bo'yicha ochiladi
@@ -73,7 +73,8 @@ class Seo(unittest.TestCase):
     def test_home_not_polluted(self):
         st, page = self.page("/")
         self.assertNotIn("<noscript><article>", page)
-        self.assertNotIn("application/ld+json", page)
+        self.assertIn('"@type": "WebSite"', page)                   # bosh sahifa: sayt + qidiruv kutisi (kino sahifasi ma'lumoti emas)
+        self.assertNotIn('"@type": "Movie"', page)
 
 
 if __name__ == "__main__":

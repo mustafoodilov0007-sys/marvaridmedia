@@ -163,3 +163,24 @@ html[data-vtdir="back"]::view-transition-new(root) { animation-name: vtInLeft; }
   transition: transform .28s cubic-bezier(.22, 1, .36, 1); }
 .remind-pill.on .sw { background: var(--accent); }
 .remind-pill.on .sw b { transform: translateX(16px); }
+
+/* ───── 🆕 yangi qism belgisi ───── */
+.tag.l.newpart { background: linear-gradient(135deg, #2fd17c, #12a35a); color: #04210f; box-shadow: 0 2px 8px rgba(18, 163, 90, .45); }
+.nav button.dotted { position: relative; }
+.nav button.dotted::after { content: ""; position: absolute; top: 7px; left: calc(50% + 7px); width: 9px; height: 9px; border-radius: 50%;
+  background: #ff3b30; box-shadow: 0 0 0 2px var(--bg); }
+.dnav button.dotted::after { content: ""; display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: #ff3b30; vertical-align: middle; }
+.rail.freshrail .card .poster { aspect-ratio: 2 / 3; }
+
+/* ───── ⚡ tez qidiruv ───── */
+.sugg { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.sugg-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 6px; border-radius: 14px; text-align: left; color: var(--text); }
+.sugg-row:active { background: var(--surface); }
+.sugg-row .poster { flex: 0 0 46px; aspect-ratio: 2 / 3; border-radius: 9px; }
+.sugg-row .tx { min-width: 0; flex: 1; }
+.sugg-row .tx b { display: block; font-size: 15.5px; font-weight: 650; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sugg-row .tx b mark { background: none; color: var(--accent-2); }
+.sugg-row .tx span { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sugg-row > svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
+.sugg-note { padding: 6px 8px 2px; font-size: 12.5px; color: var(--muted); }
+.trend-rail { margin: 2px -16px 0; padding: 0 16px; }

@@ -161,8 +161,10 @@
   ///WELCOME
   var startView = "";
   try { startView = new URLSearchParams(location.search).get("v") || ""; } catch (e) {}
-  var pI = pathInfo();
-  if (pI.genre) show("video", { f: { genre: pI.genre } });
+  var pI = pathInfo(), qParam = "";
+  try { qParam = (new URLSearchParams(location.search).get("q") || "").trim().slice(0, 80); } catch (e) {}     // Google qidiruv kutisidan: /?q=nom
+  if (qParam) { searchQ = qParam; show("search"); }
+  else if (pI.genre) show("video", { f: { genre: pI.genre } });
   else if (pI.colId) show("col", { id: pI.colId });
   else show(pI.view || (["stats", "support", "search", "saved", "tv", "movie", "serial", "cartoon", "music", "shorts", "profile", "catalog", "sub", "login", "ratings", "cols", "foryou"].indexOf(startView) >= 0 ? startView : "home"));
   // 🔗 kanal postidagi havola: ?k=15 (kino) yoki ?k=m3 (musiqa) — shu kino oynasi darhol ochiladi
