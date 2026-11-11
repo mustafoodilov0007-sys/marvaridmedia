@@ -102,3 +102,7 @@ html[data-vtdir="back"]::view-transition-new(root) { animation-name: vtInLeft; }
 
 /* ───── 🎞 Shorts: video kelguncha poster ko'rinadi (video «poster» atributi), fon yumshoq almashadi ───── */
 .short .sbg { transition: opacity .4s ease; }
+
+/* ───── ✨ kirish animatsiyasi: sahifa ishga tushib bo'lgach boshlanadi (boshidagi yuklanish uni uzmasin) ───── */
+#welcome:not(.go) *, #welcome:not(.go) { animation-play-state: paused !important; }
+#welcome { transition: opacity .7s cubic-bezier(.4, 0, .2, 1); }

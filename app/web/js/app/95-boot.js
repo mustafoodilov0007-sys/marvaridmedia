@@ -135,18 +135,29 @@
       dust.appendChild(d);
     }
     if (!PUB) { try { tg.setHeaderColor("#050403"); tg.setBackgroundColor("#050403"); } catch (e) {} }
-    var done = false;
+    var done = false, started = false;
+    var total = Math.max(4300, Math.round((2.3 + text.length * 0.045 + 0.6) * 1000) + 900);    // uzun ism ham to'liq yozilib ulgursin
     function finish() {
       if (done) return; done = true;
-      el.classList.add("out");
+      // 1) avval bosh sahifa splash ORTIDA chiziladi (og'ir ish), 2) so'ng ikki kadrdan keyin splash yumshoq so'nadi —
+      //    so'nish paytida asosiy oqim bo'sh bo'ladi, animatsiya uzilmaydi
       openGate();
-      if (!PUB) { try { tg.setHeaderColor(theme === "dark" ? "#0b0a0d" : "#f8f5ef"); tg.setBackgroundColor(theme === "dark" ? "#0b0a0d" : "#f8f5ef"); } catch (e) {} }
-      setTimeout(function () { el.remove(); }, 700);
+      requestAnimationFrame(function () { requestAnimationFrame(function () {
+        el.classList.add("out");
+        if (!PUB) { try { tg.setHeaderColor(theme === "dark" ? "#0b0a0d" : "#f8f5ef"); tg.setBackgroundColor(theme === "dark" ? "#0b0a0d" : "#f8f5ef"); } catch (e) {} }
+        setTimeout(function () { el.remove(); }, 700);
+      }); });
     }
-    setTimeout(function () { haptic("light"); }, 1900);
-    setTimeout(function () { notify("success"); }, 2350);
-    setTimeout(finish, 4300);
-    el.addEventListener("click", finish);
+    // animatsiya sahifa ishga tushib bo'lgach boshlanadi (boshidagi og'ir yuklanish uni «sakratmasin»)
+    window.__splashStart = function () {
+      if (started) return; started = true;
+      el.classList.add("go");
+      setTimeout(function () { haptic("light"); }, 1900);
+      setTimeout(function () { notify("success"); }, 2350);
+      setTimeout(finish, total);
+    };
+    setTimeout(function () { if (window.__splashStart) window.__splashStart(); }, 1500);   // zaxira: nima bo'lsa ham boshlanadi
+    el.addEventListener("click", function () { if (!started) window.__splashStart(); finish(); });
   })();
   ///WELCOME
   var startView = "";
@@ -167,4 +178,5 @@
     }).catch(function () {});
     try { if (HIST) history.replaceState({ v: current, o: {} }, "", "/"); else history.replaceState(null, "", "/"); histFirst = false; } catch (e) {}
   })();
+  if (window.__splashStart) requestAnimationFrame(function () { requestAnimationFrame(function () { if (window.__splashStart) window.__splashStart(); }); });
 })();
