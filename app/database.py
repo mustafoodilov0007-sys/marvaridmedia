@@ -464,6 +464,8 @@ class Database:
             self.conn.execute("ALTER TABLE movies ADD COLUMN duration INTEGER NOT NULL DEFAULT 0")
             self.conn.execute("ALTER TABLE movies ADD COLUMN age INTEGER NOT NULL DEFAULT 0")
             self.conn.execute("ALTER TABLE movies ADD COLUMN imdb TEXT NOT NULL DEFAULT ''")
+        if "extra" not in cols:      # 🎭 TMDB dan: aktyorlar, kadrlar, byudjet va kassa (JSON, kino sahifasida ko'rsatiladi)
+            self.conn.execute("ALTER TABLE movies ADD COLUMN extra TEXT NOT NULL DEFAULT ''")
         pcols = {r[1] for r in self.conn.execute("PRAGMA table_info(parts)").fetchall()}
         if "duration" not in pcols:
             self.conn.execute("ALTER TABLE parts ADD COLUMN duration INTEGER NOT NULL DEFAULT 0")
