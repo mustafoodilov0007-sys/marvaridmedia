@@ -49,6 +49,7 @@
       function f(label, node) { return h("label", "f", [label, node]); }
       // 🌐 TMDB dan avtomatik to'ldirish: asl nomi bilan qidiriladi, admin to'g'ri variantni tanlaydi, maydonlar to'ladi (saqlanmaydi)
       var tmBox = h("div", "tmbox hidden"), tmRes = h("div", "tmres");
+      var tmPick = null;           // tanlangan TMDB varianti: saqlashda aktyorlar/kadrlar server tomonda TMDB dan olinadi
       var tmQ = h("input"); tmQ.placeholder = "Asl (inglizcha) nomi: Avengers Endgame 2019";
       var tmGo = h("button", "btn primary", "Qidirish"); tmGo.type = "button";
       var tmDescChk = h("input"); tmDescChk.type = "checkbox";
@@ -65,8 +66,10 @@
         if (d.genres && d.genres.length) gen.set(d.genres);
         if (d.category && cat.value !== d.category) cat.value = d.category;
         if (d.overview && (tmDescChk.checked || !desc.value.trim())) desc.value = d.overview;
+        if (d.trailer && !turl.value.trim()) turl.value = d.trailer;          // qo'lda kiritilgan treyler almashtirilmaydi
+        var ex = d.extra || {};
         tmBox.classList.add("hidden");
-        toast("✅ To'ldirildi — tekshirib, «Saqlash» ni bosing");
+        toast("✅ To'ldirildi" + (ex.cast || ex.stills ? " (aktyor: " + (ex.cast || []).length + ", kadr: " + (ex.stills || []).length + ")" : "") + " — tekshirib, «Saqlash» ni bosing");
       }
       function tmSearch() {
         var q = tmQ.value.trim();
@@ -85,7 +88,7 @@
             it.type = "button";
             it.onclick = function () {
               tmRes.replaceChildren(h("div", "note", "Yuklanmoqda..."));
-              api("/api/admin/tmdb?kind=" + x.kind + "&id=" + x.id).then(function (dd) { if (dd.ok) tmFill(dd.data); else toast("⚠️ " + (dd.message || "Xatolik")); })
+              api("/api/admin/tmdb?kind=" + x.kind + "&id=" + x.id).then(function (dd) { if (dd.ok) { tmPick = { kind: x.kind, id: x.id }; tmFill(dd.data); } else toast("⚠️ " + (dd.message || "Xatolik")); })
                 .catch(function () { toast("⚠️ Ulanishda xatolik"); });
             };
             tmRes.appendChild(it);
@@ -104,13 +107,14 @@
         var body = { id: m.id, title: title.value, description: desc.value, premium: isPrem };
         if (!music) Object.assign(body, { category: cat.value, year: year.value, country: country.value, lang: lang.value,
           group_link: link.value, watch_url: wurl.value, trailer_url: turl.value, genres: gen.get(), quality: qual.get(), duration_min: dur.value, age: age.value, imdb: imdb.value });
+        if (tmPick && !music) body.tmdb = tmPick;
         save.disabled = true;
         api("/api/admin/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
           .then(function (r) {
             save.disabled = false;
             if (!r.ok) { toast({ title: "⚠️ Nom bo'sh bo'lmasin", year: "⚠️ Yil noto'g'ri", link: "⚠️ Havola https:// bilan boshlansin", wlink: "⚠️ Sayt linki https:// bilan boshlansin",
               imdb: "⚠️ IMDb 0 dan 10 gacha bo'lsin", duration: "⚠️ Davomiylik noto'g'ri" }[r.reason] || "⚠️ Saqlanmadi"); return; }
-            toast("✅ Saqlandi"); closeSheet(); show(current);
+            toast(r.warn === "tmdb" ? "✅ Saqlandi (aktyor va kadrlar TMDB dan olinmadi)" : "✅ Saqlandi"); closeSheet(); show(current);
           }).catch(function () { save.disabled = false; toast("⚠️ Internet xatosi"); });
       };
       del.onclick = function () {
@@ -118,7 +122,7 @@
         api("/api/admin/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: m.id }) })
           .then(function (r) { if (r.ok) { toast("🗑 O'chirildi"); closeSheet(); show(current); } else toast("⚠️ O'chirilmadi"); });
       };
-      var kids = [h("h3", null, "✏️ Tahrirlash · Kod " + m.code), music ? null : h("div", "tmwrap", [tmBtn, tmBox]), f("Nomi", title), f("Izoh", desc)];
+      var kids = [h("h3", null, "✏️ Tahrirlash · Kod " + m.code), music ? null : h("div", "tmwrap", [tmBtn, tmBox, (m.extra && (m.extra.cast || m.extra.stills)) ? h("div", "note", "🎭 Saqlangan: aktyorlar " + m.extra.cast + " · kadrlar " + m.extra.stills) : null].filter(Boolean)), f("Nomi", title), f("Izoh", desc)];
       if (!music) kids.push(h("div", "row2", [f("Turi", cat), f("Yili", year)]), h("div", "row2", [f("Davlat", country), f("Til", lang)]),
         h("div", "row2", [f("Davomiyligi (daq)", dur), f("IMDb reyting", imdb)]), f("Yosh cheklovi", age),
         f("Janrlar", gen.box), f("Sifat", qual.box), f("Serial guruh havolasi", link), f("Saytdagi link («Saytda ko'rish»)", wurl), f("Treyler (YouTube havolasi)", turl));
