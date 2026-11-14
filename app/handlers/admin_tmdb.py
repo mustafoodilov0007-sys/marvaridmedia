@@ -65,6 +65,8 @@ def preview(movie, d: dict) -> str:
             f"📅 Yil: <b>{d['year'] or '—'}</b>\n🎭 Janr: <b>{esc(names)}</b>\n"
             f"🌍 Davlat: <b>{genres.country_label(d['country']) or '—'}</b>\n⏱ Davomiylik: <b>{d['duration_min'] or '—'}</b> daq\n"
             f"🔞 Yosh: <b>{str(d['age']) + '+' if d['age'] else '—'}</b>\n⭐ IMDb: <b>{d['imdb'] or '—'}</b>\n\n"
+            f"🎭 Aktyorlar: <b>{len((d.get('extra') or {}).get('cast', []))}</b> · 🖼 Kadrlar: <b>{len((d.get('extra') or {}).get('stills', []))}</b> · "
+            f"🎞 Treyler: <b>{'bor' if d.get('trailer') else '—'}</b>\n\n"
             f"📝 {esc(truncate(d['overview'], 300)) or '—'}\n\n"
             f"<i>«{esc(truncate(movie['title'], 40))}» ga shu ma'lumotlar yoziladi (bo'sh topilganlari o'zgartirilmaydi).</i>")
 
