@@ -12,7 +12,18 @@ from tests.harness import WebServer, add_movie, cleanup, make_app
 MOVIE = {"id": 299534, "title": "Avengers: Endgame", "original_title": "Avengers: Endgame", "release_date": "2019-04-24",
          "overview": "Мстители собираются", "genres": [{"id": 12}, {"id": 878}, {"id": 28}], "runtime": 181, "original_language": "en",
          "production_countries": [{"iso_3166_1": "US"}], "poster_path": "/p.jpg",
-         "external_ids": {"imdb_id": "tt4154796"},
+         "external_ids": {"imdb_id": "tt4154796"}, "budget": 356000000, "revenue": 2797800564,
+         "credits": {"cast": [{"name": "Robert Downey Jr.", "character": "Tony Stark", "profile_path": "/rdj123.jpg"},
+                              {"name": "Bez Rasm", "character": "", "profile_path": None},
+                              {"name": "Xavfli", "character": "X", "profile_path": "https://evil.example/a.jpg"},
+                              {"name": "  ", "character": "bo'sh ism", "profile_path": "/x12345.jpg"}]},
+         "images": {"backdrops": [{"file_path": "/withtext1.jpg", "iso_639_1": "en", "vote_average": 9},
+                                  {"file_path": "/notext12.jpg", "iso_639_1": None, "vote_average": 5},
+                                  {"file_path": "http://evil.example/b.jpg", "iso_639_1": None, "vote_average": 10}]},
+         "videos": {"results": [{"site": "Vimeo", "type": "Trailer", "key": "vimeo1234"},
+                                {"site": "YouTube", "type": "Teaser", "key": "teaser12345", "official": True},
+                                {"site": "YouTube", "type": "Trailer", "key": "enOld123456", "iso_639_1": "en", "official": True, "published_at": "2019-01-01"},
+                                {"site": "YouTube", "type": "Trailer", "key": "ruTrailer12", "iso_639_1": "ru", "official": True, "published_at": "2019-02-01"}]},
          "release_dates": {"results": [{"iso_3166_1": "DE", "release_dates": [{"certification": "12"}]},
                                        {"iso_3166_1": "US", "release_dates": [{"certification": ""}, {"certification": "PG-13"}]}]}}
 TV = {"id": 1396, "name": "Breaking Bad", "first_air_date": "2008-01-20", "overview": "", "genres": [{"id": 18}, {"id": 80}],
@@ -118,6 +129,71 @@ class TmdbCase(unittest.TestCase):
             self.assertEqual(d["data"]["imdb"], "8.4")
             st, d = web.json("/api/admin/tmdb?kind=movie&id=424242", uid=1)       # TMDB 404
             self.assertEqual(d["reason"], "tmdb")
+        finally:
+            web.close()
+
+    def test_extra_cast_stills_budget_trailer(self):
+        d = self.t().details("movie", 299534)
+        ex = d["extra"]
+        self.assertEqual([c["n"] for c in ex["cast"]], ["Robert Downey Jr.", "Bez Rasm", "Xavfli"])      # bo'sh ism tashlandi
+        self.assertEqual(ex["cast"][0], {"n": "Robert Downey Jr.", "r": "Tony Stark", "p": "/rdj123.jpg"})
+        self.assertEqual(ex["cast"][1]["p"], "")                                                          # rasmsiz — bo'sh
+        self.assertEqual(ex["cast"][2]["p"], "")                                                          # begona manzil o'tmaydi
+        self.assertEqual(ex["stills"], ["/notext12.jpg", "/withtext1.jpg"])                               # matnsiz oldinda, begona manzil yo'q
+        self.assertEqual((ex["budget"], ex["revenue"]), (356000000, 2797800564))
+        self.assertEqual(d["trailer"], "https://www.youtube.com/watch?v=ruTrailer12")                    # YouTube + Trailer + ruscha afzal
+        tv = self.t().details("tv", 1396)
+        self.assertEqual(tv["extra"], {})                                                                 # ma'lumot yo'q — bo'sh
+        self.assertEqual(tv["trailer"], "")
+
+    def test_apply_saves_extra_and_keeps_manual_trailer(self):
+        import json
+        from app import tmdb
+        data = self.t().details("movie", 299534)
+        a = add_movie(self.app, 31, "Bir", desc="")
+        ch = tmdb.apply_fields(self.app.db, a, data)
+        self.assertIn("aktyorlar/kadrlar", ch)
+        self.assertIn("treyler", ch)
+        m = self.app.db.get_movie(a)
+        self.assertEqual(json.loads(m["extra"])["cast"][0]["n"], "Robert Downey Jr.")
+        self.assertEqual(m["trailer_url"], "https://www.youtube.com/watch?v=ruTrailer12")
+        b = add_movie(self.app, 32, "Ikki", desc="")
+        self.app.db.update_movie(b, trailer_url="https://youtu.be/manual12345")
+        self.assertNotIn("treyler", tmdb.apply_fields(self.app.db, b, data))
+        self.assertEqual(self.app.db.get_movie(b)["trailer_url"], "https://youtu.be/manual12345")
+
+    def test_extra_api_public_and_sanitized(self):
+        mid = add_movie(self.app, 33, "Uch", desc="")
+        web = WebServer(self.app)
+        try:
+            self.assertEqual(web.json(f"/pub/extra?id={mid}")[1], {"ok": True, "cast": [], "stills": [], "budget": 0, "revenue": 0})
+            # admin saqlash: TMDB tanlovi yuboriladi — aktyor/kadr serverda TMDB dan olinadi
+            st, r = web.post("/api/admin/save", {"id": mid, "tmdb": {"kind": "movie", "id": 299534}}, uid=1)
+            self.assertTrue(r["ok"], r)
+            st, d = web.json(f"/pub/extra?id={mid}")                      # mehmon ham ko'ra oladi
+            self.assertEqual(d["cast"][0]["n"], "Robert Downey Jr.")
+            self.assertEqual(d["stills"], ["/notext12.jpg", "/withtext1.jpg"])
+            self.assertEqual(d["revenue"], 2797800564)
+            # bazadagi ma'lumotga begona manzil tushib qolgan bo'lsa ham javobga chiqmaydi
+            self.app.db.update_movie(mid, extra=json.dumps({"cast": [{"n": "Z", "r": "r", "p": "https://evil.example/p.jpg"}],
+                                                            "stills": ["https://evil.example/s.jpg", "/ok12345.jpg"], "budget": "x"}))
+            st, d = web.json(f"/pub/extra?id={mid}")
+            self.assertEqual((d["cast"][0]["p"], d["stills"], d["budget"]), ("", ["/ok12345.jpg"], 0))
+            self.assertEqual(web.json("/pub/extra?id=999999")[1]["reason"], "not_found")
+            self.assertEqual(web.json("/pub/extra?id=abc")[1]["reason"], "not_found")
+        finally:
+            web.close()
+
+    def test_save_with_tmdb_pick_requires_admin(self):
+        mid = add_movie(self.app, 34, "To'rt", desc="")
+        web = WebServer(self.app)
+        try:
+            st, r = web.post("/api/admin/save", {"id": mid, "tmdb": {"kind": "movie", "id": 299534}}, uid=5)
+            self.assertEqual(r["reason"], "forbidden")
+            st, d = web.json(f"/pub/extra?id={mid}")
+            self.assertEqual(d["cast"], [])
+            st, r = web.post("/api/admin/save", {"id": mid, "tmdb": {"kind": "movie", "id": 424242}}, uid=1)     # TMDB 404
+            self.assertTrue(r["ok"] and r.get("warn") == "tmdb")                                                    # qolgan saqlanadi, ogohlantirish
         finally:
             web.close()
 
