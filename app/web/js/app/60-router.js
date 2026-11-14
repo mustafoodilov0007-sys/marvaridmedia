@@ -1,4 +1,4 @@
-// ───── 🧭 brauzer tarixi (oddiy brauzer / o'rnatilgan ilova): «orqaga» tugmasi oynani yopadi, URL kino manzili bo'ladi ─────
+  // ───── 🧭 brauzer tarixi (oddiy brauzer / o'rnatilgan ilova): «orqaga» tugmasi oynani yopadi, URL kino manzili bo'ladi ─────
   // Telegram ichida o'zining «Orqaga» tugmasi bor — u yerda tarix yozuvlari qo'shilmaydi.
   var HIST = PUB, histFirst = true, skipPop = 0;
   var VIEW_PATH = { home: "/", movie: "/kinolar", serial: "/seriallar", cartoon: "/multfilmlar", video: "/?v=catalog" };
@@ -244,3 +244,4 @@
       d.items.forEach(function (it) { grid.appendChild(card(it)); });
     }).catch(function () { if (my === reqId) renderError(view, "network"); });
   }
+
