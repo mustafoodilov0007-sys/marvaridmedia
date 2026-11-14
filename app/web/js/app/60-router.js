@@ -1,4 +1,4 @@
-  // ───── 🧭 brauzer tarixi (oddiy brauzer / o'rnatilgan ilova): «orqaga» tugmasi oynani yopadi, URL kino manzili bo'ladi ─────
+// ───── 🧭 brauzer tarixi (oddiy brauzer / o'rnatilgan ilova): «orqaga» tugmasi oynani yopadi, URL kino manzili bo'ladi ─────
   // Telegram ichida o'zining «Orqaga» tugmasi bor — u yerda tarix yozuvlari qo'shilmaydi.
   var HIST = PUB, histFirst = true, skipPop = 0;
   var VIEW_PATH = { home: "/", movie: "/kinolar", serial: "/seriallar", cartoon: "/multfilmlar", video: "/?v=catalog" };
@@ -144,7 +144,7 @@
   }
 
   // filtrlar: janr (chiplar) + davlat, yil, til (tanlash maydonlari)
-  var FILTERS = [["country", "Davlat"], ["year", "Yil"], ["lang", "Til"]];
+  var FILTERS = [["genre", "Janr"], ["country", "Davlat"], ["year", "Yil"], ["lang", "Til"]];
   function renderCategory(view, cat, sort, my, f) {
     f = f || {};
     var any = !!(f.genre || f.country || f.year || f.lang);
@@ -164,28 +164,16 @@
       seg.appendChild(b);
     });
     page.appendChild(seg);
-    var chipsRow = h("div", "gchips hidden");
     var selRow = h("div", "fsel hidden");
-    page.appendChild(chipsRow);
     page.appendChild(selRow);
     function fillFilters(genresList, filters) {
-      if (genresList && genresList.length) {
-        var all = h("button", "gchip" + (f.genre ? "" : " on"), "Barcha janrlar");
-        all.onclick = function () { if (f.genre) go({ genre: "" }); };
-        chipsRow.replaceChildren(all);
-        genresList.forEach(function (g) {
-          var c = h("button", "gchip" + (g.key === f.genre ? " on" : ""), [gname(g), h("i", null, String(g.n))]);
-          c.onclick = function () { go({ genre: g.key === f.genre ? "" : g.key }); };
-          chipsRow.appendChild(c);
-        });
-        chipsRow.classList.remove("hidden");
-        var on = chipsRow.querySelector(".on");
-        if (on && f.genre) setTimeout(function () { on.scrollIntoView({ inline: "center", block: "nearest" }); }, 0);
-      }
+      // 🎭 janrlar ham Davlat / Yil / Til kabi ochiladigan ro'yxat bo'lib chiqadi (qator bo'lib surilmaydi)
+      var fx = Object.assign({}, filters || {});
+      if (genresList && genresList.length) fx.genre = genresList.map(function (g) { return { key: g.key, label: gname(g), n: g.n }; });
       var shown = 0;
       selRow.replaceChildren();
       FILTERS.forEach(function (fl) {
-        var opts = (filters && filters[fl[0]]) || [];
+        var opts = fx[fl[0]] || [];
         if (!opts.length) return;
         shown++;
         selRow.appendChild(filterDrop(fl, opts, f[fl[0]] || "", function (k) { var c = {}; c[fl[0]] = k; go(c); }));
@@ -256,4 +244,3 @@
       d.items.forEach(function (it) { grid.appendChild(card(it)); });
     }).catch(function () { if (my === reqId) renderError(view, "network"); });
   }
-
