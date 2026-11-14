@@ -731,6 +731,30 @@ def api_searched(app: App, user: dict, body: dict) -> dict:
     return {"ok": True}
 
 
+def api_extra(app: App, user: dict, qs: dict) -> dict:
+    """🎭 Kino sahifasi: aktyorlar, kadrlar, byudjet va kassa (TMDB dan saqlangan). Bo'sh bo'lsa — bo'sh ro'yxatlar."""
+    from . import tmdb
+    m = _comment_movie(app, qs.get("id"))
+    if not m:
+        return {"ok": False, "reason": "not_found"}
+    try:
+        ex = json.loads((m["extra"] if "extra" in m.keys() else "") or "{}")
+    except ValueError:
+        ex = {}
+    if not isinstance(ex, dict):
+        ex = {}
+    cast = [{"n": str(c.get("n", ""))[:80], "r": str(c.get("r", ""))[:80], "p": tmdb.img_path(c.get("p"))}
+            for c in (ex.get("cast") or [])[:tmdb.MAX_CAST] if isinstance(c, dict) and c.get("n")]
+    stills = [x for x in (ex.get("stills") or [])[:tmdb.MAX_STILLS] if tmdb.img_path(x)]
+
+    def num(k):
+        try:
+            return max(0, int(ex.get(k) or 0))
+        except (TypeError, ValueError):
+            return 0
+    return {"ok": True, "cast": cast, "stills": stills, "budget": num("budget"), "revenue": num("revenue")}
+
+
 def api_similar(app: App, user: dict, qs: dict) -> dict:
     try:
         movie_id = int(qs.get("id", "0"))
@@ -1059,6 +1083,14 @@ def _admin_only(app: App, user: dict) -> bool:
     return bool(user.get("id")) and app.is_admin(user["id"])
 
 
+def _extra_counts(m) -> dict:
+    try:
+        ex = json.loads((m["extra"] if "extra" in m.keys() else "") or "{}")
+        return {"cast": len(ex.get("cast") or []), "stills": len(ex.get("stills") or [])}
+    except (ValueError, AttributeError, TypeError):
+        return {"cast": 0, "stills": 0}
+
+
 def api_admin_movie(app: App, user: dict, qs: dict) -> dict:
     """Tahrirlash oynasi uchun kinoning to'liq ma'lumoti va tanlov ro'yxatlari."""
     if not _admin_only(app, user):
@@ -1077,6 +1109,7 @@ def api_admin_movie(app: App, user: dict, qs: dict) -> dict:
             "country": m["country"], "lang": m["lang"], "quality": genres.quality_parse(m["quality"]),
             "premium": bool(m["is_premium"]), "group_link": m["group_link"] or "", "watch_url": m["watch_url"] or "", "trailer_url": m["trailer_url"] or "",
             "duration_min": round((m["duration"] or 0) / 60), "age": m["age"] or 0, "imdb": m["imdb"] or "",
+            "extra": _extra_counts(m),
         },
         "meta": {
             "ages": [6, 12, 16, 18],
@@ -1188,10 +1221,21 @@ def api_admin_save(app: App, user: dict, body: dict) -> dict:
             f["group_link"] = link
     if "premium" in body:
         f["is_premium"] = bool(body["premium"])
+    warn = ""
+    pick = body.get("tmdb")
+    if m["category"] != "music" and isinstance(pick, dict):
+        # 🎭 «TMDB dan to'ldirish» tanlangan bo'lsa: aktyorlar, kadrlar, byudjet/kassa TMDB dan qayta olinadi (mijoz yuborganiga ishonilmaydi)
+        from . import tmdb
+        try:
+            td = tmdb.get(app).details(str(pick.get("kind", "")), int(pick.get("id")))
+            if td.get("extra"):
+                f["extra"] = json.dumps(td["extra"], ensure_ascii=False, separators=(",", ":"))
+        except (tmdb.TmdbError, TypeError, ValueError):
+            warn = "tmdb"
     db.update_movie(m["id"], **f)
     db.__dict__.pop("_memo", None)  # filtr sanoqlari keshini yangilaymiz
     log.info("Admin %s sayt orqali #%s kinoni tahrirladi: %s", user["id"], m["id"], ", ".join(f))
-    return {"ok": True}
+    return {"ok": True, "warn": warn} if warn else {"ok": True}
 
 
 def api_admin_delete(app: App, user: dict, body: dict) -> dict:
@@ -2119,6 +2163,8 @@ def make_handler(app: App):
                         return self._json(api_lists(app, user, qs))
                     if path == "/api/list":
                         return self._json(api_list(app, user, qs))
+                    if path == "/api/extra":
+                        return self._json(api_extra(app, user, qs))
                     if path == "/api/similar":
                         return self._json(api_similar(app, user, qs))
                     if path == "/api/collections":
