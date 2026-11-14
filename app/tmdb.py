@@ -1,4 +1,5 @@
-"""🌐 TMDB (va ixtiyoriy OMDb) dan kino ma'lumotini topish: yil, janr, davlat, davomiylik, yosh cheklovi, IMDb reyting.
+"""🌐 TMDB (va ixtiyoriy OMDb) dan kino ma'lumotini topish: yil, janr, davlat, davomiylik, yosh cheklovi, IMDb reyting,
+aktyorlar, kadrlar, byudjet/kassa va YouTube treyleri.
 
 Kinolar o'zbekcha nom bilan saqlanadi, shuning uchun qidiruv asl (inglizcha) nom bilan qilinadi va admin to'g'ri variantni tanlaydi —
 ma'lumot hech qachon o'zi, so'rovsiz o'zgarmaydi.
@@ -8,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -48,6 +50,52 @@ AGE_MAP = {"G": 0, "PG": 6, "PG-13": 12, "R": 16, "NC-17": 18,
 
 class TmdbError(Exception):
     pass
+
+
+_IMG_PATH = re.compile(r"^/[A-Za-z0-9_-]{5,60}\.(?:jpg|jpeg|png|webp)$")
+_YT_KEY = re.compile(r"^[A-Za-z0-9_-]{6,20}$")
+MAX_CAST, MAX_STILLS = 40, 16
+
+
+def img_path(p) -> str:
+    """TMDB rasm yo'li («/abc.jpg») faqat shu ko'rinishda qabul qilinadi — boshqa manzil saqlanmaydi."""
+    p = p if isinstance(p, str) else ""
+    return p if _IMG_PATH.match(p) else ""
+
+
+def build_extra(d: dict, kind: str) -> dict:
+    """Aktyorlar (rasm + rol), kadrlar, byudjet va kassa. Bo'sh bo'lsa — {}."""
+    cast = []
+    for c in ((d.get("credits") or {}).get("cast") or [])[:MAX_CAST]:
+        name = (c.get("name") or "").strip()
+        if name:
+            cast.append({"n": name[:80], "r": (c.get("character") or "").strip()[:80], "p": img_path(c.get("profile_path"))})
+    backs = [b for b in ((d.get("images") or {}).get("backdrops") or []) if img_path(b.get("file_path"))]
+    # matnsiz (til belgilanmagan) kadrlar oldinga, keyin eng yuqori baholilari
+    backs.sort(key=lambda b: (b.get("iso_639_1") is not None, -(b.get("vote_average") or 0)))
+    stills = [b["file_path"] for b in backs[:MAX_STILLS]]
+    out: dict = {}
+    if cast:
+        out["cast"] = cast
+    if stills:
+        out["stills"] = stills
+    if kind == "movie":
+        for k in ("budget", "revenue"):
+            v = int(d.get(k) or 0)
+            if v > 0:
+                out[k] = v
+    return out
+
+
+def pick_trailer(d: dict) -> str:
+    """Eng yaxshi YouTube treyleri (rasmiy, ruscha/inglizcha, yangiroq) — to'liq havola yoki ''."""
+    vids = [v for v in ((d.get("videos") or {}).get("results") or [])
+            if v.get("site") == "YouTube" and v.get("type") == "Trailer" and _YT_KEY.match(v.get("key") or "")]
+    if not vids:
+        return ""
+    vids.sort(key=lambda v: v.get("published_at") or "", reverse=True)
+    vids.sort(key=lambda v: ({"ru": 0, "en": 1}.get(v.get("iso_639_1"), 2), not v.get("official")))
+    return "https://www.youtube.com/watch?v=" + vids[0]["key"]
 
 
 class Tmdb:
@@ -110,8 +158,9 @@ class Tmdb:
     def details(self, kind: str, tid: int) -> dict:
         if kind not in ("movie", "tv"):
             raise TmdbError("noto'g'ri tur")
-        extra = "external_ids,release_dates" if kind == "movie" else "external_ids,content_ratings"
-        d = self._tmdb(f"/{kind}/{int(tid)}", language=self.lang, append_to_response=extra)
+        extra = ("external_ids,release_dates" if kind == "movie" else "external_ids,content_ratings") + ",credits,images,videos"
+        d = self._tmdb(f"/{kind}/{int(tid)}", language=self.lang, append_to_response=extra,
+                       include_image_language="en,null", include_video_language="ru,en,null")
         overview = d.get("overview") or ""
         if not overview and self.lang != "en-US":    # tarjima yo'q — inglizcha tavsif
             overview = self._tmdb(f"/{kind}/{int(tid)}", language="en-US").get("overview") or ""
@@ -140,7 +189,8 @@ class Tmdb:
                 "original": d.get("original_title") or d.get("original_name") or "", "year": int(date[:4]) if date[:4].isdigit() else 0,
                 "genres": genres_out, "country": country, "duration_min": int(runtime or 0), "age": self._age(d, kind),
                 "imdb": self.imdb_rating(imdb_id), "imdb_id": imdb_id, "overview": overview.strip(), "category": category,
-                "poster": (IMG + "w342" + d["poster_path"]) if d.get("poster_path") else ""}
+                "poster": (IMG + "w342" + d["poster_path"]) if d.get("poster_path") else "",
+                "extra": build_extra(d, kind), "trailer": pick_trailer(d)}
 
     @staticmethod
     def _age(d: dict, kind: str) -> int:
@@ -208,6 +258,11 @@ def apply_fields(db, movie_id: int, data: dict, with_description: bool = False) 
         f["age"] = int(data["age"]); changed.append("yosh")
     if data.get("imdb"):
         f["imdb"] = str(data["imdb"]); changed.append("IMDb")
+    ex = data.get("extra") or {}
+    if ex.get("cast") or ex.get("stills") or ex.get("budget") or ex.get("revenue"):
+        f["extra"] = json.dumps(ex, ensure_ascii=False, separators=(",", ":")); changed.append("aktyorlar/kadrlar")
+    if data.get("trailer") and not (m["trailer_url"] or "").strip():      # qo'lda kiritilgan treyler o'zgartirilmaydi
+        f["trailer_url"] = data["trailer"]; changed.append("treyler")
     if data.get("overview") and (with_description or not (m["description"] or "").strip()):
         f["description"] = data["overview"][:3000]; f["desc_html"] = ""; changed.append("izoh")
     if f:
