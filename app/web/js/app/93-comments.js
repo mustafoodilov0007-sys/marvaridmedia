@@ -338,6 +338,7 @@
       drow("Ko'rilgan", it.views > 0 ? fmt(it.views) : ""), drow("Qo'shilgan", it.added ? fmtDate(it.added) : "")].filter(Boolean));
     var hasMain = useMain(it);
     s.classList.toggle("hasmain", hasMain);
+    var xtra = it.cat === "music" ? null : h("div", "xtra");          // 🎭 aktyorlar, kadrlar (TMDB dan saqlangan bo'lsa)
     var similar = it.cat === "music" ? null : h("div", "similar");
     var also = it.cat === "music" ? null : h("div", "similar");
     s.setAttribute("aria-label", it.title);
@@ -361,7 +362,7 @@
       : it.cat === "music" ? "«Tinglash» — shu yerning o'zida eshitasiz. Yonidagi tugma qo'shiqni Telegram botga yuboradi."
       : PUB ? "«Kinoni ko'rish» bosilsa, Telegram'da botimiz ochiladi va kinoni yuboradi."
       : "«Kinoni ko'rish» bosilsa, bot kinoni chatga yuboradi.");
-    var tabList = [{ label: "Umumiy", nodes: [desc, it.glink ? glinkRow(it) : null, it.cat === "music" ? null : rateRow(it), noteNode, similar, also] }];
+    var tabList = [{ label: "Umumiy", nodes: [desc, it.glink ? glinkRow(it) : null, it.cat === "music" ? null : rateRow(it), noteNode, xtra, similar, also] }];
     if (it.cat !== "music") tabList.push({ label: "Izohlar", lazy: function () { return [commentsSection(it)]; } });   // izohlar yorliq ochilganda quriladi (sahifa ochilishi yengil)
     if (it.trailer || it.turl) {
       var trBtn = h("button", "strailer", [posterNode(it, 720), h("span", "play", [icon("play")]), h("b", null, "Treylerni ko'rish")]);
@@ -418,6 +419,7 @@
           similar.replaceChildren(h("div", "sec-head", [h("h2", null, "🎭 O'xshash kinolar")]), list);
         }).catch(function () {});
         alsoRail(also, it);
+        if (xtra) loadExtra(it, xtra, details, function () { return myS === sheetReq; });
       }, 480);
     }
     if (heroVid) { var pv = heroVid.play(); if (pv && pv.catch) pv.catch(function () {}); }
