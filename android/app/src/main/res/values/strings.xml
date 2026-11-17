@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Marvarid Media</string>
+    <string name="no_telegram">Telegram ilovasi topilmadi. Uni Play Market\'dan o\'rnating.</string>
+    <string name="no_app">Havolani ochadigan ilova topilmadi.</string>
+</resources>

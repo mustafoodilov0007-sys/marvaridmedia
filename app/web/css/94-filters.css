@@ -1,0 +1,49 @@
+/* 🎛 Filtrlar (Davlat / Yil / Til): tugma + chiroyli ochiluvchi oyna. Telefonda pastdan chiqadi, keng ekranda tugma tagida. */
+.fdbtn { padding: 0 34px 0 13px; gap: 6px; cursor: pointer; max-width: 100%; transition: background .2s, border-color .2s, transform .12s; }
+.fdbtn::after { display: none; }
+.fdbtn > svg { position: absolute; right: 11px; top: 50%; width: 15px; height: 15px; margin-top: -7.5px; transform: rotate(90deg); opacity: .65; transition: transform .25s; }
+.fdbtn[aria-expanded="true"] > svg { transform: rotate(-90deg); }
+.fdbtn:active { transform: scale(.97); }
+.fdbtn .fdl { opacity: .85; font-weight: 600; white-space: nowrap; }
+.fdbtn b { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32vw; }
+.fdbtn.on .fdl { opacity: .7; }
+@media (hover: hover) { .fdbtn:not(.on):hover { border-color: color-mix(in srgb, var(--gold) 55%, var(--line)); } }
+
+.fdveil { position: fixed; inset: 0; z-index: 70; background: rgba(0, 0, 0, .5); opacity: 0; transition: opacity .2s; }
+.fdveil.in { opacity: 1; }
+.fdpanel { position: fixed; z-index: 71; left: 0; right: 0; bottom: 0; max-height: 72vh; display: flex; flex-direction: column; box-sizing: border-box;
+  padding: 8px 12px calc(14px + env(safe-area-inset-bottom)); background: var(--bg-soft, var(--surface)); border: 1px solid var(--line); border-bottom: 0;
+  border-radius: 24px 24px 0 0; box-shadow: 0 -16px 48px rgba(0, 0, 0, .55); transform: translateY(100%); transition: transform .32s cubic-bezier(.2, .8, .2, 1); }
+.fdpanel.in { transform: none; }
+.fdpanel.pop { right: auto; bottom: auto; padding: 8px 8px 8px; border-bottom: 1px solid var(--line); border-radius: 18px; opacity: 0; transform: translateY(-6px) scale(.97); transform-origin: 20% 0;
+  transition: opacity .18s, transform .22s cubic-bezier(.2, .8, .2, 1); box-shadow: 0 24px 64px rgba(0, 0, 0, .6); }
+.fdpanel.pop.in { opacity: 1; transform: none; }
+.fdgrip { width: 40px; height: 4px; border-radius: 4px; background: var(--line); margin: 2px auto 8px; flex: none; }
+.fdpanel.pop .fdgrip { display: none; }
+.fdhead { display: flex; align-items: center; justify-content: space-between; padding: 2px 6px 8px; flex: none; }
+.fdhead b { font-size: 16px; font-weight: 800; }
+.fdpanel.pop .fdhead { padding-top: 6px; }
+.fdx { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); }
+.fdx svg { width: 16px; height: 16px; }
+.fdq { flex: none; height: 42px; margin: 0 4px 8px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: 14.5px; outline: 0; }
+.fdq:focus { border-color: var(--gold); }
+.fdlist { overflow-y: auto; overscroll-behavior: contain; padding: 0 2px 2px; scrollbar-width: thin; }
+.fdo { width: 100%; min-height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-radius: 12px; text-align: left; font-size: 15px; font-weight: 600; color: var(--text);
+  transition: background .15s; }
+.fdo .fdn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fdo i { font-style: normal; font-size: 12.5px; font-weight: 700; color: var(--muted); background: var(--surface-2); padding: 3px 9px; border-radius: 999px; }
+.fdo svg { width: 18px; height: 18px; color: var(--gold); flex: none; stroke-width: 2.6; }
+.fdo.on { background: color-mix(in srgb, var(--gold) 14%, transparent); color: var(--gold); font-weight: 800; }
+.fdo:active { background: var(--surface-2); }
+@media (hover: hover) { .fdo:hover { background: var(--surface-2); } .fdo.on:hover { background: color-mix(in srgb, var(--gold) 20%, transparent); } }
+.fdempty { padding: 22px; text-align: center; color: var(--muted); font-size: 14px; }
+/* yillar: katakchalar (4 ustun) */
+.fdpanel.years .fdlist { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.fdpanel.years .fdo:first-child { grid-column: 1 / -1; }
+.fdpanel.years .fdo { flex-direction: column; justify-content: center; gap: 2px; min-height: 52px; padding: 6px 4px; text-align: center; border: 1px solid var(--line); background: var(--surface); }
+.fdpanel.years .fdo:first-child { flex-direction: row; min-height: 44px; }
+.fdpanel.years .fdo .fdn { flex: none; font-weight: 800; }
+.fdpanel.years .fdo i { background: none; padding: 0; font-size: 11px; }
+.fdpanel.years .fdo svg { display: none; }
+.fdpanel.years .fdo.on { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 16%, var(--surface)); }
+.fdpanel.years .fdo.on i { color: var(--gold); }

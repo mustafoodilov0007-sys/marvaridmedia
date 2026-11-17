@@ -1,0 +1,1223 @@
+"""Foydalanuvchi bo'limi: start, qidiruv, raqamli ro'yxatlar va kinolarni yuborish."""
+
+from __future__ import annotations
+
+import logging
+import math
+import re
+import urllib.parse
+from typing import List, Optional
+
+import random
+
+from .. import genres
+from ..core import Ctx, router
+from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, nav_row, number_rows, user_menu
+from ..subscription import all_joined, channel_statuses, gate_view, needs_gate
+from ..telegram import BadRequest, TelegramError
+from ..texts import B, HELP_TEXT, cat_icon, cat_name, title_icon
+from ..utils import (short_desc_block, esc, fmt_datetime, fmt_num, fuzzy_match, normalize, now, phonetic, render,
+                     truncate, visible_len)
+
+log = logging.getLogger("user")
+
+PER_PAGE = 10        # ro'yxatda bir sahifadagi kinolar soni
+MAX_RESULTS = 100    # qidiruvdagi eng ko'p natija
+LIST_LIMIT = 50      # Top / Yangi ro'yxatlari uzunligi
+CODE_RE = re.compile(r"#?\s*(\d{1,9})")
+MUSIC_RE = re.compile(r"m(\d{1,9})")  # musiqa havolasi: ?start=m3
+REF_RE = re.compile(r"r(\d{1,12})")   # taklif havolasi: ?start=r123456
+REF_DAYS = 1       # har bir taklif qilingan do'st uchun Premium kun
+REF_MILESTONES = {3: 3, 10: 10, 25: 30, 50: 60}     # nechta do'st -> qo'shimcha Premium kun (bosqich bonusi)
+REF_MAX = 60       # bitta odam ko'pi bilan nechta do'st uchun mukofot oladi
+
+_reported_parts = set()
+
+
+# ═════════════════════════ start / yordam ═════════════════════════
+
+def send_welcome(ctx: Ctx) -> None:
+    """/start: chiroyli salom. Admin «/startmedia» orqali rasm/GIF/video qo'ygan bo'lsa — o'sha bilan birga (bitta xabar)."""
+    app = ctx.app
+    c = ctx.db.count_by_category()
+    text = render(app.setting("start_text"), name=esc(ctx.user.get("first_name") or "do'stim"),
+                  brand=esc(app.brand), bot=app.bot_username,
+                  movies=fmt_num(c["movie"]), serials=fmt_num(c["serial"]), cartoons=fmt_num(c["cartoon"]), music=fmt_num(c["music"]))
+    kb = user_menu(ctx.is_admin, app.setting_bool("premium_enabled"))
+    kind, _, file_id = (app.setting("start_media") or "").partition(":")
+    method = {"photo": "sendPhoto", "animation": "sendAnimation", "video": "sendVideo"}.get(kind)
+    if method and file_id and len(text) <= 1024:
+        try:
+            ctx.bot.call(method, {"chat_id": ctx.chat_id, kind: file_id, "caption": ctx.tr(text), "parse_mode": "HTML", "reply_markup": ctx.tr_kb(kb)})
+            return
+        except TelegramError as exc:           # fayl o'chgan/yaroqsiz — oddiy matn bilan davom etamiz
+            log.warning("Start media yuborilmadi: %s", exc)
+    ctx.send(text, kb)
+
+
+SPECIAL_RE = re.compile(r"sorov|premium|promo|taklif|donat|r\d{1,12}")  # /start dagi maxsus havolalar
+
+
+def run_special_payload(ctx: Ctx, payload: str) -> bool:
+    """/start ga berilgan maxsus havolani bajaradi (so'rov, premium, promokod, taklif, donat). Bajarilsa True."""
+    if payload.startswith("wl_"):  # saytga kirish: «Telegram orqali kirish» tugmasidan
+        from .weblogin import ask_confirm
+        ask_confirm(ctx, payload[3:])
+        return True
+    if payload == "sorov":  # saytdagi «So'rash» tugmasidan
+        from .contact import REQUEST_PROMPT, CONTACT_TTL
+        ctx.set_state("req", ttl=CONTACT_TTL)
+        ctx.send(REQUEST_PROMPT, cancel_kb())
+        return True
+    if payload == "premium":
+        from .payments import send_premium_menu
+        send_premium_menu(ctx)
+        return True
+    if payload == "promo":
+        from .promo import cmd_promo
+        ctx.args = ""
+        cmd_promo(ctx)
+        return True
+    if payload == "taklif":
+        send_invite(ctx)
+        return True
+    if payload == "donat":  # saytdagi «Qo'llab-quvvatlash» (Stars) tugmasidan
+        from .payments import btn_donate
+        btn_donate(ctx)
+        return True
+    return False
+
+
+def ref_next(n: int):
+    """Keyingi bosqich: (nechta do'st, bonus kun) yoki None."""
+    for target in sorted(REF_MILESTONES):
+        if n < target:
+            return target, REF_MILESTONES[target]
+    return None
+
+
+def apply_referral(ctx: Ctx, payload: str) -> None:
+    """r<ID> havolasi: yangi (1 soat ichida qo'shilgan) foydalanuvchi bo'lsa — ikkalasiga bonus."""
+    ref = REF_RE.fullmatch(payload or "")
+    if not ref:
+        return
+    user = ctx.db.get_user(ctx.user_id)
+    if user is None or now() - user["joined_at"] < 3600:
+        _reward_referrer(ctx, int(ref.group(1)))
+
+
+@router.command("start")
+def cmd_start(ctx: Ctx) -> None:
+    payload = ctx.args.strip()
+    if re.fullmatch(r"m?\d{1,9}c", payload):   # kanal postidagi havola (oxiridagi «c» — tahlil belgisi)
+        payload = payload[:-1]
+    if run_special_payload(ctx, payload):
+        return
+    code = (CODE_RE.fullmatch(payload) or MUSIC_RE.fullmatch(payload)) if payload else None
+    user = ctx.db.get_user(ctx.user_id)
+    is_new = user is None or now() - user["joined_at"] < 15
+    apply_referral(ctx, payload)
+    if not code or is_new:
+        send_welcome(ctx)
+    from .trial import maybe_gift
+    maybe_gift(ctx)                      # sinov Premium: hali olmagan har bir foydalanuvchiga (eski ham) — bir marta
+    if is_new:
+        from .tour import start_tour
+        if ctx.db.take_tour(ctx.user_id):
+            start_tour(ctx)
+    if code:
+        handle_query(ctx, payload)
+
+
+def _reward_referrer(ctx: Ctx, ref_uid: int) -> None:
+    db = ctx.db
+    if not db.set_referrer(ctx.user_id, ref_uid):
+        return
+    n = db.referral_count(ref_uid)
+    if n > REF_MAX:
+        return
+    db.grant_premium(ctx.user_id, REF_DAYS)  # taklif qilingan do'stga ham sovg'a
+    until = db.grant_premium(ref_uid, REF_DAYS)
+    try:
+        ctx.bot.send_message(ctx.user_id, f"🎁 Do'stingiz taklifi bilan kirdingiz — sizga ham <b>+{REF_DAYS} kun 💎 Premium</b> sovg'a!")
+    except Exception:
+        pass
+    name = esc(ctx.user.get("first_name") or "Do'stingiz")
+    bonus = REF_MILESTONES.get(n, 0)
+    if bonus:                                            # 🏆 bosqich bonusi: 3, 10, 25, 50-do'st
+        until = db.grant_premium(ref_uid, bonus)
+    nxt = ref_next(n)
+    try:
+        ctx.bot.send_message(ref_uid, f"🎉 <b>{name}</b> sizning havolangiz orqali botga qo'shildi!\n\n"
+                                      f"💎 Sizga <b>+{REF_DAYS} kun Premium</b> berildi.\n"
+                                      + (f"🏆 <b>{n} ta do'st bosqichi!</b> Qo'shimcha <b>+{bonus} kun Premium</b> sovg'a.\n" if bonus else "")
+                                      + f"👥 Jami taklif qilganlar: <b>{n}</b>\n"
+                                      + (f"🎯 Keyingi bonus: {nxt[0]} ta do'st → <b>+{nxt[1]} kun</b> (yana {nxt[0] - n} ta)\n" if nxt else "")
+                                      + f"⏳ Premium: <b>{fmt_datetime(until)}</b> gacha")
+    except Exception:
+        log.info("Referal xabari %s ga yetmadi", ref_uid)
+
+
+@router.command("taklif", gate=False)
+def cmd_invite(ctx: Ctx) -> None:
+    send_invite(ctx)
+
+
+def send_invite(ctx: Ctx) -> None:
+    app = ctx.app
+    link = f"https://t.me/{app.bot_username}?start=r{ctx.user_id}"
+    n = ctx.db.referral_count(ctx.user_id)
+    share = ("https://t.me/share/url?url=" + urllib.parse.quote(link, safe="")
+             + "&text=" + urllib.parse.quote("🎬 Eng yaxshi kino, serial va multfilmlar boti — qo'shiling!"))
+    ctx.send(f"🤝 <b>Do'stlarni taklif qiling — Premium oling!</b>\n\n"
+             f"Har bir do'stingiz shu havola orqali botga kirsa, <b>ikkalangizga ham +{REF_DAYS} kun 💎 Premium</b> beriladi.\n\n"
+             f"🔗 Sizning havolangiz:\n<code>{link}</code>\n\n"
+             f"👥 Taklif qilganlar: <b>{n}</b>\n"
+             + (f"🎯 Keyingi bonus: <b>{ref_next(n)[0]} ta do'st → +{ref_next(n)[1]} kun</b> (yana {ref_next(n)[0] - n} ta)\n" if ref_next(n) else "")
+             + "🏅 Bosqich bonuslari: 3 → +3 kun, 10 → +10, 25 → +30, 50 → +60\n"
+             "🏆 Taklif musobaqasi va reyting: /reyting",
+             ikb([btn("📤 Do'stlarga yuborish", url=share, style=SUCCESS)]))
+
+
+@router.command("help", gate=False)
+def cmd_help(ctx: Ctx) -> None:
+    ctx.send(HELP_TEXT)
+
+
+@router.command("id", gate=False)
+def cmd_id(ctx: Ctx) -> None:
+    ctx.send(f"🆔 Sizning ID raqamingiz: <code>{ctx.user_id}</code>")
+
+
+@router.callback("chk")
+def cb_check(ctx: Ctx) -> None:
+    app = ctx.app
+    statuses = channel_statuses(app, ctx.user_id, force=True) if needs_gate(ctx) else []
+    if all_joined(statuses):
+        ctx.answer("✅ Obuna tasdiqlandi! Xush kelibsiz!")
+        ctx.delete_cb_message()
+        send_welcome(ctx)
+        pending = app.pop_pending(ctx.user_id)
+        if pending:
+            if SPECIAL_RE.fullmatch(pending):   # kanalga obuna bo'lishdan oldin bosilgan maxsus havola
+                apply_referral(ctx, pending)
+                run_special_payload(ctx, pending)
+            else:
+                handle_query(ctx, pending)
+        return
+    ctx.answer("❌ Siz hali barcha kanallarga obuna bo'lmadingiz!\n\n"
+               "Qizil tugmalar orqali obuna bo'lib, qayta tekshiring.", alert=True)
+    text, kb = gate_view(app, statuses, ctx.user)
+    ctx.edit(text, kb)
+
+
+@router.on("my_chat_member")
+def on_my_chat_member(ctx: Ctx) -> None:
+    upd = ctx.member_update
+    if upd.get("chat", {}).get("type") != "private":
+        return
+    status = upd.get("new_chat_member", {}).get("status")
+    ctx.db.set_blocked(upd["chat"]["id"], status in ("kicked", "left"))
+
+
+# ═════════════════════════ menyu tugmalari ═════════════════════════
+
+@router.button(B.SEARCH)
+def btn_search(ctx: Ctx) -> None:
+    ctx.send("🔎 <b>Kino qidirish</b>\n\n"
+             "🎬 Kino <b>nomini</b> yozing yoki 🔢 <b>kodini</b> yuboring — bir zumda topib beraman! ⚡️\n\n"
+             "💡 Masalan: <code>Avatar</code>, <code>Qasoskorlar</code> yoki <code>15</code>\n"
+             "🔤 Lotin yoki kirill — farqi yo'q, xato yozsangiz ham topaman 😉\n\n"
+             "😔 Izlagan kinongiz topilmasa — /sorov buyrug'i bilan so'rang, tez orada qo'shamiz!")
+
+
+@router.button(B.SITE)
+@router.command("sayt", "site")
+def btn_site(ctx: Ctx) -> None:
+    url = ctx.app.config.webapp_url
+    if not url:
+        ctx.send("🌐 Sayt hozircha ishga tushirilmagan. Tez orada!")
+        return
+    c = ctx.db.count_by_category()
+    ctx.send(f"🌐 <b>{esc(ctx.app.brand)} sayti</b>\n\n"
+             f"🎬 Kinolar: <b>{fmt_num(c['movie'])}</b>\n"
+             f"📺 Seriallar: <b>{fmt_num(c['serial'])}</b>\n"
+             f"🧸 Multfilmlar: <b>{fmt_num(c['cartoon'])}</b>\n"
+             f"🎵 Musiqalar: <b>{fmt_num(c['music'])}</b>\n\n"
+             "Hammasi bir joyda — tanlang, bot darhol yuboradi 👇",
+             ikb([{"text": "🌐 Saytni ochish", "web_app": {"url": url}, "style": SUCCESS}]))
+
+
+@router.button(B.TOP)
+@router.command("top")
+def btn_top(ctx: Ctx) -> None:
+    text, kb = list_page(ctx, "tp", 0)
+    ctx.send(text, kb)
+
+
+@router.button(B.NEW)
+@router.command("new")
+def btn_new(ctx: Ctx) -> None:
+    text, kb = list_page(ctx, "np", 0)
+    ctx.send(text, kb)
+
+
+@router.button(B.RANDOM)
+@router.command("random")
+def btn_random(ctx: Ctx) -> None:
+    send_random(ctx)
+
+
+@router.callback("rnd", gate=True)
+def cb_random(ctx: Ctx) -> None:
+    ctx.answer("🎲")
+    send_random(ctx)
+
+
+def send_random(ctx: Ctx) -> None:
+    include_premium = ctx.vip or not ctx.app.setting_bool("premium_enabled")
+    movie = ctx.db.random_movie(include_premium)
+    if not movie:
+        ctx.send("📭 Hozircha bazada kinolar yo'q.")
+        return
+    open_movie(ctx, movie, extra_rows=[[btn("🎲 Yana bittasi", "rnd", style=PRIMARY)]])
+
+
+# ═════════════════════════ kod / nom bo'yicha qidiruv ═════════════════════════
+
+@router.default()
+def on_any_message(ctx: Ctx) -> None:
+    if ctx.text:
+        handle_query(ctx, ctx.text)
+        return
+    hook = ctx.app.router.special.get("admin_media")
+    if ctx.is_admin and hook and hook(ctx):
+        return
+    ctx.send("🍿 <b>Bugun qaysi kinoni ko'ramiz?</b>\n\n"
+             "🎬 Kino <b>nomini</b> yozing yoki 🔢 <b>kodini</b> yuboring.\n"
+             "😔 Topilmasa — /sorov orqali so'rang!")
+
+
+def handle_query(ctx: Ctx, raw: str) -> None:
+    app, db = ctx.app, ctx.db
+    text = (raw or "").strip()
+    if text.startswith("/") and not re.fullmatch(r"/m?\d{1,9}c?", text):      # noma'lum buyruq — qidiruvga o'tkazilmaydi
+        ctx.send("🤔 Bunday buyruq yo'q. Kino <b>nomini</b> yoki <b>kodini</b> yozing, yoki /help ni bosing.")
+        return
+    if re.fullmatch(r"m?\d{1,9}c", text):      # obuna tekshiruvidan keyin kelgan kanal havolasi
+        text = text[:-1]
+    mm = MUSIC_RE.fullmatch(text)
+    if mm:
+        movie = db.get_movie_by_code(-int(mm.group(1)))
+        if movie:
+            open_movie(ctx, movie)
+        else:
+            ctx.send("😔 Bu musiqa topilmadi (o'chirilgan bo'lishi mumkin).")
+        return
+    m = CODE_RE.fullmatch(text)
+    if m:
+        code = int(m.group(1))
+        movie = db.get_movie_by_code(code)
+        db.log_search(ctx.user_id, text, str(code), 1 if movie else 0)
+        if movie:
+            open_movie(ctx, movie)
+        else:
+            ctx.send(f"😔 <b>{code}</b> kodli kino topilmadi.\n\n"
+                     "🔢 Kodni tekshirib qayta yuboring yoki 🎬 kino <b>nomini</b> yozib qidiring.\n\n"
+                     "🎬 Izlagan kinongiz yo'qmi? /sorov buyrug'i bilan so'rang — tez orada qo'shamiz!",
+                     not_found_kb())
+        return
+
+    text = text[:100]
+    norm = normalize(text)
+    if len(norm.replace(" ", "")) < 2:
+        ctx.send("🔎 Qidirish uchun kamida <b>2 ta harf</b> yozing.")
+        return
+    ids, fuzzy = search_ids(app, norm, "video")
+    music_ids, _ = search_ids(app, norm, "music", fuzzy_ok=False)
+    if (not ids or fuzzy) and music_ids:
+        # faqat qo'shiq topildi — to'g'ridan-to'g'ri qo'shiqlar ro'yxati
+        sid = db.log_search(ctx.user_id, text, norm, len(music_ids))
+        page_text, kb = music_search_view(app, sid, text, music_ids, 0)
+        ctx.send(page_text, kb)
+        return
+    sid = db.log_search(ctx.user_id, text, norm, 0 if fuzzy else len(ids))
+    if not ids:
+        ctx.send(f"😔 <b>«{esc(truncate(text, 50))}»</b> hozircha bazamizda yo'q.\n\n"
+                 "💡 <b>Yana urinib ko'ring:</b>\n"
+                 "• Nomini boshqacha yozing (inglizcha yoki ruscha nomi bilan)\n"
+                 "• Kino kodini yuboring (masalan: <code>15</code>)\n\n"
+                 "🎬 <b>Topilmadimi?</b> Pastdagi tugmani bosing — so'rovingizni adminlarga yuboramiz, "
+                 "tez orada qo'shamiz! 🙌", not_found_kb(sid, text))
+        return
+    app.cache_search(sid, (text, ids, fuzzy))
+    page_text, kb = search_view(app, sid, text, ids, fuzzy, 0, len(music_ids))
+    poster = search_poster(app, ids, 0)
+    if poster and visible_len(page_text) <= CAPTION_LIMIT:         # birinchi natijaning posteri bilan
+        try:
+            ctx.bot.call("sendPhoto", {"chat_id": ctx.chat_id, "photo": poster, "caption": ctx.tr(page_text), "parse_mode": "HTML",
+                                       "reply_markup": ctx.tr_kb(kb)})
+            return
+        except TelegramError as exc:
+            log.debug("Qidiruv posteri yuborilmadi: %s", exc)
+    ctx.send(page_text, kb)
+
+
+def not_found_kb(sid: Optional[int] = None, query: str = "") -> dict:
+    if sid:
+        ask = btn(f"🎬 «{truncate(query, 28)}» ni so'rash", f"rq:{sid}", style=DANGER)
+    else:
+        ask = btn("🎬 Kino so'rash", "rq:0", style=DANGER)
+    return ikb([ask],
+               [btn("🔥 Top kinolar", "tp:0", style=SUCCESS), btn("🆕 Yangi kinolar", "np:0", style=PRIMARY)])
+
+
+def search_ids(app, norm: str, scope: Optional[str] = None, fuzzy_ok: bool = True):
+    """(id lar ro'yxati, taxminiy_natijami) qaytaradi.
+    scope: None — hammasi, 'video' — kino va multfilmlar, 'music' — faqat qo'shiqlar."""
+    tokens = norm.split()
+    rows = app.db.search_candidates(tokens, scope=scope)
+    if rows:
+        scored = []
+        for r in rows:
+            title = r["norm_title"]
+            if title == norm:
+                score = 0
+            elif title.startswith(norm):
+                score = 1
+            elif all(re.search(r"\b" + re.escape(t), title) for t in tokens):
+                score = 2
+            elif all(t in title for t in tokens):
+                score = 3
+            else:
+                score = 4  # faqat ma'lumot (tavsif) ichida topildi
+            scored.append((score, -r["views"], -r["id"], r["id"]))
+        scored.sort()
+        return [x[3] for x in scored[:MAX_RESULTS]], False
+    if not fuzzy_ok:
+        return [], False
+    rows_all = list(app.db.all_titles(scope))
+    pq = phonetic(norm)                                 # imlo variantlari: Titanic/Titanik/Титаник, Joker/Джокер
+    if len(pq) >= 3:
+        ph = []
+        for r in rows_all:
+            pt = phonetic(r["norm_title"])
+            if pt == pq:
+                ph.append((0, r["id"]))
+            elif pt.startswith(pq):
+                ph.append((1, r["id"]))
+            elif len(pq) >= 5 and pq in pt:
+                ph.append((2, r["id"]))
+        if ph:
+            ph.sort()
+            return [i for _, i in ph[:MAX_RESULTS]], True
+    titles = [(r["id"], r["norm_title"]) for r in rows_all]
+    return fuzzy_match(norm, titles, limit=30), True
+
+
+def fmt_item(r, extra: Optional[str] = None) -> str:
+    title = esc(truncate(r["title"], 60))
+    if r["is_premium"]:
+        title = "💎 " + title
+    bits = []
+    keys = r.keys()
+    if "year" in keys and r["year"]:
+        bits.append(genres.year_text(r["year"], r["year_end"] if "year_end" in keys else 0))
+    if "genres" in keys:
+        g = genres.parse(r["genres"])
+        if g:
+            bits.append(genres.name(g[0]))
+    if r["parts"] > 1:
+        bits.append(f"📺 {r['parts']} qism")
+    if extra:
+        bits.append(extra)
+    return title + (f"  <i>{' • '.join(bits)}</i>" if bits else "")
+
+
+def build_list(header: str, rows, start_no: int, page: int, pages: int, page_prefix: Optional[str],
+               item_fmt, item_cb: str = "mv", hint: str = "👇 Kerakli kino raqamini tanlang:"):
+    """Raqamlangan ro'yxat: matnda 1. 2. 3. …, pastda raqamli tugmalar."""
+    lines = [header, ""]
+    nums = []
+    for i, r in enumerate(rows, start_no + 1):
+        lines.append(f"<b>{i}.</b> {item_fmt(r)}")
+        nums.append((i, f"{item_cb}:{r['id']}"))
+    lines.append("")
+    if pages > 1:
+        lines.append(f"📄 Sahifa: <b>{page + 1}/{pages}</b>")
+    lines.append(hint)
+    if len(rows) <= 6:      # kam natija — raqam o'rniga nomli tugmalar (bir bosishda to'g'ri kino)
+        kb_rows = []
+        for (i, data), r in zip(nums, rows):
+            yr = f" ({r['year']})" if "year" in r.keys() and r["year"] else ""
+            kb_rows.append([btn(f"{i}. {truncate(r['title'], 34)}{yr}", data, style=PRIMARY)])
+    else:
+        kb_rows = number_rows(nums)
+    if pages > 1 and page_prefix:
+        kb_rows.append(nav_row(page_prefix, page, pages))
+    kb_rows.append([btn("❌ Yopish", "x", style=DANGER)])
+    return "\n".join(lines), {"inline_keyboard": kb_rows}
+
+
+def search_view(app, sid: int, query: str, ids: List[int], fuzzy: bool, page: int, music_found: int = 0):
+    total = len(ids)
+    pages = max(1, math.ceil(total / PER_PAGE))
+    page %= pages
+    rows = app.db.movie_rows(ids[page * PER_PAGE:(page + 1) * PER_PAGE])
+    q = esc(truncate(query, 40))
+    if fuzzy:
+        header = (f"🤔 <b>«{q}»</b> bo'yicha aniq natija topilmadi.\n"
+                  "💡 Balki shulardan birini nazarda tutgandirsiz:")
+    else:
+        header = f"🔎 <b>«{q}»</b> bo'yicha <b>{total}</b> ta natija:"
+    text, kb = build_list(header, rows, page * PER_PAGE, page, pages, f"sp:{sid}", fmt_item)
+    if fuzzy:  # aniq topilmadi — so'rash tugmasi
+        text += "\n\n🎬 Bularning orasida yo'qmi? Pastdagi tugma bilan so'rang!"
+        kb["inline_keyboard"].insert(-1, [btn(f"🎬 «{truncate(query, 28)}» ni so'rash", f"rq:{sid}", style=DANGER)])
+    if music_found:
+        kb["inline_keyboard"].insert(-1, [btn(f"🎵 Qo'shiqlardan ham topildi: {music_found} ta", f"ms:{sid}:0",
+                                              style=SUCCESS)])
+    return text, kb
+
+
+def music_search_view(app, sid: int, query: str, ids: List[int], page: int):
+    total = len(ids)
+    pages = max(1, math.ceil(total / PER_PAGE))
+    page %= pages
+    rows = app.db.movie_rows(ids[page * PER_PAGE:(page + 1) * PER_PAGE])
+    header = f"🎵 <b>«{esc(truncate(query, 40))}»</b> — qo'shiqlar: <b>{total}</b> ta"
+    return build_list(header, rows, page * PER_PAGE, page, pages, f"ms:{sid}", fmt_item, hint="👇 Tanlang:")
+
+
+@router.callback("ms", gate=True)
+def cb_music_search(ctx: Ctx) -> None:
+    try:
+        _, sid, page = ctx.data.split(":")
+        sid, page = int(sid), int(page)
+    except ValueError:
+        return
+    row = ctx.db.get_search(sid)
+    if not row:
+        ctx.answer("⌛️ Qidiruv eskirgan. Nomini qaytadan yozing.", alert=True)
+        return
+    ids, _ = search_ids(ctx.app, row["norm"], "music", fuzzy_ok=False)
+    if not ids:
+        ctx.answer("😔 Qo'shiq topilmadi", alert=True)
+        return
+    text, kb = music_search_view(ctx.app, sid, row["query"], ids, page)
+    ctx.answer()
+    edit_or_send(ctx, text, kb)
+
+
+@router.callback("sp", gate=True)
+def cb_search_page(ctx: Ctx) -> None:
+    try:
+        _, sid, page = ctx.data.split(":")
+        sid, page = int(sid), int(page)
+    except ValueError:
+        return
+    cached = ctx.app.cached_search(sid)
+    if not cached:
+        row = ctx.db.get_search(sid)
+        if not row:
+            ctx.answer("⌛️ Qidiruv eskirgan. Kino nomini qaytadan yozing.", alert=True)
+            return
+        ids, fuzzy = search_ids(ctx.app, row["norm"], "video")
+        cached = (row["query"], ids, fuzzy)
+        ctx.app.cache_search(sid, cached)
+    query, ids, fuzzy = cached
+    if not ids:
+        ctx.answer("😔 Natija qolmadi", alert=True)
+        return
+    music_n = len(search_ids(ctx.app, normalize(query), "music", fuzzy_ok=False)[0])
+    text, kb = search_view(ctx.app, sid, query, ids, fuzzy, page, music_n)
+    ctx.answer()
+    if "photo" in ctx.cb_message and visible_len(text) <= CAPTION_LIMIT:      # rasmli natija — sahifa almashganda poster ham almashadi
+        poster = search_poster(ctx.app, ids, page % max(1, math.ceil(len(ids) / PER_PAGE)))
+        if poster:
+            try:
+                ctx.bot.call("editMessageMedia", {"chat_id": ctx.chat_id, "message_id": ctx.cb_message["message_id"],
+                                                  "media": {"type": "photo", "media": poster, "caption": ctx.tr(text), "parse_mode": "HTML"},
+                                                  "reply_markup": ctx.tr_kb(kb)})
+                return
+            except BadRequest as exc:
+                if exc.has("message is not modified"):
+                    return
+            except TelegramError:
+                pass
+        ctx.edit(text, kb)                  # poster yo'q — faqat izohni (ro'yxatni) yangilaymiz
+        return
+    edit_or_send(ctx, text, kb)
+
+
+CAPTION_LIMIT = 980          # Telegram rasm izohi 1024 belgigacha
+
+
+def search_poster(app, ids: List[int], page: int):
+    """Sahifadagi birinchi posterli kinoning poster file_id si (yo'q bo'lsa — None)."""
+    for mid in ids[page * PER_PAGE:(page + 1) * PER_PAGE][:4]:
+        m = app.db.get_movie(mid)
+        if m and m["poster_id"] and m["category"] != "music":
+            return m["poster_id"]
+    return None
+
+
+def edit_or_send(ctx: Ctx, text: str, kb) -> None:
+    """Matnli xabar bo'lsa tahrirlaydi, aks holda (video, rasm) yangisini yuboradi."""
+    if "text" in ctx.cb_message:
+        ctx.edit(text, kb)
+    else:
+        ctx.send(text, kb)
+
+
+# ═════════════════════════ Top / Yangi ═════════════════════════
+
+def list_page(ctx: Ctx, kind: str, page: int):
+    db = ctx.db
+    rows = db.top_movies(LIST_LIMIT) if kind == "tp" else db.new_movies(LIST_LIMIT)
+    if not rows:
+        return "📭 Hozircha bazada kinolar yo'q. Tez orada qo'shiladi!", None
+    pages = max(1, math.ceil(len(rows) / PER_PAGE))
+    page %= pages
+    chunk = rows[page * PER_PAGE:(page + 1) * PER_PAGE]
+    header = "🔥 <b>Eng ko'p ko'rilgan kinolar</b>" if kind == "tp" else "🆕 <b>Yangi qo'shilgan kinolar</b>"
+    return build_list(header, chunk, page * PER_PAGE, page, pages, kind, fmt_item)
+
+
+# ═════════════════════════ 🎬 Kinolar / 🧸 Multfilmlar / 🎵 Musiqalar ═════════════════════════
+
+CAT_BUTTONS = {B.MOVIES: "movie", B.SERIALS: "serial", B.CARTOONS: "cartoon", B.MUSIC: "music"}
+CAT_TITLES = {"movie": "🎬 <b>Kinolar</b>", "serial": "📺 <b>Seriallar</b>", "cartoon": "🧸 <b>Multfilmlar</b>",
+              "music": "🎵 <b>Musiqalar</b>"}
+VIDEO_CATS = ("movie", "serial", "cartoon")
+
+
+def category_page(ctx: Ctx, cat: str, page: int):
+    rows = ctx.db.catalog(cat, "new", None, LIST_LIMIT * 4)
+    if not rows:
+        return f"{CAT_TITLES[cat]}\n\n📭 Bu bo'limda hozircha hech narsa yo'q. Tez orada qo'shiladi!", None
+    pages = max(1, math.ceil(len(rows) / PER_PAGE))
+    page %= pages
+    chunk = rows[page * PER_PAGE:(page + 1) * PER_PAGE]
+    header = f"{CAT_TITLES[cat]} — yangi qo'shilganlar"
+    hint = "👇 Tanlang:" if cat == "music" else "👇 Kerakli raqamni tanlang:"
+    text, kb = build_list(header, chunk, page * PER_PAGE, page, pages, f"cl:{cat}", fmt_item, hint=hint)
+    extra = []
+    if cat != "music" and ctx.db.genre_counts(cat):
+        extra.append(btn("🎭 Janrlar", f"gl:{cat}", style=SUCCESS))
+    if cat != "music" and any(c["n"] for c in ctx.db.list_collections()):
+        extra.append(btn("📚 To'plamlar", "tl", style=SUCCESS))
+    if extra:
+        kb["inline_keyboard"].insert(-1, extra)
+    return text, kb
+
+
+def collections_menu(ctx: Ctx):
+    cols = [c for c in ctx.db.list_collections() if c["n"]]
+    if not cols:
+        return "📚 Hozircha to'plamlar yo'q — tez orada qo'shiladi!", ikb([btn("❌ Yopish", "x", style=DANGER)])
+    rows = [[btn(f"{c['title'][:40]} ({c['n']})", f"tv:{c['id']}:0", style=PRIMARY)] for c in cols]
+    rows.append([btn("❌ Yopish", "x", style=DANGER)])
+    return "📚 <b>To'plamlar</b> — biz siz uchun saralab qo'ydik 🍿\n\n👇 Tanlang:", {"inline_keyboard": rows}
+
+
+@router.callback("tl", gate=True)
+def cb_collections(ctx: Ctx) -> None:
+    ctx.answer()
+    edit_or_send(ctx, *collections_menu(ctx))
+
+
+@router.callback("tv", gate=True)
+def cb_collection(ctx: Ctx) -> None:
+    parts = ctx.data.split(":")
+    col = ctx.db.get_collection(int(parts[1])) if len(parts) > 1 and parts[1].isdigit() else None
+    if not col:
+        ctx.answer("😔 To'plam topilmadi", alert=True)
+        return
+    rows = ctx.db.collection_movies(col["id"])
+    page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
+    pages = max(1, math.ceil(len(rows) / PER_PAGE))
+    page %= pages
+    chunk = rows[page * PER_PAGE:(page + 1) * PER_PAGE]
+    text, kb = build_list(f"📚 <b>{esc(col['title'])}</b>", chunk, page * PER_PAGE, page, pages, f"tv:{col['id']}",
+                          fmt_item)
+    kb["inline_keyboard"].insert(-1, [btn("⬅️ To'plamlar", "tl", style=SUCCESS)])
+    ctx.answer()
+    edit_or_send(ctx, text, kb)
+
+
+def genres_menu(ctx: Ctx, cat: str):
+    counts = ctx.db.genre_counts(cat)
+    if not counts:
+        return f"{CAT_TITLES[cat]}\n\n🎭 Hozircha janrlar belgilanmagan.", ikb([btn("⬅️ Orqaga", f"cl:{cat}:0")])
+    rows, row = [], []
+    for k, n in counts.items():
+        row.append(btn(f"{genres.label(k)} ({n})", f"gn:{cat}:{k}:0", style=PRIMARY))
+        if len(row) == 2:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    rows.append([btn("⬅️ Orqaga", f"cl:{cat}:0", style=DANGER)])
+    return f"{CAT_TITLES[cat]} — 🎭 <b>janrni tanlang</b>:\n\n🍿 Bugun qanday kayfiyatdasiz?", {"inline_keyboard": rows}
+
+
+def genre_page(ctx: Ctx, cat: str, key: str, page: int):
+    rows = ctx.db.catalog(cat, "top", None, LIST_LIMIT * 4, genre=key)
+    if not rows:
+        return f"{genres.label(key)}\n\n📭 Bu janrda hozircha hech narsa yo'q.", ikb([btn("⬅️ Janrlar", f"gl:{cat}")])
+    pages = max(1, math.ceil(len(rows) / PER_PAGE))
+    page %= pages
+    chunk = rows[page * PER_PAGE:(page + 1) * PER_PAGE]
+    header = f"{CAT_TITLES[cat]} — <b>{genres.label(key)}</b>"
+    text, kb = build_list(header, chunk, page * PER_PAGE, page, pages, f"gn:{cat}:{key}", fmt_item)
+    kb["inline_keyboard"].insert(-1, [btn("⬅️ Janrlar", f"gl:{cat}", style=SUCCESS)])
+    return text, kb
+
+
+@router.callback("rt")
+def cb_rate(ctx: Ctx) -> None:
+    try:
+        _, mid, pid, val = ctx.data.split(":")
+        movie, part, val = ctx.db.get_movie(int(mid)), ctx.db.get_part(int(pid)), int(val)
+    except ValueError:
+        return
+    if not movie or not part or val not in (1, -1):
+        ctx.answer("😔 Bu kino o'chirilgan.", alert=True)
+        return
+    state = ctx.db.rate(ctx.user_id, movie["id"], val)
+    ctx.answer({1: "👍 Rahmat! Sizga yoqqani uchun xursandmiz", -1: "👎 Fikringiz uchun rahmat!",
+                0: "↩️ Bahoingiz bekor qilindi"}[state])
+    kb = part_kb(ctx.app, movie, part, ctx.db.count_parts(movie["id"]))
+    msg = ctx.cb_message
+    if msg.get("message_id"):
+        ctx.bot.safe("editMessageReplyMarkup", {"chat_id": ctx.chat_id, "message_id": msg["message_id"],
+                                                "reply_markup": kb})
+
+
+@router.callback("gl", gate=True)
+def cb_genres(ctx: Ctx) -> None:
+    parts = ctx.data.split(":")
+    cat = parts[1] if len(parts) > 1 and parts[1] in VIDEO_CATS else "movie"
+    text, kb = genres_menu(ctx, cat)
+    ctx.answer()
+    edit_or_send(ctx, text, kb)
+
+
+@router.callback("gn", gate=True)
+def cb_genre_page(ctx: Ctx) -> None:
+    parts = ctx.data.split(":")
+    if len(parts) < 3 or parts[1] not in VIDEO_CATS or parts[2] not in genres.GENRES:
+        ctx.answer()
+        return
+    page = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0
+    text, kb = genre_page(ctx, parts[1], parts[2], page)
+    ctx.answer()
+    edit_or_send(ctx, text, kb)
+
+
+@router.callback("sim", gate=True)
+def cb_similar(ctx: Ctx) -> None:
+    parts = ctx.data.split(":")
+    movie = ctx.db.get_movie(int(parts[1])) if len(parts) > 1 and parts[1].isdigit() else None
+    if not movie:
+        ctx.answer("😔 Bu kino o'chirilgan.", alert=True)
+        return
+    rows = ctx.db.similar(movie["id"], PER_PAGE)
+    ctx.answer()
+    if not rows:
+        ctx.send("🎭 Hozircha o'xshash kinolar yo'q — tez orada qo'shiladi!")
+        return
+    g = genres.line(movie["genres"])
+    header = f"🎭 <b>«{esc(truncate(movie['title'], 50))}»</b> ga o'xshashlar" + (f"\n<i>{g}</i>" if g else "")
+    text, kb = build_list(header, rows, 0, 0, 1, None, fmt_item)
+    ctx.send(text, kb)
+
+
+@router.button(B.MOVIES, B.SERIALS, B.CARTOONS, B.MUSIC)
+def btn_category(ctx: Ctx) -> None:
+    key = ctx.text.replace("\ufe0f", "").strip()
+    cat = next((v for k, v in CAT_BUTTONS.items() if k.replace("\ufe0f", "") == key), "movie")
+    text, kb = category_page(ctx, cat, 0)
+    ctx.send(text, kb)
+
+
+@router.callback("cl", gate=True)
+def cb_category_page(ctx: Ctx) -> None:
+    parts = ctx.data.split(":")
+    cat = parts[1] if len(parts) > 1 and parts[1] in CAT_TITLES else "movie"
+    page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
+    text, kb = category_page(ctx, cat, page)
+    ctx.answer()
+    edit_or_send(ctx, text, kb)
+
+
+@router.callback("tp", "np", gate=True)
+def cb_list_page(ctx: Ctx) -> None:
+    parts = ctx.data.split(":")
+    kind = parts[0]
+    page = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+    text, kb = list_page(ctx, kind, page)
+    ctx.answer()
+    edit_or_send(ctx, text, kb)
+
+
+# ═════════════════════════ kinoni ochish va yuborish ═════════════════════════
+
+def premium_locked(ctx: Ctx, movie) -> bool:
+    return bool(movie["is_premium"]) and ctx.app.setting_bool("premium_enabled") and not ctx.vip
+
+
+def send_premium_lock(ctx: Ctx, movie) -> None:
+    what = cat_name(movie["category"]).lower()
+    ctx.send(f"🔒 <b>Bu {what} faqat Premium a'zolar uchun!</b>\n\n"
+             f"{title_icon(movie['category'])} <b>{esc(movie['title'])}</b>\n\n"
+             "💎 Premium obuna bilan ushbu va boshqa maxsus kontentdan cheklovsiz foydalaning.",
+             ikb([btn("💎 Premium olish", "pr:menu", style=SUCCESS)]))
+
+
+def protect_for(ctx: Ctx) -> bool:
+    return ctx.app.setting_bool("protect_content") and not ctx.vip
+
+
+def _pf(part, key: str, default):
+    try:
+        v = part[key]
+    except (KeyError, IndexError):
+        return default
+    return v if v else default
+
+
+def part_short(part, multi: bool = False) -> str:
+    """«3-qism» yoki (bir nechta mavsumli serialda) «2-mavsum 3-qism»."""
+    ep = _pf(part, "ep_no", 0) or _pf(part, "part_no", 0)
+    return f"{_pf(part, 'season', 1)}-mavsum {ep}-qism" if multi else f"{ep}-qism"
+
+
+def part_label(part, multi: bool = False) -> str:
+    return part["title"] or part_short(part, multi)
+
+
+def open_movie(ctx: Ctx, movie, extra_rows=None) -> None:
+    if premium_locked(ctx, movie):
+        send_premium_lock(ctx, movie)
+        return
+    parts = ctx.db.get_parts(movie["id"])
+    if not parts:
+        ctx.send("⚠️ Bu kinoning fayli topilmadi.")
+        return
+    if len(parts) == 1:
+        send_part(ctx, movie, parts[0], 1, extra_rows)
+    else:
+        last = ctx.db.last_part(ctx.user_id, movie["id"]) if ctx.user_id else None
+        if last:                                         # serial: oxirgi ko'rilgan qismdan davom etish
+            nxt = ctx.db.get_part_by_no(movie["id"], last["part_no"] + 1) or last
+            multi = ctx.db.count_seasons(movie["id"]) > 1
+            label = (f"▶️ Davom etish: {part_short(nxt, multi)}" if nxt["id"] != last["id"]
+                     else f"▶️ Qayta ko'rish: {part_short(last, multi)}")
+            extra_rows = [[btn(label, f"pt:{nxt['id']}", style=SUCCESS)]] + list(extra_rows or [])
+        send_parts_list(ctx, movie, parts, 0, extra_rows)
+
+
+def build_caption(app, movie, part, total: int) -> str:
+    """Botga yuboriladigan kino izohi (kanal posti bilan bir xil ko'rinish): nom, yorliqli qatorlar, qisqa syujet, kod va ko'rishlar."""
+    music = movie["category"] == "music"
+    head = f"{title_icon(movie['category'])} <b>{esc(movie['title'])}</b>"
+    if total > 1:
+        sc = dict(app.db.season_counts(movie["id"]))
+        if len(sc) > 1:        # bir nechta mavsum: «2-mavsum 3-qism / 12» (mavsumdagi qismlar soni)
+            head += f"\n📺 <b>{esc(part_label(part, True))}</b>  <i>/ {sc.get(_pf(part, 'season', 1), total)}</i>"
+        else:
+            head += f"\n📺 <b>{esc(part_label(part))}</b>  <i>/ {total}</i>"
+    info = [] if music else genres.card_lines(movie)
+    meta = (f"🔢 Kodi: <code>{movie['code']}</code>  ·  " if movie["code"] > 0 else "") + f"👁 {fmt_num(movie['views'] + 1)}"
+    if movie["is_premium"]:
+        meta += "  ·  💎 <b>PREMIUM</b>"
+    footer = render(app.setting("caption_footer"), brand=esc(app.brand), bot=app.bot_username).strip()
+    link = (movie["group_link"] if "group_link" in movie.keys() else "") or ""
+    link_block = (f"📺 <b>{esc(movie['title'])}</b> — qolgan qismlar 👇\n{esc(link)}"
+                  if link and movie["category"] in ("serial", "cartoon") else "")
+    blocks = [head]
+    if info:
+        blocks.append("\n".join(info))
+    desc = short_desc_block(movie, DESC_MAX)
+    if desc:
+        blocks.append(desc)
+    if link_block:
+        blocks.append(link_block)
+    blocks.append(meta)
+    if footer:
+        blocks.append(footer)
+    return "\n\n".join(blocks)
+
+
+DESC_MAX = 180           # kino izohidagi qisqa syujet (qolgani saytda va «Izohlar va batafsil» da)
+
+
+def part_kb(app, movie, part, total: int, extra_rows=None) -> dict:
+    rows = []
+    if total > 1:
+        no = part["part_no"]
+        multi = app.db.count_seasons(movie["id"]) > 1
+        cur_season = _pf(part, "season", 1)
+
+        def nav_text(nb, left: bool) -> str:        # boshqa mavsumga o'tganda to'liq nom: «2-mavsum 1-qism»
+            t = part_short(nb, multi and _pf(nb, "season", 1) != cur_season)
+            return f"⬅️ {t}" if left else f"{t} ➡️"
+        nav = []
+        prev_part = app.db.get_part_by_no(movie["id"], no - 1) if no > 1 else None
+        next_part = app.db.get_part_by_no(movie["id"], no + 1) if no < total else None
+        if prev_part:
+            nav.append(btn(nav_text(prev_part, True), f"pt:{prev_part['id']}", style=SUCCESS))
+        ep = _pf(part, "ep_no", 0) or no
+        nav.append(btn("📋 Qismlar", f"ps:{movie['id']}:{cur_season}:{(ep - 1) // PER_PAGE}" if multi
+                       else f"pl:{movie['id']}:{(no - 1) // PER_PAGE}", style=PRIMARY))
+        if next_part:
+            nav.append(btn(nav_text(next_part, False), f"pt:{next_part['id']}", style=SUCCESS))
+        rows.append(nav)
+    share = "https://t.me/share/url?" + urllib.parse.urlencode({
+        "url": app.deep_link(movie["code"]),
+        "text": (f"🎵 {movie['title']} — {app.brand} botida tinglang!" if movie["category"] == "music"
+                 else f"🎬 {movie['title']} — {app.brand} botida tomosha qiling!"),
+    })
+    if movie["category"] != "music":
+        r = app.db.rating(movie["id"])
+        rows.append([btn(f"👍 {r['likes']}", f"rt:{movie['id']}:{part['id']}:1", style=SUCCESS),
+                     btn(f"👎 {r['dislikes']}", f"rt:{movie['id']}:{part['id']}:-1", style=DANGER),
+                     btn("🔖 Saqlash", f"svt:{movie['id']}", style=PRIMARY)])
+    link = (movie["group_link"] if "group_link" in movie.keys() else "") or ""
+    if link and movie["category"] in ("serial", "cartoon"):
+        rows.append([btn("📺 Qolgan qismlar", url=link, style=SUCCESS)])
+    last = [btn("📤 Do'stlarga ulashish", url=share, style=PRIMARY)]
+    if movie["category"] != "music":
+        last.append(btn("🎭 O'xshashlari", f"sim:{movie['id']}", style=SUCCESS))
+    rows.append(last)
+    tu = (movie["trailer_url"] if "trailer_url" in movie.keys() else "") or ""
+    if tu.startswith("http") and movie["category"] != "music":
+        rows.append([btn("🎞 Treyler", url=tu, style=PRIMARY)])
+    site = (app.config.webapp_url or "").rstrip("/")
+    if site and movie["category"] != "music" and movie["code"] > 0:      # bot → sayt ko'prigi: izohlar, poster, o'xshashlar
+        rows.append([{"text": "💬 Izohlar va batafsil", "web_app": {"url": f"{site}/?k={movie['code']}"}, "style": PRIMARY}])
+    if extra_rows:
+        rows.extend(extra_rows)
+    return {"inline_keyboard": rows}
+
+
+def send_part(ctx: Ctx, movie, part, total: int, extra_rows=None) -> None:
+    app = ctx.app
+    caption = ctx.tr(build_caption(app, movie, part, total))
+    kb = ctx.tr_kb(part_kb(app, movie, part, total, extra_rows))
+    protect = protect_for(ctx)
+    try:
+        if part["file_type"] == "video":
+            ctx.bot.send_video(ctx.chat_id, part["file_id"], caption, kb, protect)
+        elif part["file_type"] == "audio":
+            ctx.bot.send_audio(ctx.chat_id, part["file_id"], caption, kb, protect)
+        else:
+            ctx.bot.send_document(ctx.chat_id, part["file_id"], caption=caption, reply_markup=kb,
+                                  protect_content=protect)
+    except BadRequest as exc:
+        log.error("Kino yuborilmadi (kod %s, qism %s): %s", movie["code"], part["part_no"], exc)
+        ctx.send("⚠️ Kechirasiz, bu kino faylini yuborib bo'lmadi. Adminlar xabardor qilindi.")
+        if part["id"] not in _reported_parts:
+            _reported_parts.add(part["id"])
+            app.notify_admins(
+                "⚠️ <b>Kino faylida muammo!</b>\n\n"
+                f"{title_icon(movie['category'])} {esc(movie['title'])}\n"
+                + (f"🔢 Kod: <code>{movie['code']}</code> • " if movie["code"] > 0 else "")
+                + f"{part_short(part, app.db.count_seasons(movie['id']) > 1)}\n"
+                f"❗️ {esc(exc.description)}\n\nFaylni qayta yuklash tavsiya etiladi.")
+        return
+    ctx.db.inc_views(movie["id"], part["id"])
+    if movie["category"] != "music" and ctx.user_id:
+        ctx.db.touch_history(ctx.user_id, movie["id"], part["id"] if total > 1 else 0)
+        if random.random() < 0.01:
+            ctx.db.prune_history()
+            ctx.db.prune_views()
+
+
+def _split_extra(extra_rows):
+    first = extra_rows[0] if extra_rows and ("Davom etish" in str(extra_rows[0]) or "Qayta ko'rish" in str(extra_rows[0])) else None
+    return first, (list(extra_rows[1:]) if first else list(extra_rows or []))
+
+
+def seasons_view(movie, parts, extra_rows=None):
+    """🗂 Bir nechta mavsumli serial: avval mavsumni tanlaydi."""
+    counts: dict = {}
+    for p in parts:
+        sea = _pf(p, "season", 1)
+        counts[sea] = counts.get(sea, 0) + 1
+    lines = [f"📺 <b>{esc(truncate(movie['title'], 100))}</b>", f"🗂 <b>{len(counts)}</b> mavsum · 🎞 <b>{len(parts)}</b> qism", ""]
+    lines += [f"• <b>{sea}-mavsum</b> — {n} qism" for sea, n in sorted(counts.items())]
+    lines += ["", "👇 Mavsumni tanlang:"]
+    first, rest = _split_extra(extra_rows)
+    rows = [first] if first else []
+    btns = [btn(f"{sea}-mavsum · {n} qism", f"ps:{movie['id']}:{sea}:0", style=PRIMARY) for sea, n in sorted(counts.items())]
+    rows += [btns[i:i + 2] for i in range(0, len(btns), 2)]
+    rows.extend(rest)
+    rows.append([btn("❌ Yopish", "x", style=DANGER)])
+    return "\n".join(lines), {"inline_keyboard": rows}
+
+
+def season_view(movie, parts, season: int, page: int, extra_rows=None):
+    """Tanlangan mavsumning qismlari (qism raqami har mavsumda 1 dan)."""
+    chunk_all = [p for p in parts if _pf(p, "season", 1) == season]
+    total = len(chunk_all)
+    pages = max(1, math.ceil(total / PER_PAGE))
+    page %= pages
+    chunk = chunk_all[page * PER_PAGE:(page + 1) * PER_PAGE]
+    lines = [f"📺 <b>{esc(truncate(movie['title'], 100))}</b>", f"🗂 <b>{season}-mavsum</b> · 🎞 {total} qism", ""]
+    nums = []
+    for p in chunk:
+        ep = _pf(p, "ep_no", 0) or p["part_no"]
+        lines.append(f"<b>{ep}.</b> {esc(truncate(part_label(p), 60))}")
+        nums.append((ep, f"pt:{p['id']}"))
+    lines.append("")
+    if pages > 1:
+        lines.append(f"📄 Sahifa: <b>{page + 1}/{pages}</b>")
+    lines.append("👇 Kerakli qism raqamini tanlang:")
+    first, rest = _split_extra(extra_rows)
+    rows = [first] if first else []
+    rows += number_rows(nums)
+    if pages > 1:
+        rows.append(nav_row(f"pq:{movie['id']}:{season}", page, pages))
+    rows.extend(rest)
+    rows.append([btn("⬅️ Mavsumlar", f"pl:{movie['id']}:0", style=PRIMARY), btn("❌ Yopish", "x", style=DANGER)])
+    return "\n".join(lines), {"inline_keyboard": rows}
+
+
+def parts_view(movie, parts, page: int, extra_rows=None):
+    if len({_pf(p, "season", 1) for p in parts}) > 1:
+        return seasons_view(movie, parts, extra_rows)
+    total = len(parts)
+    pages = max(1, math.ceil(total / PER_PAGE))
+    page %= pages
+    chunk = parts[page * PER_PAGE:(page + 1) * PER_PAGE]
+    lines = [f"📺 <b>{esc(truncate(movie['title'], 100))}</b>", f"🎞 Jami: <b>{total}</b> qism", ""]
+    nums = []
+    for p in chunk:
+        lines.append(f"<b>{p['part_no']}.</b> {esc(truncate(part_label(p), 60))}")
+        nums.append((p["part_no"], f"pt:{p['id']}"))
+    lines.append("")
+    if pages > 1:
+        lines.append(f"📄 Sahifa: <b>{page + 1}/{pages}</b>")
+    lines.append("👇 Kerakli qism raqamini tanlang:")
+    first = extra_rows[0] if extra_rows and ("Davom etish" in str(extra_rows[0]) or "Qayta ko'rish" in str(extra_rows[0])) else None
+    rows = [first] if first else []                      # «▶️ Davom etish» tugmasi ro'yxat tepasida
+    rest = list(extra_rows[1:]) if first else list(extra_rows or [])
+    rows += number_rows(nums)
+    if pages > 1:
+        rows.append(nav_row(f"pl:{movie['id']}", page, pages))
+    rows.extend(rest)
+    rows.append([btn("❌ Yopish", "x", style=DANGER)])
+    return "\n".join(lines), {"inline_keyboard": rows}
+
+
+def send_parts_list(ctx: Ctx, movie, parts, page: int, extra_rows=None) -> None:
+    text, kb = parts_view(movie, parts, page, extra_rows)
+    if movie["poster_id"]:
+        try:
+            ctx.bot.send_photo(ctx.chat_id, movie["poster_id"], text, kb)
+            return
+        except BadRequest as exc:
+            log.warning("Poster yuborilmadi (kod %s): %s", movie["code"], exc.description)
+    ctx.send(text, kb)
+
+
+@router.callback("mv", gate=True)
+def cb_movie(ctx: Ctx) -> None:
+    try:
+        movie = ctx.db.get_movie(int(ctx.data.split(":")[1]))
+    except (IndexError, ValueError):
+        return
+    if not movie:
+        ctx.answer("😔 Bu kino o'chirilgan.", alert=True)
+        return
+    ctx.answer("🎬 Yuborilmoqda...")
+    open_movie(ctx, movie)
+
+
+@router.callback("pt", gate=True)
+def cb_part(ctx: Ctx) -> None:
+    try:
+        part = ctx.db.get_part(int(ctx.data.split(":")[1]))
+    except (IndexError, ValueError):
+        return
+    movie = ctx.db.get_movie(part["movie_id"]) if part else None
+    if not part or not movie:
+        ctx.answer("😔 Bu qism o'chirilgan.", alert=True)
+        return
+    if premium_locked(ctx, movie):
+        ctx.answer()
+        send_premium_lock(ctx, movie)
+        return
+    ctx.answer("🎬 Yuborilmoqda...")
+    send_part(ctx, movie, part, ctx.db.count_parts(movie["id"]))
+
+
+def _season_open(ctx: Ctx, paging: bool) -> None:
+    try:
+        _, mid, sea, page = ctx.data.split(":")
+        movie, sea, page = ctx.db.get_movie(int(mid)), int(sea), int(page)
+    except ValueError:
+        return
+    parts = ctx.db.get_parts(movie["id"]) if movie else []
+    if not parts or not any(_pf(p, "season", 1) == sea for p in parts):
+        ctx.answer("😔 Bu mavsum topilmadi.", alert=True)
+        return
+    if premium_locked(ctx, movie):
+        ctx.answer()
+        send_premium_lock(ctx, movie)
+        return
+    ctx.answer()
+    text, kb = season_view(movie, parts, sea, page)
+    msg = ctx.cb_message
+    is_media = bool(msg.get("video") or msg.get("document") or msg.get("audio"))
+    poster = ctx.db.season_poster(movie["id"], sea) or movie["poster_id"]      # mavsumning o'z posteri bo'lmasa — umumiy poster
+    if paging and not is_media:
+        ctx.edit(text, kb)
+        return
+    if not paging and not is_media and not ctx.db.season_poster(movie["id"], sea):
+        ctx.edit(text, kb)                                                      # umumiy poster allaqachon ko'rinib turibdi
+        return
+    if poster:
+        try:
+            ctx.bot.send_photo(ctx.chat_id, poster, text, kb)
+            return
+        except BadRequest as exc:
+            log.warning("Mavsum posteri yuborilmadi (kod %s, %s-mavsum): %s", movie["code"], sea, exc.description)
+    ctx.send(text, kb)
+
+
+@router.callback("ps", gate=True)
+def cb_season(ctx: Ctx) -> None:
+    _season_open(ctx, paging=False)
+
+
+@router.callback("pq", gate=True)
+def cb_season_page(ctx: Ctx) -> None:
+    _season_open(ctx, paging=True)
+
+
+@router.callback("pl", gate=True)
+def cb_parts_list(ctx: Ctx) -> None:
+    try:
+        _, mid, page = ctx.data.split(":")
+        movie = ctx.db.get_movie(int(mid))
+        page = int(page)
+    except ValueError:
+        return
+    parts = ctx.db.get_parts(movie["id"]) if movie else []
+    if not parts:
+        ctx.answer("😔 Bu kino o'chirilgan.", alert=True)
+        return
+    if premium_locked(ctx, movie):
+        ctx.answer()
+        send_premium_lock(ctx, movie)
+        return
+    ctx.answer()
+    msg = ctx.cb_message
+    if msg.get("video") or msg.get("document") or msg.get("audio"):
+        send_parts_list(ctx, movie, parts, page)
+    else:
+        text, kb = parts_view(movie, parts, page)
+        ctx.edit(text, kb)
+
+
+# ═════════════════════════ 🔎 Inline rejim: istalgan chatda @bot kino nomi ═════════════════════════
+
+@router.on("inline_query")
+def _inline_query(ctx: Ctx) -> None:
+    """Foydalanuvchi istalgan chatda «@bot nomi» yozsa — kinolar ro'yxati chiqadi, tanlansa havola yuboriladi."""
+    iq = ctx.inline
+    app, db = ctx.app, ctx.db
+    norm = normalize(iq.get("query") or "")
+    if norm:
+        ids, _ = search_ids(app, norm, fuzzy_ok=len(norm) >= 4)
+        rows = db.catalog_rows(ids[:20])
+    else:
+        rows = db.catalog(None, "top", limit=20)
+    base = app.config.webapp_url
+    results = []
+    for r in rows:
+        title = ("💎 " if r["is_premium"] else "") + r["title"]
+        bits = [cat_name(r["category"])]
+        if r["year"]:
+            bits.append(str(r["year"]))
+        g = ", ".join(genres.name(k) for k in genres.parse(r["genres"])[:2])
+        if g:
+            bits.append(g)
+        if r["views"]:
+            bits.append(f"👁 {fmt_num(r['views'])}")
+        link = app.deep_link(r["code"])
+        text = f"{title_icon(r['category'])} <b>{esc(r['title'])}</b>\n" + "\n".join(genres.info_lines(r))
+        item = {
+            "type": "article", "id": str(r["id"]), "title": title[:100],
+            "description": " • ".join(bits),
+            "input_message_content": {"message_text": text.strip(), "parse_mode": "HTML",
+                                      "link_preview_options": {"is_disabled": True}},
+            "reply_markup": {"inline_keyboard": [[{"text": "▶️ Botda ko'rish", "url": link}]]},
+        }
+        if base and r["poster_id"]:
+            item["thumbnail_url"] = f"{base}/api/poster/{r['id']}"
+            item["thumbnail_width"] = 200
+            item["thumbnail_height"] = 300
+        results.append(item)
+    try:
+        ctx.bot.call("answerInlineQuery", {
+            "inline_query_id": iq["id"], "results": results, "cache_time": 30, "is_personal": False,
+            **({} if results else {"button": {"text": "🔎 Botda qidirish", "start_parameter": "sorov"}}),
+        })
+    except Exception:
+        log.warning("Inline javob yuborilmadi", exc_info=True)
+
+
+# ═════════════════════════ 🔖 Sevimlilar (sayt bilan umumiy) ═════════════════════════
+
+@router.callback("svt")
+def cb_save_toggle(ctx: Ctx) -> None:
+    try:
+        mid = int(ctx.data.split(":")[1])
+    except (IndexError, ValueError):
+        ctx.answer()
+        return
+    if not ctx.db.get_movie(mid):
+        ctx.answer("😔 Kino topilmadi", alert=True)
+        return
+    on = not ctx.db.is_saved(ctx.user_id, mid)
+    ctx.db.set_saved(ctx.user_id, mid, on)
+    ctx.answer("🔖 Sevimlilarga qo'shildi — /saqlangan" if on else "Sevimlilardan olib tashlandi")
+
+
+def saved_view(app, uid: int, page: int = 0):
+    ids = app.db.saved_ids(uid)
+    if not ids:
+        return ("🔖 <b>Sevimlilar</b>\n\nHali hech narsa saqlanmagan. Kinoni ochib, «🔖 Saqlash» tugmasini bosing — "
+                "u shu yerda va saytda ham ko'rinadi."), None
+    pages = max(1, math.ceil(len(ids) / PER_PAGE))
+    page %= pages
+    rows = app.db.movie_rows(ids[page * PER_PAGE:(page + 1) * PER_PAGE])
+    text, kb = build_list(f"🔖 <b>Sevimlilar</b> — {len(ids)} ta (saytda ham shu ro'yxat)", rows, page * PER_PAGE, page, pages,
+                          "svp", fmt_item, hint="👇 Tanlang:")
+    from .remind import enabled as remind_on
+    on = remind_on(app.db, uid)
+    kb["inline_keyboard"].insert(-1, [btn("🔕 Eslatma: yoqilgan — o'chirish" if on else "🔔 Ko'rmagan kinolarim haqida eslatib turing",
+                                          "svr:0" if on else "svr:1", style=PRIMARY if on else SUCCESS)])
+    return text, kb
+
+
+@router.command("saqlangan", "sevimlilar")
+def cmd_saved(ctx: Ctx) -> None:
+    text, kb = saved_view(ctx.app, ctx.user_id)
+    ctx.send(text, kb)
+
+
+@router.callback("svp")
+def cb_saved_page(ctx: Ctx) -> None:
+    try:
+        page = int(ctx.data.split(":")[1])
+    except (IndexError, ValueError):
+        page = 0
+    text, kb = saved_view(ctx.app, ctx.user_id, page)
+    ctx.answer()
+    edit_or_send(ctx, text, kb)

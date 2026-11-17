@@ -1,0 +1,13 @@
+.git
+android
+data
+.env
+*.jks
+__pycache__
+*.pyc
+*.md
+start.bat
+start.sh
+tests
+watch
+.github
