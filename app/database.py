@@ -402,6 +402,7 @@ CATEGORIES = ("movie", "serial", "cartoon", "music")
 _CATALOG_ROW = """
 SELECT m.id, m.code, m.title, m.description, m.is_premium, m.views, m.created_at, m.category, m.poster_id,
        m.genres, m.year, m.year_end, m.country, m.lang, m.quality, m.duration, m.age, m.imdb, m.group_link, m.watch_url, m.trailer_url,
+       m.backdrop, m.tposter,
        (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = 1) AS likes,
        (SELECT COUNT(*) FROM ratings r WHERE r.movie_id = m.id AND r.value = -1) AS dislikes,
        (SELECT s.id FROM shorts s WHERE s.movie_id = m.id AND s.kind = 'video' ORDER BY s.id LIMIT 1) AS trailer,
@@ -478,6 +479,10 @@ class Database:
             self.conn.execute("ALTER TABLE movies ADD COLUMN imdb TEXT NOT NULL DEFAULT ''")
         if "extra" not in cols:      # 🎭 TMDB dan: aktyorlar, kadrlar, byudjet va kassa (JSON, kino sahifasida ko'rsatiladi)
             self.conn.execute("ALTER TABLE movies ADD COLUMN extra TEXT NOT NULL DEFAULT ''")
+        if "backdrop" not in cols:   # 🖼 TMDB keng rasmi (hero uchun): faqat yo'l, masalan «/abc123.jpg»
+            self.conn.execute("ALTER TABLE movies ADD COLUMN backdrop TEXT NOT NULL DEFAULT ''")
+        if "tposter" not in cols:    # 🖼 TMDB sifatli posteri (Telegram'dagi past sifatli o'rniga): faqat yo'l
+            self.conn.execute("ALTER TABLE movies ADD COLUMN tposter TEXT NOT NULL DEFAULT ''")
         pcols = {r[1] for r in self.conn.execute("PRAGMA table_info(parts)").fetchall()}
         if "duration" not in pcols:
             self.conn.execute("ALTER TABLE parts ADD COLUMN duration INTEGER NOT NULL DEFAULT 0")
@@ -844,6 +849,12 @@ class Database:
 
     # ───────── kinolar ─────────
 
+    def movies_for_images(self, after_id: int, limit: int) -> List[sqlite3.Row]:
+        """🖼 TMDB keng rasmi yoki sifatli posteri hali yo'q kinolar (id bo'yicha, `after_id` dan keyin)."""
+        return self.q("SELECT id, title, description, year, backdrop, tposter FROM movies"
+                      " WHERE category<>'music' AND id>? AND (backdrop='' OR tposter='') ORDER BY id LIMIT ?",
+                      (after_id, limit))
+
     def next_code(self) -> int:
         """Kino/multfilm uchun keyingi kod (musiqalar kodlari manfiy — ularga ta'sir qilmaydi)."""
         return int(self.val("SELECT MAX(code) FROM movies WHERE code>0")) + 1
@@ -908,17 +919,6 @@ class Database:
         self.x(f"UPDATE movies SET {cols} WHERE id=?", list(fields.values()) + [movie_id])
         if "genres" in fields:
             self.sync_genre_collections(movie_id)
-
-    def delete_movie(self, movie_id: int) -> None:
-        with self.tx() as c:
-            c.execute("DELETE FROM ratings WHERE movie_id=?", (movie_id,))
-            c.execute("DELETE FROM collection_items WHERE movie_id=?", (movie_id,))
-            c.execute("DELETE FROM history WHERE movie_id=?", (movie_id,))
-            c.execute("DELETE FROM shorts WHERE movie_id=?", (movie_id,))
-            c.execute("DELETE FROM parts WHERE movie_id=?", (movie_id,))
-            c.execute("DELETE FROM seasons WHERE movie_id=?", (movie_id,))
-            self._drop_comments(c, movie_id)
-            c.execute("DELETE FROM movies WHERE id=?", (movie_id,))
 
     # ───────── 🗂 qismlar va mavsumlar ─────────
     # Qoida: part_no — serialning BUTUN tartibidagi o'rni (mavsum → qism bo'yicha), ep_no — mavsum ichidagi raqam.
@@ -1698,9 +1698,6 @@ class Database:
 
     def is_contact_banned(self, uid: int) -> bool:
         return bool(self.val("SELECT contact_banned FROM users WHERE user_id=?", (uid,)))
-
-    def user_exists(self, uid: int) -> bool:
-        return self.q1("SELECT 1 FROM users WHERE user_id=?", (uid,)) is not None
 
     def revenue_since(self, since: int) -> Dict[str, int]:
         """So'nggi davr tushumi: so'm (karta + Click/Payme) va Stars."""

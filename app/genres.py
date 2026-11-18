@@ -252,12 +252,6 @@ def card_lines(movie, parts: int = 0) -> list:
     return lines
 
 
-def title_year(movie) -> str:
-    """« <i>(2015)</i>» — nomning yonida kichik yil (bo'lmasa bo'sh)."""
-    keys = movie.keys()
-    y = year_text(movie["year"], movie["year_end"] if "year_end" in keys else 0) if movie["year"] else ""
-    return f"  <i>({y})</i>" if y else ""
-
 
 def info_lines(movie) -> list:
     """Kino ma'lumotlari: davlat, yil, janr, til — xabar va e'lonlarda bir xil ko'rinishda."""

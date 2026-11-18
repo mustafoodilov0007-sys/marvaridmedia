@@ -347,7 +347,6 @@ class AddFlow(AdminCase):
         m["message"]["animation"] = {"file_id": "ANIM1"}
         self.run_update(self.app, m)
         self.assertEqual(self.app.setting("start_media"), "animation:ANIM1")
-        sent = [(n, a) for n, a, k in self.app.bot.sent if n == "call" or n == "sendAnimation"]
         calls = [a[0] for n, a, k in self.app.bot.sent if n == "sendAnimation"]
         self.assertTrue(calls and calls[-1]["animation"] == "ANIM1" and "kino olamiga" in calls[-1]["caption"])
         self.assertIn("reply_markup", calls[-1])                           # pastki menyu media bilan birga
@@ -384,7 +383,6 @@ class AddFlow(AdminCase):
 
     def test_backup_is_gzipped_local_copies_and_restorable(self):
         import gzip
-        import os
         import tempfile
         from pathlib import Path
         from app.handlers import admin_panel
@@ -407,7 +405,6 @@ class AddFlow(AdminCase):
     def test_error_alert_to_owners_is_rate_limited(self):
         from app import core
         core._last_alert[0] = 0
-        n0 = len([1 for n, a, k in self.app.bot.sent if n == "sendMessage"])
         try:
             raise ValueError("sinov <xato>")
         except ValueError:
@@ -549,7 +546,6 @@ class AddFlow(AdminCase):
         self.assertEqual(webapp.api_tv(app, {"id": 1})["channels"], [])
 
     def test_weekly_top5_post_and_toggle(self):
-        from app.handlers import weekly
         app, db = self.app, self.app.db
         app.set_setting("post_channel", "-100777")
         for i in range(6):
@@ -719,7 +715,6 @@ class AddFlow(AdminCase):
 
     def test_new_part_badge_for_followed_series(self):
         from app import webapp
-        import time as _t
         app, db = self.app, self.app.db
         mid = add_movie(app, 750, "Yangilanuvchi serial", cat="serial")
         p1 = db.get_parts(mid)[0]
@@ -767,7 +762,6 @@ class AddFlow(AdminCase):
         self.assertEqual(home["@graph"][0]["potentialAction"]["@type"], "SearchAction")
 
     def test_stat_card_and_failed_queries(self):
-        from app import analytics
         app, db = self.app, self.app.db
         mid = add_movie(app, 770, "Bugungi kino")
         db.inc_views(mid, db.get_parts(mid)[0]["id"])
@@ -838,7 +832,7 @@ class AddFlow(AdminCase):
         app, db = self.app, self.app.db
         app.set_setting("premium_enabled", "0")
         self.assertTrue(webapp.api_tv(app, {"id": 1}).get("empty"))        # kino yo'q — xato emas, bo'sh holat
-        ids = [add_movie(app, 990 + i, f"Efir {i}") for i in range(3)]
+        [add_movie(app, 990 + i, f"Efir {i}") for i in range(3)]
         d = webapp.api_tv(app, {"id": 1})
         first = d["slots"][0]["it"]["id"]
         db.x("DELETE FROM movies WHERE id=?", (first,))                   # jadvaldagi kino o'chirildi — jadval o'zi qayta tuziladi
@@ -873,7 +867,6 @@ class AddFlow(AdminCase):
         self.assertIn(f"pr:sub:{plan['id']}", str(self.app.bot.sent[-1]))                  # obuna tugmasi bor
         self.press(401, f"pr:sub:{plan['id']}")
         self.assertIn("https://t.me/$sub123", str(self.app.bot.sent[-1]))                   # to'lov havolasi tugmada
-        import copy
         def pay(charge, first, recurring=True):
             upd = message(401, "")
             upd["message"].pop("text")

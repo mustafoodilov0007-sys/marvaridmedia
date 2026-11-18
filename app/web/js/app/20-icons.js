@@ -114,6 +114,11 @@
     for (var i = 0; i < POSTER_W.length; i++) if (POSTER_W[i] >= need - 1) return POSTER_W[i];
     return POSTER_W[POSTER_W.length - 1];
   }
+  // 🖼 TMDB keng rasmi (hero uchun): server orqali beriladi; kichik ekranda 780, katta ekranda 1280 px
+  function bdUrl(it) {
+    if (!it.bd) return null;
+    return "/api/backdrop/" + it.id + "?v=" + String(it.bd).replace(/\W/g, "") + "&w=" + ((window.innerWidth || 1280) >= 900 ? 1280 : 780);
+  }
   function posterUrl(it, w) {
     if (!it.poster) return null;
     var pw = posterW(w);

@@ -108,7 +108,6 @@ class Router:
             return None
         h = self.buttons.get(button_key(text))
         if h is None:                                   # ruscha/inglizcha tarjima qilingan pastki menyu tugmasi
-            from . import i18n_bot
             uz = _alias_map().get(button_key(text))
             if uz:
                 h = self.buttons.get(button_key(uz))

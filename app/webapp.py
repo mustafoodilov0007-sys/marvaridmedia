@@ -106,7 +106,11 @@ def _google_verify(app: App, credential: str) -> Optional[dict]:
         return None
     if d.get("aud") != cid or d.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
         return None
-    if str(d.get("email_verified")).lower() != "true" or int(d.get("exp") or 0) < time.time():
+    try:
+        exp = int(d.get("exp") or 0)
+    except (TypeError, ValueError):
+        return None
+    if str(d.get("email_verified")).lower() != "true" or exp < time.time():
         return None
     return d
 
@@ -135,8 +139,24 @@ def api_auth(app: App, path: str, body: dict) -> dict:
         return {"ok": True, "session": db.create_session(uid), "name": info.get("name") or ""}
     return {"ok": False, "reason": "not_found"}
 
-def _poster_key(poster_id: Optional[str]) -> Optional[str]:
-    return hashlib.sha1(poster_id.encode()).hexdigest()[:12] if poster_id else None
+_TMDB_PATH = re.compile(r"^/[A-Za-z0-9_-]{5,60}\.(?:jpg|jpeg|png|webp)$")
+
+
+def _tmdb_path(p) -> str:
+    """TMDB rasm yo'li faqat «/abc.jpg» ko'rinishida qabul qilinadi (boshqa manzil/yo'l bo'sh qaytadi)."""
+    return p if isinstance(p, str) and _TMDB_PATH.match(p) else ""
+
+
+def _poster_key(poster_id: Optional[str], tposter: str = "") -> Optional[str]:
+    tp = _tmdb_path(tposter)
+    if not poster_id and not tp:
+        return None
+    return hashlib.sha1(f"{poster_id or ''}|{tp}".encode() if tp else poster_id.encode()).hexdigest()[:12]
+
+
+def _row_key(r) -> Optional[str]:
+    keys = r.keys()
+    return _poster_key(r["poster_id"], r["tposter"] if "tposter" in keys else "")
 
 
 def _user_flags(app: App, uid: int):
@@ -406,7 +426,7 @@ def _genre_collections(app: App, top: int = 6, min_n: int = 3) -> list:
     for k, n in counts[:top]:
         rows = app.db.catalog("video", "top", None, 8, genre=k)
         out.append({"id": "g_" + k, "title": genres.name(k), "n": n,
-                    "covers": [{"id": r["id"], "poster": _poster_key(r["poster_id"])} for r in rows if r["poster_id"]][:4]})
+                    "covers": [{"id": r["id"], "poster": _row_key(r)} for r in rows if r["poster_id"]][:4]})
     return out
 
 
@@ -482,7 +502,7 @@ def api_collections(app: App, user: dict) -> dict:
     for c in app.db.list_collections():
         if not c["n"]:
             continue
-        covers = [{"id": r["id"], "poster": _poster_key(r["poster_id"])} for r in app.db.collection_movies(c["id"], 8) if r["poster_id"]][:4]
+        covers = [{"id": r["id"], "poster": _row_key(r)} for r in app.db.collection_movies(c["id"], 8) if r["poster_id"]][:4]
         out.append({"id": c["id"], "title": c["title"], "n": c["n"], "covers": covers})
     return {"ok": True, "items": out + _genre_collections(app, top=12)}
 
@@ -925,7 +945,8 @@ def _item(r, premium_on: bool, vip: bool) -> dict:
         "premium": bool(r["is_premium"]),
         "free": premium_on and not r["is_premium"],        # «BEPUL» belgisi (Premium tizimi yoqilgan bo'lsa)
         "locked": bool(r["is_premium"]) and premium_on and not vip,
-        "poster": _poster_key(r["poster_id"]),
+        "poster": _row_key(r),
+        "bd": _tmdb_path(r["backdrop"]) if "backdrop" in keys else "",
         "glink": (r["group_link"] if "group_link" in keys else "") if r["category"] in ("serial", "cartoon") else "",
         "wurl": (r["watch_url"] if "watch_url" in keys else "") or "",
         "turl": (r["trailer_url"] if "trailer_url" in keys else "") or "",
@@ -958,8 +979,10 @@ def _api_home(app: App, user: dict) -> dict:
     for cat in ("movie", "serial", "cartoon"):
         newest += list(db.catalog(cat, "new", None, 12))
     newest.sort(key=lambda r: (r["created_at"], r["id"]), reverse=True)
-    with_poster = [r for r in newest if r["poster_id"]]
-    hero = (with_poster + [r for r in newest if not r["poster_id"]])[:6]
+    with_poster = [r for r in newest if r["poster_id"] or _tmdb_path(r["tposter"])]
+    pool = with_poster + [r for r in newest if r not in with_poster]
+    # 🖼 keng TMDB rasmi bor kinolar birinchi (yangilik tartibi saqlanadi) — hero «ideal» ko'rinishda chiqadi
+    hero = ([r for r in pool if _tmdb_path(r["backdrop"])] + [r for r in pool if not _tmdb_path(r["backdrop"])])[:6]
     history = pack(db.history(user["id"], 15)) if user["id"] else []
     fresh = []
     for r in (db.fresh_parts(user["id"]) if user["id"] > 0 else []):          # 🆕 ko'rganingizdan keyin yangi qism chiqqan serial/multfilmlar
@@ -992,7 +1015,7 @@ def _api_home(app: App, user: dict) -> dict:
             extra.append({"key": "g_" + key, "title": genres.name(key), "cat": "video", "f": {"genre": key},
                           "items": pack(rows_g)})
     collections = [{"id": c["id"], "title": c["title"], "n": c["n"],
-                    "covers": [{"id": r["id"], "poster": _poster_key(r["poster_id"])} for r in db.collection_movies(c["id"], 8) if r["poster_id"]][:4]}
+                    "covers": [{"id": r["id"], "poster": _row_key(r)} for r in db.collection_movies(c["id"], 8) if r["poster_id"]][:4]}
                    for c in db.list_collections() if c["n"]][:12] + _genre_collections(app)
     return {
         "ok": True,
@@ -1343,6 +1366,30 @@ def api_watch(app: App, user: dict, body: dict) -> dict:
     return {"ok": not locked, "reason": "premium" if locked else None}
 
 
+def api_parts(app: App, user: dict, qs: dict) -> dict:
+    """📺 Serial qismlari (mavsumlar bo'yicha) — saytdagi «Qismlar» bo'limi uchun. Qism bosilsa, sayt /api/watch ga part yuboradi."""
+    try:
+        mid = int(qs.get("id", ""))
+    except ValueError:
+        return {"ok": False, "reason": "not_found"}
+    if not app.db.get_movie(mid):
+        return {"ok": False, "reason": "not_found"}
+    rows = app.db.get_parts(mid)
+    parts, seasons = [], {}
+    for r in rows:
+        keys = r.keys()
+        sea = r["season"] if "season" in keys and r["season"] else 1
+        ep = (r["ep_no"] if "ep_no" in keys and r["ep_no"] else 0) or r["part_no"]
+        seasons[sea] = seasons.get(sea, 0) + 1
+        parts.append({"id": r["id"], "no": r["part_no"], "season": sea, "ep": ep,
+                      "title": (r["title"] if "title" in keys else "") or "",
+                      "dur": (r["duration"] if "duration" in keys else 0) or 0})
+    last = app.db.last_part(user["id"], mid) if user["id"] > 0 else None
+    return {"ok": True, "multi": len(seasons) > 1,
+            "seasons": [{"n": n, "count": c} for n, c in sorted(seasons.items())],
+            "parts": parts, "last": last["part_no"] if last else 0}
+
+
 def api_resume(app: App, user: dict, qs: dict) -> dict:
     """📺 Serial: foydalanuvchi qaysi qismda to'xtagan va qaysi qismdan davom etadi (botdagi «Davom etish» bilan bir xil)."""
     try:
@@ -1461,50 +1508,120 @@ def share_card_bytes(app: App, movie_id: int, cache_dir: Path) -> Optional[bytes
 POSTER_REV = "_r2"      # kodlash sifati o'zgarganda oshiriladi: eski keshlangan nusxalar o'rniga yangisi yasaladi
 
 
-def poster_bytes(app: App, movie_id: int, cache_dir: Path, width: int = 0, webp: bool = False) -> Optional[bytes]:
-    movie = app.db.get_movie(movie_id)
-    if not movie or not movie["poster_id"]:
+_tposter_fail: dict = {}            # TMDB dan yuklanmagan rasmni 5 daqiqa qayta so'ramaymiz
+TMDB_IMG = "https://image.tmdb.org/t/p/"
+TMDB_MAX = 8 * 1024 * 1024
+
+
+def _download_tmdb(url: str) -> Optional[bytes]:
+    """TMDB rasmini yuklaydi. Faqat image.tmdb.org; xato yoki juda katta fayl bo'lsa — None."""
+    if not url.startswith(TMDB_IMG):
         return None
-    key = _poster_key(movie["poster_id"])
-    path = cache_dir / f"{movie_id}_{key}.jpg"
-    if width and _PIL is not None:
-        ext = "webp" if webp else "jpg"
-        small = cache_dir / f"{movie_id}_{key}_{width}{POSTER_REV}.{ext}"
-        if small.exists():
-            return small.read_bytes()
-        full = poster_bytes(app, movie_id, cache_dir, 0)
-        if full is None:
-            return None
-        data = _thumb(full, width, webp)
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        tmp = small.with_suffix(f".{threading.get_ident()}.tmp")
-        tmp.write_bytes(data)
-        os.replace(tmp, small)
-        try:
-            (cache_dir / f"{movie_id}_{key}_{width}.{ext}").unlink()      # eski (kamsifat) nusxa — keraksiz
-        except OSError:
-            pass
-        return data
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "MarvaridMedia/1.0"})
+        with urllib.request.urlopen(req, timeout=12) as r:
+            data = r.read(TMDB_MAX + 1)
+    except Exception as exc:        # noqa: BLE001 — tarmoq xatosi: Telegram posteriga qaytamiz
+        log.debug("TMDB rasmi yuklanmadi (%s): %s", url, exc)
+        return None
+    return data if 1000 < len(data) <= TMDB_MAX else None
+
+
+def _save_cache(path: Path, data: bytes, pattern: str = "") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if pattern:
+        for old in path.parent.glob(pattern):
+            try:
+                old.unlink()
+            except OSError:
+                pass
+    tmp = path.with_suffix(f".{threading.get_ident()}.tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, path)
+
+
+def _poster_full(app: App, movie, cache_dir: Path):
+    """To'liq o'lchamli poster. TMDB posteri bo'lsa — o'sha (sifatli), bo'lmasa/yuklanmasa — Telegram'dagi.
+    Qaytaradi: (bayt, TMDB_dan_mi)."""
+    movie_id = movie["id"]
+    tp = _tmdb_path(movie["tposter"]) if "tposter" in movie.keys() else ""
+    if tp:
+        path = cache_dir / f"{movie_id}_{_poster_key(movie['poster_id'], tp)}.jpg"
+        if path.exists():
+            return path.read_bytes(), True
+        if time.time() - _tposter_fail.get(movie_id, 0) > 300:
+            data = _download_tmdb(f"{TMDB_IMG}w780{tp}")
+            if data:
+                _save_cache(path, data, f"{movie_id}_*.jpg")
+                return data, True
+            _tposter_fail[movie_id] = time.time()
+    if not movie["poster_id"]:
+        return None, False
+    path = cache_dir / f"{movie_id}_{_poster_key(movie['poster_id'])}.jpg"
     if path.exists():
-        return path.read_bytes()
+        return path.read_bytes(), False
     if time.time() - _poster_fail.get(movie_id, 0) < 60:
-        return None
+        return None, False
     try:
         info = app.bot.call("getFile", {"file_id": movie["poster_id"]})
         data = app.bot.download_file(info["file_path"])
     except (TelegramError, KeyError) as exc:
         log.debug("Poster yuklanmadi (%s): %s", movie_id, exc)
         _poster_fail[movie_id] = time.time()
+        return None, False
+    _save_cache(path, data, f"{movie_id}_*.jpg" if not tp else "")
+    return data, False
+
+
+def poster_bytes(app: App, movie_id: int, cache_dir: Path, width: int = 0, webp: bool = False) -> Optional[bytes]:
+    movie = app.db.get_movie(movie_id)
+    if not movie:
         return None
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    for old in list(cache_dir.glob(f"{movie_id}_*.jpg")) + list(cache_dir.glob(f"{movie_id}_*.webp")):
-        try:
-            old.unlink()
-        except OSError:
-            pass
-    tmp = path.with_suffix(f".{threading.get_ident()}.tmp")
-    tmp.write_bytes(data)
-    os.replace(tmp, path)
+    tp = _tmdb_path(movie["tposter"]) if "tposter" in movie.keys() else ""
+    if not movie["poster_id"] and not tp:
+        return None
+    key = _poster_key(movie["poster_id"], tp)
+    if width and _PIL is not None:
+        ext = "webp" if webp else "jpg"
+        small = cache_dir / f"{movie_id}_{key}_{width}{POSTER_REV}.{ext}"
+        if small.exists():
+            return small.read_bytes()
+        full, from_tmdb = _poster_full(app, movie, cache_dir)
+        if full is None:
+            return None
+        data = _thumb(full, width, webp)
+        if from_tmdb or not tp:       # TMDB ishlamay Telegram posteriga qaytgan bo'lsak — kichik nusxani saqlamaymiz (keyin TMDB dan olinadi)
+            _save_cache(small, data)
+            try:
+                (cache_dir / f"{movie_id}_{key}_{width}.{ext}").unlink()      # eski (kamsifat) nusxa — keraksiz
+            except OSError:
+                pass
+        return data
+    return _poster_full(app, movie, cache_dir)[0]
+
+
+BACKDROP_W = (780, 1280)
+
+
+def backdrop_bytes(app: App, movie_id: int, cache_dir: Path, width: int = 1280) -> Optional[bytes]:
+    """🖼 TMDB keng rasmi (hero uchun). Yo'q yoki yuklanmasa — None (sayt poster ko'rinishiga qaytadi)."""
+    movie = app.db.get_movie(movie_id)
+    bd = _tmdb_path(movie["backdrop"]) if movie and "backdrop" in movie.keys() else ""
+    if not bd:
+        return None
+    width = width if width in BACKDROP_W else 1280
+    tag = hashlib.sha1(bd.encode()).hexdigest()[:10]
+    path = cache_dir / f"bd_{movie_id}_{tag}_{width}.jpg"
+    if path.exists():
+        return path.read_bytes()
+    if time.time() - _tposter_fail.get(-movie_id, 0) < 300:
+        return None
+    full = _download_tmdb(f"{TMDB_IMG}w1280{bd}")
+    if not full:
+        _tposter_fail[-movie_id] = time.time()
+        return None
+    data = _thumb(full, width) if _PIL is not None else full
+    _save_cache(path, data, f"bd_{movie_id}_*_{width}.jpg")
     return data
 
 
@@ -1783,7 +1900,7 @@ self.addEventListener("fetch", (e) => {
       .catch(() => caches.match("/")));
     return;
   }
-  if (/^\/(api\/poster\/|icon-|og\.png|apple-touch|fonts\/|assets\/)/.test(u.pathname)) {   // posterlar va ikonkalar: avval saqlangan
+  if (/^\/(api\/(poster|backdrop)\/|icon-|og\.png|apple-touch|fonts\/|assets\/)/.test(u.pathname)) {   // posterlar va ikonkalar: avval saqlangan
     e.respondWith(caches.open(IMG).then((c) => c.match(r).then((hit) => hit || fetch(r).then((res) => { if (res.ok) { c.put(r, res.clone()); trim(IMG, 250); } return res; }))));
   }
 });
@@ -2086,9 +2203,9 @@ def make_handler(app: App):
                 if path == "/sw.js":
                     return self._send(200, SERVICE_WORKER.encode("utf-8"), "text/javascript; charset=utf-8", "no-cache",
                                       {"Service-Worker-Allowed": "/"})
-                m = re.fullmatch(r"/fonts/([a-z0-9-]+\.woff2)", path)
+                m = re.fullmatch(r"/fonts/([a-z0-9-]+\.woff2?)", path)
                 if m and (WEB_DIR / "fonts" / m.group(1)).is_file():
-                    return self._send(200, (WEB_DIR / "fonts" / m.group(1)).read_bytes(), "font/woff2",
+                    return self._send(200, (WEB_DIR / "fonts" / m.group(1)).read_bytes(), "font/woff2" if m.group(1).endswith("woff2") else "font/woff",
                                       "public, max-age=31536000, immutable")
                 if path in STATIC_FILES:
                     return self._send(200, (WEB_DIR / path.lstrip("/")).read_bytes(), STATIC_FILES[path], "public, max-age=604800")
@@ -2131,6 +2248,14 @@ def make_handler(app: App):
                         return self._send(404, b"", "text/plain")
                     return self._send(200, data, "image/webp" if webp else "image/jpeg", "public, max-age=604800, immutable",
                                       {"Vary": "Accept"})
+                m = re.fullmatch(r"/api/backdrop/(\d+)", path)
+                if m:                                # 🖼 hero uchun TMDB keng rasmi
+                    if self._limited(api_user, api_ip):
+                        return
+                    data = backdrop_bytes(app, int(m.group(1)), cache_dir, int(qs["w"]) if qs.get("w") in ("780", "1280") else 1280)
+                    if data is None:
+                        return self._send(404, b"", "text/plain")
+                    return self._send(200, data, "image/jpeg", "public, max-age=604800, immutable")
                 m = re.fullmatch(r"/media/short/(\d+)", path)
                 if m:
                     f = short_file(app, int(m.group(1)), shorts_dir)
@@ -2195,6 +2320,8 @@ def make_handler(app: App):
                         return self._json(api_week(app, user))
                     if path == "/api/resume":
                         return self._json(api_resume(app, user, qs))
+                    if path == "/api/parts":
+                        return self._json(api_parts(app, user, qs))
                     if path == "/api/tv":
                         d = api_tv(app, user)
                         if self._kids:

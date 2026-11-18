@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from ..core import Ctx, router
-from ..keyboards import DANGER, PRIMARY, btn, ikb
+from ..keyboards import DANGER, btn, ikb
 from ..telegram import TelegramError
 from ..utils import esc, truncate
 

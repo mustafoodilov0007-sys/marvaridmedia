@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from .. import tv
 from ..core import Ctx, router
-from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, ikb
+from ..keyboards import DANGER, SUCCESS, btn, ikb
 from ..utils import esc, truncate
 
 KINDS = {"youtube": "▶️ saytda o'ynaydi", "link": "🔗 tashqi havola"}
