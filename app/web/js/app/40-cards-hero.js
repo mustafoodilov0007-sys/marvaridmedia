@@ -151,7 +151,8 @@
       var meta = metaNode(it);
       var body = h("div", "hero-body", [badges, h("h2", "hero-title", it.title), meta]);
       if (it.desc) body.appendChild(h("p", "hdesc", it.desc));      // qisqa izoh (faqat keng ekranda ko'rinadi)
-      body.appendChild(ratingBadges(it));
+            var rbs = ratingBadges(it);
+      if (rbs) body.appendChild(rbs);
       body.appendChild(actionRow(it, true));
       s.appendChild(body);
       s.classList.add("tap");          // posterga bosilsa — tafsilot (izoh shu yerda chiqadi)
