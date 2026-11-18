@@ -7,7 +7,7 @@ import time
 
 from ..core import Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb
-from ..utils import fmt_datetime, plan_name
+from ..utils import esc, fmt_datetime, plan_name
 
 log = logging.getLogger("promo")
 

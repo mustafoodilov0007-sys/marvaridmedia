@@ -235,6 +235,7 @@ def ask_category(ctx: Ctx, prefill=None) -> None:
 
 
 def start_add(ctx: Ctx, prefill=None, category: str = "movie", ms: bool = False) -> None:
+    code = ctx.db.next_code()
     data = {"cat": category if category in CATEGORIES else "movie"}
     if ms and data["cat"] == "cartoon":
         data["ms"] = True
@@ -438,7 +439,7 @@ def ask_desc(ctx: Ctx) -> None:
     rows.append([btn("⏭ O'tkazib yuborish", "am:skip", style=SUCCESS)])
     rows.append(nav_row(ctx))
     if _is_music(ctx):
-        card(ctx, "4️⃣ Musiqa haqida <b>qisqacha ma'lumot</b> yuboring:\n💡 Masalan: ijrochi, albom, yil.\n\n"
+        card(ctx, f"4️⃣ Musiqa haqida <b>qisqacha ma'lumot</b> yuboring:\n💡 Masalan: ijrochi, albom, yil.\n\n"
                   "Yoki bu bosqichni o'tkazib yuboring 👇", ikb(*rows))
         return
     card(ctx, f"8️⃣ Endi {_noun(ctx)} haqida <b>izoh</b> yozing ✍️\n"

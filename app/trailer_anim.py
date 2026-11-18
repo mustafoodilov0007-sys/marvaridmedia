@@ -12,7 +12,7 @@ import random
 import shutil
 import subprocess
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 try:
     from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont

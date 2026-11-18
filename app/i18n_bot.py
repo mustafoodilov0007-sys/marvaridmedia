@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import copy
 import re
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 LANGS = {"uz": "O'zbekcha", "ru": "Русский", "en": "English"}
 

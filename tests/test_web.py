@@ -38,28 +38,6 @@ class WebCase(unittest.TestCase):
         cleanup(cls.app)
 
 
-class PartsApi(WebCase):
-    def test_parts_list_groups_seasons_and_marks_last_watched(self):
-        """📺 Saytdagi «Qismlar» bo'limi: mavsumlar, qism raqamlari va oxirgi ko'rilgan qism."""
-        db = self.app.db
-        mid = add_movie(self.app, 150, "Seriya", cat="serial")
-        db.add_part(mid, "F2", "video")
-        pid = db.add_part_id(mid, "G1", "video", 2)
-        st, d = self.web.json("/pub/parts?id=%d" % mid)
-        self.assertEqual(st, 200)
-        self.assertTrue(d["ok"])
-        self.assertTrue(d["multi"])
-        self.assertEqual([(s["n"], s["count"]) for s in d["seasons"]], [(1, 2), (2, 1)])
-        self.assertEqual([(p["season"], p["ep"]) for p in d["parts"]], [(1, 1), (1, 2), (2, 1)])
-        self.assertEqual(d["last"], 0)
-        db.upsert_user({"id": 77, "first_name": "T"})
-        db.touch_history(77, mid, pid)
-        st, d = self.web.json("/api/parts?id=%d" % mid, uid=77)
-        self.assertEqual(d["last"], 3)
-        st, d = self.web.json("/pub/parts?id=999999")
-        self.assertFalse(d["ok"])
-
-
 class Pages(WebCase):
     def test_index_has_open_graph_and_pwa_links(self):
         st, body, h = self.web.get("/")

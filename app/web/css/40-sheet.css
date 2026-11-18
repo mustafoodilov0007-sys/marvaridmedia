@@ -41,7 +41,7 @@
   .ed label.f { display: block; margin: 0 0 12px; font-size: 12.5px; font-weight: 700; color: var(--muted); }
   .ed label.f > input, .ed label.f > textarea, .ed label.f > select { display: block; width: 100%; margin-top: 5px;
     padding: 11px 12px; border-radius: 12px; border: 1px solid var(--line, #3a342a); background: var(--surface-2);
-    color: var(--text); font: 500 15px/1.35 "Poppins", "Inter", sans-serif; }
+    color: var(--text); font: 500 15px/1.35 "Inter", sans-serif; }
   .ed textarea { min-height: 110px; resize: vertical; }
   .ed .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .ed .gchips { flex-wrap: wrap; overflow: visible; margin: 0 0 12px; padding: 4px 0 0; }
@@ -52,7 +52,7 @@
   .donate { margin: 14px 0; padding: 22px 18px; border-radius: 22px; color: #1d1405; position: relative; overflow: hidden;
     background: linear-gradient(135deg, #f6dc97, #e2b450 45%, #b98a2c); box-shadow: 0 14px 34px var(--glow, rgba(226,180,80,.25)); }
   .donate small { display: block; font-weight: 700; opacity: .75; letter-spacing: .08em; text-transform: uppercase; font-size: 11px; }
-  .donate .num { font: 800 clamp(19px, 6vw, 26px)/1.2 "Poppins", "Inter", sans-serif; letter-spacing: .06em; margin: 10px 0 8px; word-break: break-all; }
+  .donate .num { font: 800 clamp(19px, 6vw, 26px)/1.2 "Inter", sans-serif; letter-spacing: .06em; margin: 10px 0 8px; word-break: break-all; }
   .donate .who { font-weight: 700; font-size: 15px; }
   .donate-actions { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 0; }
   .donate-actions .btn { flex: none; width: 100%; }
@@ -127,14 +127,14 @@
   .w-hello { font: 700 clamp(15px, 4.4vw, 21px) "Cinzel", Georgia, serif; letter-spacing: .42em; padding-left: .42em; opacity: 0;
     background: linear-gradient(180deg, #fff1c0, #d9a943); -webkit-background-clip: text; background-clip: text; color: transparent;
     animation: w-up .7s ease 2.15s forwards; }
-  .w-name { font: 800 clamp(30px, 9.5vw, 46px)/1.1 "Poppins", "Inter", sans-serif; margin: 8px 0 8px; color: #fff; display: flex;
+  .w-name { font: 800 clamp(30px, 9.5vw, 46px)/1.1 "Inter", sans-serif; margin: 8px 0 8px; color: #fff; display: flex;
     justify-content: center; flex-wrap: wrap; text-shadow: 0 4px 24px rgba(217,169,67,.35); }
   .w-name span { display: inline-block; opacity: 0; transform: translateY(16px); will-change: transform, opacity;
     animation: w-letter .6s cubic-bezier(.2,.8,.2,1) forwards; white-space: pre; }
   @keyframes w-letter { to { opacity: 1; transform: none; } }
-  .w-sub { font: 600 clamp(13px, 3.7vw, 16px) "Poppins", "Inter", sans-serif; color: #b9ae9a; opacity: 0; animation: w-up .7s ease 2.95s forwards; }
+  .w-sub { font: 600 clamp(13px, 3.7vw, 16px) "Inter", sans-serif; color: #b9ae9a; opacity: 0; animation: w-up .7s ease 2.95s forwards; }
   @keyframes w-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-  .w-skip { position: absolute; bottom: calc(24px + env(safe-area-inset-bottom)); font: 600 12px "Poppins", "Inter", sans-serif; color: #6f6759;
+  .w-skip { position: absolute; bottom: calc(24px + env(safe-area-inset-bottom)); font: 600 12px "Inter", sans-serif; color: #6f6759;
     opacity: 0; animation: w-up .6s ease 1.6s forwards; }
   .w-dust { position: absolute; inset: 0; pointer-events: none; }
   .w-dust i { position: absolute; bottom: -12px; will-change: transform, opacity; border-radius: 50%; background: radial-gradient(circle, #fff1c0, #d9a943 60%, transparent 70%);

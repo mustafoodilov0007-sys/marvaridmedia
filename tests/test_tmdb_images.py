@@ -55,6 +55,7 @@ class ServeTests(unittest.TestCase):
         from tests.harness import make_app, add_movie
         app = make_app(admins="1")
         mid = add_movie(app, 5, "Kino")
+        row = lambda: app.db.get_movie(mid)
         base = webapp._item(app.db.q("SELECT m.*, 0 AS likes, 0 AS dislikes, 0 AS parts FROM movies m WHERE m.id=?", (mid,))[0], False, False)
         app.db.update_movie(mid, tposter="/okposter1.jpg", backdrop="/okbackdr1.jpg")
         it = webapp._item(app.db.q("SELECT m.*, 0 AS likes, 0 AS dislikes, 0 AS parts FROM movies m WHERE m.id=?", (mid,))[0], False, False)

@@ -13,7 +13,7 @@
     background: linear-gradient(180deg, rgba(11,10,13,.55) 0%, rgba(11,10,13,0) 20%, rgba(11,10,13,0) 34%,
       color-mix(in srgb, var(--bg) 78%, transparent) 56%, color-mix(in srgb, var(--bg) 94%, transparent) 72%, var(--bg) 100%); }
   .hero-body { position: absolute; left: 0; right: 0; bottom: 30px; padding: 0 16px; text-align: center; }
-  .hero-title { font: 800 clamp(28px, 8.6vw, 42px)/1.08 "Poppins", "Inter", sans-serif; letter-spacing: -.025em;
+  .hero-title { font: 800 clamp(28px, 8.6vw, 42px)/1.08 "Inter", sans-serif; letter-spacing: -.025em;
     letter-spacing: -.5px; margin: 0 0 12px; color: #fff; text-shadow: 0 4px 24px rgba(0,0,0,.55);
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   :root[data-theme="light"] .hero-title { color: var(--text); text-shadow: 0 2px 16px rgba(255,255,255,.6); }
@@ -115,7 +115,7 @@
     background: var(--surface); border: 1px solid var(--line); margin: 8px 0 18px; }
   .searchbox svg { color: var(--muted); }
   .searchbox input { flex: 1; min-width: 0; width: 100%; border: 0; outline: 0; background: none; color: var(--text);
-    font: 600 16px "Poppins", "Inter", sans-serif; }
+    font: 600 16px "Inter", sans-serif; }
   .searchbox input::placeholder { color: var(--muted); }
   .group-title { font-weight: 800; font-size: 16px; margin: 20px 0 10px; }
   .empty { text-align: center; color: var(--muted); padding: 50px 20px; }

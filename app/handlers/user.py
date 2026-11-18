@@ -15,7 +15,7 @@ from ..core import Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, nav_row, number_rows, user_menu
 from ..subscription import all_joined, channel_statuses, gate_view, needs_gate
 from ..telegram import BadRequest, TelegramError
-from ..texts import B, HELP_TEXT, cat_name, title_icon
+from ..texts import B, HELP_TEXT, cat_icon, cat_name, title_icon
 from ..utils import (short_desc_block, esc, fmt_datetime, fmt_num, fuzzy_match, normalize, now, phonetic, render,
                      truncate, visible_len)
 
