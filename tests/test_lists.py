@@ -150,7 +150,7 @@ class Growth(unittest.TestCase):
         from tests.harness import message
         process_update(self.app, message(100, "/start"))
         for i in range(3):
-            process_update(self.app, message(200 + i, f"/start r100"))
+            process_update(self.app, message(200 + i, "/start r100"))
         self.assertEqual(self.db.referral_count(100), 3)
         # 3 × (+1) + 3-do'st bosqichi (+3) = 6 kun
         left = (self.db.premium_until(100) - int(__import__("time").time())) / 86400
@@ -167,3 +167,18 @@ class Growth(unittest.TestCase):
             self.assertEqual((ref["n"], ref["next"], ref["bonus"]), (0, 3, 3))
         finally:
             web.close()
+
+
+class KoreanCollectionTests(unittest.TestCase):
+    def test_korean_genre_joins_auto_collection_and_backfills(self):
+        from app import genres
+        from tests.harness import make_app, add_movie
+        self.assertIn("korean", genres.PICKER)
+        app = make_app(admins="1")
+        mid = add_movie(app, 5, "Seul drama")
+        app.db.update_movie(mid, genres=genres.dump(["korean"]))
+        app.db.backfill_genre_collections()
+        app.db.backfill_genre_collections()          # takroriy chaqiruv nusxa yaratmasligi kerak
+        cols = [c for c in app.db.list_collections() if c["title"] == "Koreys dramalari"]
+        self.assertEqual(len(cols), 1)
+        self.assertEqual(cols[0]["n"], 1)

@@ -12,7 +12,7 @@ import logging
 import re
 
 from ..core import Ctx, router
-from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb
+from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, ikb
 from ..telegram import TelegramError
 from ..utils import emoji_key, entity_text, esc
 

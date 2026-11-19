@@ -55,7 +55,8 @@
       if (tvLock) {
         var pic0 = h("div", "poster tvlockpic", [icon("lock")]);
         box.replaceChildren(pic0, h("div", "tvinfo", [h("small", null, "MARVARID TV · PREMIUM"), h("b", null, "Kunlik efir jadvali"),
-          h("em", null, tvLock.trial_days ? "🎁 " + tvLock.trial_days + " kun bepul — sinab ko'ring" : "Premium egalari uchun")]));
+          h("em", null, tvLock.trial_days ? "🎁 " + tvLock.trial_days + " kun bepul — sinab ko'ring" : "Premium egalari uchun")]),
+          h("span", "tvopen", [icon("gem"), tvLock.trial_days ? "Bepul sinash" : "Ochish"]));
         box.classList.remove("hidden");
         return;
       }
@@ -69,7 +70,7 @@
       var info = [h("small", null, "MARVARID TV · " + (st.live ? "HOZIR EFIRDA" : "TEZ ORADA")), h("b", null, it.title),
         h("div", "tvtime", [h("span", null, tvHM(st.cur.s) + " – " + tvHM(st.cur.e)), st.live ? bar : null])];
       if (st.next) info.push(h("em", null, "Keyingisi " + tvHM(st.next.s) + " da: " + st.next.it.title));
-      box.replaceChildren(pic, h("div", "tvinfo", info));
+      box.replaceChildren(pic, h("div", "tvinfo", info), h("span", "tvopen", [icon("play"), "Efirni ochish"]));
       box.classList.remove("hidden");
     }
     tvLoad(false).then(function () { paint(); });
@@ -124,13 +125,18 @@
     var page = h("div", "page tvpage");
     var live = h("div", "tvlive");
     var prog = h("div", "tvprog");
-    page.appendChild(h("h1", null, [h("span", "tvlogo", [icon("live")]), "Marvarid TV"]));
-    page.appendChild(h("p", "lead", "Kunlik efir jadvali — hozir nima ko'rsatilayotganini bilib oling"));
+    var clock = h("time", "tvclock", tvHM(tvNow()));
+    // 📺 sarlavha: «MARVARID [TV]  ● JONLI  izoh ............ soat» (kompyuterda bitta qatorda)
+    page.appendChild(h("div", "tvhead", [
+      h("h1", null, [h("span", "tvlogo", [icon("live")]), h("span", "tvwm", ["MARVARID", h("em", null, "TV")])]),
+      h("span", "tvjon", [h("i"), "JONLI"]),
+      h("p", "tvlead", "Filmlar kun bo'yi, televizordagidek ketma-ket. Tanlash shart emas — shunchaki ko'ring."),
+      clock]));
     var tabs = h("div", "tvtabs hidden"), dastur = h("h2", "tvh", "Dastur"), sel = "m", shownChan = "";
+    var side = h("aside", "tvside", [dastur, prog]);
     page.appendChild(tabs);
-    page.appendChild(live);
-    page.appendChild(dastur);
-    page.appendChild(prog);
+    var tvgrid = h("div", "tvgrid", [h("div", "tvmain", [live]), side]);
+    page.appendChild(tvgrid);
     live.appendChild(h("div", "tvsk"));
     view.replaceChildren(page);
     var scrolled = false, timer = null;
@@ -175,6 +181,7 @@
       live.replaceChildren(h("div", "tvlock", [h("span", "tvlogo big", [icon("live")]), h("h2", null, "Marvarid TV — Premium"), msg,
         h("div", "tvbtns", [act, more])]));
       prog.replaceChildren();
+      side.classList.add("hidden"); tvgrid.classList.add("solo");
     }
     function paintTabs() {
       if (!tvChans.length || tvLock) { tabs.classList.add("hidden"); return; }
@@ -192,6 +199,7 @@
     function channelView(c) {
       stageKey = ""; stageNode = null;
       dastur.classList.add("hidden"); prog.classList.add("hidden");
+      side.classList.add("hidden"); tvgrid.classList.add("solo");
       var site = h("button", "tvmore", [icon("send"), "Kanal saytida ko'rish"]);
       site.onclick = function () { haptic(); openExternal(c.url); };
       var node;
@@ -211,6 +219,7 @@
     }
     function paint() {
       if (my !== reqId) { clearInterval(timer); return; }
+      clock.textContent = tvHM(tvNow());
       if (tvLock) { lockView(); return; }
       paintTabs();
       if (sel !== "m") {
@@ -220,6 +229,7 @@
       }
       shownChan = "";
       dastur.classList.remove("hidden"); prog.classList.remove("hidden");
+      side.classList.remove("hidden"); tvgrid.classList.remove("solo");
       var st = tvState();
       if (!st) {
         stageKey = ""; stageNode = null;
@@ -275,7 +285,7 @@
       timer = setInterval(function () {
         if (my !== reqId || !document.body.contains(page)) { clearInterval(timer); return; }
         if (!tvLock && tvStale()) tvLoad(true).then(paint); else paint();
-      }, 20000);
+      }, 10000);
     }
     tvLoad(true).then(start);
   }

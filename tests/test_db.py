@@ -2,7 +2,6 @@
 
 import sqlite3
 import threading
-import time
 import unittest
 
 from tests.harness import add_movie, cleanup, make_app

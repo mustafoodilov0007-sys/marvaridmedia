@@ -55,7 +55,7 @@
     transition: border-color .2s, box-shadow .2s; }
   .cm-composer:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(226, 180, 80, .16); }
   .cm-composer textarea { display: block; width: 100%; min-height: 40px; max-height: 160px; background: transparent; border: 0; outline: 0; resize: none;
-    color: var(--text); font: 500 15px/1.45 "Inter", sans-serif; padding: 2px 0; }
+    color: var(--text); font: 500 15px/1.45 "Poppins", "Inter", sans-serif; padding: 2px 0; }
   .cm-composer textarea::placeholder { color: var(--muted); }
   .cm-cfoot { display: flex; justify-content: flex-end; align-items: center; gap: 12px; }
   .cm-left { font-size: 12px; color: var(--muted); }

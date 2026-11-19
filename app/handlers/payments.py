@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+import threading
 
 from ..core import NEXT, App, Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb, user_menu
@@ -250,7 +251,7 @@ def cb_premium(ctx: Ctx) -> None:
         ctx.answer()
         try:
             link = ctx.bot.create_invoice_link(
-                f"🔄 Premium obuna — oyiga"[:32],
+                "🔄 Premium obuna — oyiga"[:32],
                 f"{app.brand} Premium: har 30 kunda avtomatik yangilanadi. Majburiy obunasiz, reklamasiz va maxsus kinolar bilan. "
                 f"Xohlagan paytda bekor qilasiz. To'lov qilish orqali /terms shartlariga rozilik bildirasiz."[:255],
                 f"premsub:{plan['id']}:{ctx.user_id}", [{"label": "Premium — 1 oy", "amount": plan["stars"]}],
@@ -445,8 +446,16 @@ def on_pre_checkout(ctx: Ctx) -> None:
         log.error("pre_checkout javobi yuborilmadi: %s", exc)
 
 
+_PAY_LOCK = threading.Lock()      # bir xil to'lov ikki marta qayta ishlanmasin (Telegram qayta yuborishi mumkin)
+
+
 @router.on("payment")
 def on_successful_payment(ctx: Ctx) -> None:
+    with _PAY_LOCK:
+        _process_payment(ctx)
+
+
+def _process_payment(ctx: Ctx) -> None:
     app, db = ctx.app, ctx.db
     sp = ctx.message["successful_payment"]
     charge = sp.get("telegram_payment_charge_id")
@@ -460,10 +469,10 @@ def on_successful_payment(ctx: Ctx) -> None:
         plan = db.get_plan(int(parts[1])) if len(parts) > 1 and parts[1].isdigit() else None
         days = plan["days"] if plan else 30
         som = amount // 100
-        until = db.grant_premium(ctx.user_id, days)
         db.create_payment(ctx.user_id, "premium", "provider", "approved", plan_id=plan["id"] if plan else None,
                           days=days, amount=som, currency="UZS", charge_id=charge,
                           note=f"provayder: {sp.get('provider_payment_charge_id', '')}"[:300])
+        until = db.grant_premium(ctx.user_id, days)      # avval yozuv, keyin Premium: uzilish bo'lsa ikki marta berilmaydi
         ctx.send("🎉 <b>To'lov qabul qilindi!</b>\n\n"
                  f"💎 Premium faollashtirildi — <b>{fmt_datetime(until)}</b> gacha.\n\n"
                  "Endi botdan cheklovsiz foydalanishingiz mumkin 🍿",
@@ -474,11 +483,11 @@ def on_successful_payment(ctx: Ctx) -> None:
     if parts[0] in ("prem", "premsub"):
         plan = db.get_plan(int(parts[1])) if len(parts) > 1 and parts[1].isdigit() else None
         days = plan["days"] if plan else 30
-        until = db.grant_premium(ctx.user_id, days)
         renewed = parts[0] == "premsub" and sp.get("is_recurring") and not sp.get("is_first_recurring")
         db.create_payment(ctx.user_id, "premium", "stars", "approved", plan_id=plan["id"] if plan else None,
                           days=days, amount=amount, currency="XTR", charge_id=charge,
                           note="obuna (avtomatik yangilanish)" if renewed else ("obuna" if parts[0] == "premsub" else ""))
+        until = db.grant_premium(ctx.user_id, days)
         head = "🔄 <b>Obunangiz avtomatik yangilandi!</b>\n\n" if renewed else "🎉 <b>To'lov qabul qilindi!</b>\n\n"
         ctx.send(head + f"💎 Premium faollashtirildi — <b>{fmt_datetime(until)}</b> gacha.\n\n"
                  "Endi botdan cheklovsiz foydalanishingiz mumkin 🍿",

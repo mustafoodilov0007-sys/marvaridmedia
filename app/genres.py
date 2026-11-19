@@ -39,19 +39,19 @@ GENRES = {
     "vampire":   ("🧛", "Vampirlar",    ("vampir", "vampirlar", "vampire")),
     "marvel":    ("🕷", "Marvel",       ("marvel", "marvell")),
     "dc":        ("🦇", "DC",           ("dc",)),
+    "korean":    ("🇰🇷", "Koreys dramalari", ("koreys", "koreya", "dorama", "korean", "kdrama", "kdramalar")),
     # eski kinolar va TMDB uchun saqlanadi (tanlash ro'yxatida chiqmaydi)
     "anime":     ("🌸", "Anime",        ("anime",)),
     "indian":    ("🇮🇳", "Hind",         ("hind", "hindiston", "indiysk", "bollivud")),
     "turkish":   ("🇹🇷", "Turk",         ("turk", "turkiya", "turkcha", "turetsk")),
-    "korean":    ("🇰🇷", "Koreys",       ("koreys", "koreya", "dorama", "korean")),
 }
 
 # admin kino qo'shayotganda ko'radigan janrlar tartibi
-PICKER = [k for k in GENRES if k not in ("anime", "indian", "turkish", "korean")]
+PICKER = [k for k in GENRES if k not in ("anime", "indian", "turkish")]
 
 # qisqa kalit so'zlar faqat to'liq so'z bo'lsa mos keladi («turk» ≠ «turkum», «hind» ≠ «hindu...» emas)
 # janr → avtomatik kolleksiya nomi (kino shu janrni olsa, kolleksiyaga o'zi qo'shiladi)
-AUTO_COLLECTIONS = {"marvel": "Marvel to'plami", "dc": "DC kolleksiyasi"}
+AUTO_COLLECTIONS = {"marvel": "Marvel to'plami", "dc": "DC kolleksiyasi", "korean": "Koreys dramalari"}
 _EXACT = {"dc", "marvel", "hind", "turk", "anime", "drama", "sirli", "yumor", "urush", "ruh", "sport"}
 _YEAR_RE = re.compile(r"\b(19[2-9]\d|20[0-4]\d)\b")
 
@@ -251,12 +251,6 @@ def card_lines(movie, parts: int = 0) -> list:
         lines.append(f"📺 Qismlar: {parts} ta")
     return lines
 
-
-def title_year(movie) -> str:
-    """« <i>(2015)</i>» — nomning yonida kichik yil (bo'lmasa bo'sh)."""
-    keys = movie.keys()
-    y = year_text(movie["year"], movie["year_end"] if "year_end" in keys else 0) if movie["year"] else ""
-    return f"  <i>({y})</i>" if y else ""
 
 
 def info_lines(movie) -> list:

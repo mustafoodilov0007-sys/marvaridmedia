@@ -163,9 +163,8 @@
       b.onclick = function () { if (o[0] !== sort) { haptic(); renderCategory(view, cat, o[0], ++reqId, f); } };
       seg.appendChild(b);
     });
-    page.appendChild(seg);
     var selRow = h("div", "fsel hidden");
-    page.appendChild(selRow);
+    page.appendChild(h("div", "ftool", [seg, selRow]));      // 🎛 saralash va filtrlar bitta chiroyli panelda
     function fillFilters(genresList, filters) {
       // 🎭 janrlar ham Davlat / Yil / Til kabi ochiladigan ro'yxat bo'lib chiqadi (qator bo'lib surilmaydi)
       var fx = Object.assign({}, filters || {});
