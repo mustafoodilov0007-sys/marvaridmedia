@@ -95,13 +95,17 @@ def pick_trailer(d: dict) -> str:
     if not vids:
         return ""
     vids.sort(key=lambda v: v.get("published_at") or "", reverse=True)
-    vids.sort(key=lambda v: ({"ru": 0, "en": 1}.get(v.get("iso_639_1"), 2), not v.get("official")))
+    vids.sort(key=lambda v: ({"uz": 0, "ru": 1, "en": 2}.get(v.get("iso_639_1"), 3), not v.get("official")))
     return "https://www.youtube.com/watch?v=" + vids[0]["key"]
 
 
 class Tmdb:
-    def __init__(self, key: str, lang: str = "ru-RU", omdb_key: str = "", base: str = TMDB_BASE, omdb_base: str = OMDB_BASE):
-        self.key, self.lang, self.omdb_key = key.strip(), lang or "ru-RU", omdb_key.strip()
+    def __init__(self, key: str, lang: str = "uz-UZ,en-US", omdb_key: str = "", base: str = TMDB_BASE, omdb_base: str = OMDB_BASE):
+        # 🇺🇿 TMDB_LANG — vergul bilan til zanjiri: «uz-UZ,en-US». Birinchisi asosiy, qolganlari — izoh topilmasa zaxira.
+        self.langs = [x.strip() for x in (lang or "").split(",") if x.strip()] or ["uz-UZ"]
+        if "en-US" not in self.langs:
+            self.langs.append("en-US")        # oxirgi zaxira doim inglizcha
+        self.key, self.lang, self.omdb_key = key.strip(), self.langs[0], omdb_key.strip()
         self.base, self.omdb_base = base.rstrip("/"), omdb_base
         self._cache: Dict[str, tuple] = {}
 
@@ -163,10 +167,15 @@ class Tmdb:
             raise TmdbError("noto'g'ri tur")
         extra = ("external_ids,release_dates" if kind == "movie" else "external_ids,content_ratings") + ",credits,images,videos"
         d = self._tmdb(f"/{kind}/{int(tid)}", language=self.lang, append_to_response=extra,
-                       include_image_language="en,null", include_video_language="ru,en,null")
+                       include_image_language="en,null", include_video_language="uz,ru,en,null")
         overview = d.get("overview") or ""
-        if not overview and self.lang != "en-US":    # tarjima yo'q — inglizcha tavsif
-            overview = self._tmdb(f"/{kind}/{int(tid)}", language="en-US").get("overview") or ""
+        for alt in self.langs[1:]:       # o'zbekcha izoh yo'q — zanjirdagi keyingi til (standart: inglizcha)
+            if overview:
+                break
+            try:
+                overview = self._tmdb(f"/{kind}/{int(tid)}", language=alt).get("overview") or ""
+            except TmdbError:
+                continue
         date = d.get("release_date") or d.get("first_air_date") or ""
         gids = [g["id"] for g in d.get("genres", [])]
         countries = [c.get("iso_3166_1") for c in d.get("production_countries", [])] or d.get("origin_country") or []
@@ -311,10 +320,13 @@ def match_images(tm: "Tmdb", title: str, year: int, description: str) -> Optiona
     q = re.sub(r"\s+", " ", re.sub(r"\([^)]*\)", " ", title or "")).strip()
     if len(q) < 2:
         return None
+    paren = [x.strip() for x in re.findall(r"\(([^)]*)\)", title or "") if len(x.strip()) >= 2]      # «Senga atalgan orzu (Mening orzuyimsan)» — qavs ichi ham nom
+    queries = [q] + [x for x in paren if x != q][:1]
+    langs = list(dict.fromkeys(list(getattr(tm, "langs", [])) + ["ru-RU", "en-US"]))      # eski izohlar ruscha bo'lishi mumkin — ruscha ham qidiriladi
     cands: Dict[tuple, dict] = {}
-    for lang in ("ru-RU", "en-US"):
+    for lang, qq in [(l, x) for x in queries for l in langs]:
         try:
-            d = tm._tmdb("/search/multi", query=q, language=lang, include_adult="false")
+            d = tm._tmdb("/search/multi", query=qq, language=lang, include_adult="false")
         except TmdbError:
             continue
         for r in d.get("results", []):
@@ -326,18 +338,20 @@ def match_images(tm: "Tmdb", title: str, year: int, description: str) -> Optiona
             date = r.get("release_date") or r.get("first_air_date") or ""
             c["year"] = int(date[:4]) if date[:4].isdigit() else 0
             c["titles"] |= {normalize(r.get("title") or r.get("name") or ""), normalize(r.get("original_title") or r.get("original_name") or "")}
-            if lang == "ru-RU" or not c["ov"]:
-                c["ov"] = r.get("overview") or c["ov"]
+            ov_new = r.get("overview") or ""      # eski tavsifga eng o'xshash tildagisini saqlaymiz
+            if ov_new and (not c["ov"] or overview_similarity(description, ov_new) > overview_similarity(description, c["ov"])):
+                c["ov"] = ov_new
             c["poster"] = img_path(r.get("poster_path")) or c.get("poster", "")
             c["backdrop"] = img_path(r.get("backdrop_path")) or c.get("backdrop", "")
             c["title"] = r.get("title") or r.get("name") or c.get("title", "")
     best, best_score = None, 0.0
     nq = normalize(q)
+    nqs = {normalize(x) for x in queries}
     for c in cands.values():
         sim = overview_similarity(description, c["ov"])
         dy = abs(c["year"] - year) if (year and c["year"]) else 0
         year_ok = (not year) or (c["year"] and dy <= 1)
-        exact = nq in c["titles"] and year and c["year"] == year
+        exact = bool(nqs & c["titles"]) and year and c["year"] == year
         if sim >= 0.55 and year_ok:
             how, score = "tavsif", 2 + sim
         elif exact:
