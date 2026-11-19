@@ -316,7 +316,7 @@ data/             — baza va loglar (avtomatik yaratiladi)
 | `GOOGLE_CLIENT_ID` | Saytda «Google orqali kirish» tugmasi uchun (ixtiyoriy; «Telegram orqali kirish» bunsiz ham ishlaydi). Olish: console.cloud.google.com → APIs & Services → OAuth consent screen (External) → Credentials → Create credentials → OAuth client ID → *Web application* → **Authorized JavaScript origins** ga sayt manzilini yozing (`https://marvaridmedia-production.up.railway.app`, domen ulasangiz — uni ham) → chiqqan Client ID ni shu o'zgaruvchiga qo'ying. |
 | `TMDB_API_KEY` | Kino ma'lumotini (yil, janr, davlat, davomiylik, yosh, izoh) avtomatik to'ldirish. Bepul kalit: themoviedb.org → Settings → API. Ishlatish: admin → kino → «🏷 Janr...» → «🌐 TMDB dan avtomatik to'ldirish» yoki saytdagi «✏️ Tahrirlash» → «🌐 TMDB dan to'ldirish». |
 | `OMDB_API_KEY` | *(ixtiyoriy)* IMDb reytingini ham olish. Bepul kalit: omdbapi.com |
-| `TMDB_LANG` | *(ixtiyoriy)* izoh tili, standart `ru-RU` (topilmasa inglizcha) |
+| `TMDB_LANG` | *(ixtiyoriy)* izoh tili zanjiri, vergul bilan; standart `uz-UZ,en-US` (o'zbekcha yo'q bo'lsa inglizcha). Ruscha uchun: `ru-RU,en-US` |
 | `PROVIDER_TOKEN_CLICK`, `PROVIDER_TOKEN_PAYME` | Click va Payme orqali **avtomatik** Premium to'lovi (alohida tugmalar). @BotFather → `/mybots` → bot → **Payments** → har birining «provider token»i. Chatga yozmang, faqat shu yerga. Bittasi bo'lsa — `PROVIDER_TOKEN`. |
 
 **SEO:** sayt `/sitemap.xml` va `/robots.txt` beradi, har bir kino `/kino/<kod>-<nom>` manzilida. Google Search Console'ga saytni qo'shib, `/sitemap.xml` ni yuboring.
