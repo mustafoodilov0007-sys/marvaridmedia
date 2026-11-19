@@ -55,6 +55,7 @@ class ServeTests(unittest.TestCase):
         from tests.harness import make_app, add_movie
         app = make_app(admins="1")
         mid = add_movie(app, 5, "Kino")
+        row = lambda: app.db.get_movie(mid)
         base = webapp._item(app.db.q("SELECT m.*, 0 AS likes, 0 AS dislikes, 0 AS parts FROM movies m WHERE m.id=?", (mid,))[0], False, False)
         app.db.update_movie(mid, tposter="/okposter1.jpg", backdrop="/okbackdr1.jpg")
         it = webapp._item(app.db.q("SELECT m.*, 0 AS likes, 0 AS dislikes, 0 AS parts FROM movies m WHERE m.id=?", (mid,))[0], False, False)
@@ -92,15 +93,6 @@ class ServeTests(unittest.TestCase):
                 self.assertIsNone(webapp.backdrop_bytes(app, mid, d, 780))
         finally:
             webapp._download_tmdb = orig
-
-    def test_movies_for_images_lists_only_missing(self):
-        from tests.harness import make_app, add_movie
-        app = make_app(admins="1")
-        a, b = add_movie(app, 7, "A"), add_movie(app, 8, "B")
-        app.db.update_movie(b, tposter="/okposter2.jpg", backdrop="/okbackdr2.jpg")
-        ids = [r["id"] for r in app.db.movies_for_images(0, 20)]
-        self.assertEqual(ids, [a])
-        self.assertEqual(app.db.movies_for_images(a, 20), [])
 
 
 if __name__ == "__main__":

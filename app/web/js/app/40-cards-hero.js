@@ -118,19 +118,11 @@
       wrap.appendChild(s);
       return wrap;
     }
-    if (items.some(function (x) { return !!x.bd; })) wrap.classList.add("hw");      // keng rasmli karta (CSS: 99-zzzzz-wide.css)
     items.forEach(function (it, i) {
       var bg = h("div", "bg" + (it.poster ? "" : " ph"));
       if (it.poster) bg.style.backgroundImage = "url('" + posterUrl(it, 720) + "')";
       var s = h("div", "slide" + (i === 0 ? " on" : ""), [bg]);
       s._it = it;
-      if (it.bd) {       // 🖼 TMDB keng rasmi: yuklansagina «wide» ko'rinishga o'tadi, yuklanmasa poster ko'rinishi qoladi
-        var bgw = h("div", "bgw"), bdu = bdUrl(it), pre = new Image();
-        pre.onload = function () { bgw.style.backgroundImage = "url('" + bdu + "')"; s.classList.add("wide"); };
-        pre.src = bdu;
-        s.style.setProperty("--hc", hue(it.title || "") % 360);
-        s.appendChild(bgw);
-      }
       s.setAttribute("aria-hidden", i === 0 ? "false" : "true");
       if (i !== 0) s.inert = true;
       if (it.poster) {   // keng ekranda — o'tkir poster kartasi (orqa fon xira)
@@ -149,17 +141,14 @@
       var qlt = topQuality(it); if (qlt) badges.appendChild(h("span", "badge glass", qlt));
       var lc = langCode(it); if (lc) badges.appendChild(h("span", "badge glass", lc));
       var meta = metaNode(it);
-      var body = h("div", "hero-body", [badges, h("h2", "hero-title", it.title), meta]);
-      if (it.desc) body.appendChild(h("p", "hdesc", it.desc));      // qisqa izoh (faqat keng ekranda ko'rinadi)
-            var rbs = ratingBadges(it);
-      if (rbs) body.appendChild(rbs);
+      var body = h("div", "hero-body", [badges, h("h2", "hero-title", it.title), meta, ratingBadges(it)]);
       body.appendChild(actionRow(it, true));
       s.appendChild(body);
       s.classList.add("tap");          // posterga bosilsa — tafsilot (izoh shu yerda chiqadi)
       s.onclick = function (e) {
         if (e.target.closest("button, a")) return;
         haptic();
-        var hpEl = s.querySelector(".hp"), src = s.classList.contains("wide") ? s.querySelector(".bgw") : (hpEl && getComputedStyle(hpEl).display !== "none" ? hpEl : s.querySelector(".bg:not(.ph)"));
+        var hpEl = s.querySelector(".hp"), src = hpEl && getComputedStyle(hpEl).display !== "none" ? hpEl : s.querySelector(".bg:not(.ph)");
         openSheet(it, false, src);
       };
       wrap.appendChild(s);

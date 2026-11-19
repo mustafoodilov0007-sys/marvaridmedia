@@ -1,9 +1,0 @@
-/* ✍️ Matn jilosi (oxirgi qatlam): sarlavhalar chiroyli bo'linadi («Oltin / shar» kabi yolg'iz so'z qolmaydi),
-   uzun matn tekis tugaydi, hero ustidagi yozuvlar aniqroq o'qiladi. */
-.hero-title, .page h1, .sheet-main h3, .sheet .info h3, .tvbody h2, .sec-head h2, .card .t, .card .pt { text-wrap: balance; }
-.hdesc, .sheet .desc, .cm-text, .page .lead, .tvbits { text-wrap: pretty; hyphens: manual; }
-.hero-title { text-shadow: 0 2px 22px rgba(0, 0, 0, .55); }
-.hero .meta { font-weight: 600; letter-spacing: -0.005em; }
-.hero .hdesc { font-weight: 450; }
-.nav a, .nav button { letter-spacing: -0.012em; }
-html { font-optical-sizing: auto; -webkit-font-smoothing: antialiased; }

@@ -18,7 +18,7 @@
   .emblem { width: 34px; height: 34px; filter: none; }
   .logo { gap: 9px; }
   .word { flex-direction: row; align-items: baseline; gap: 6px; }
-  .word .w1, .word .w2 { font: 800 16px/1 "Poppins", "Inter", sans-serif; letter-spacing: .12em; margin: 0; max-width: none; overflow: visible; filter: none;
+  .word .w1, .word .w2 { font: 800 16px/1 "Inter", sans-serif; letter-spacing: .12em; margin: 0; max-width: none; overflow: visible; filter: none;
     background: none; -webkit-text-fill-color: currentColor; color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,.35); }
   .word .w2 { font-weight: 500; color: rgba(255,255,255,.62); }
   .word .w2::before, .word .w2::after { display: none; }

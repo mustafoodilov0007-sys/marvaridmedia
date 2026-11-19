@@ -8,7 +8,7 @@ import time
 from .. import genres, tmdb
 from ..core import Ctx, router
 from ..keyboards import DANGER, PRIMARY, SUCCESS, btn, cancel_kb, ikb
-from ..utils import esc, truncate
+from ..utils import esc, fmt_num, truncate
 
 log = logging.getLogger("admin.tmdb")
 

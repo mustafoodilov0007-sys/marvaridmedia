@@ -1,0 +1,13 @@
+/* 🏆 «Haftaning TOP'i» 3D karuseli: poster bosilganda ma'lumot pastda emas, aynan poster USTIDA chiqadi */
+.cfwrap > .cfinfo { position: absolute; z-index: 30; display: block; margin: 0 !important; max-width: none; opacity: 0; transform: scale(.93); transform-origin: 50% 45%;
+  pointer-events: none; transition: opacity .26s ease, transform .34s cubic-bezier(.2, .8, .2, 1); }
+.cfwrap > .cfinfo.open { opacity: 1; transform: none; pointer-events: auto; margin: 0 !important; }
+.cfwrap > .cfinfo .cfin { position: relative; height: 100%; min-height: inherit; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 30px 12px 14px; opacity: 1; overflow: visible; border-radius: 18px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  background: linear-gradient(160deg, rgba(40, 32, 18, .95), rgba(14, 12, 16, .95)); border: 1px solid rgba(226, 180, 80, .38); box-shadow: 0 20px 48px rgba(0, 0, 0, .65); }
+.cfwrap > .cfinfo .cft { font-size: 17px; margin-bottom: 4px; }
+.cfwrap > .cfinfo .actions { flex-wrap: wrap; justify-content: center; margin-top: 11px; }
+.cfwrap > .cfinfo .actions .btn.primary { flex: 1 1 100%; }
+.cfwrap > .cfinfo .actions .btn.soft { flex: 1 1 calc(50% - 4px); min-width: 0; }
+.cfx { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .12); color: #fff; }
+.cfx svg { width: 15px; height: 15px; }

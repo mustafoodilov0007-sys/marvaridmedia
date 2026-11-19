@@ -1,0 +1,37 @@
+/* 🎞 Ro'yxatlardagi mayda animatsiyalar: bosilish, birin-ketin paydo bo'lish, poster yuklanish yaltirashi, saqlash «pop».
+   Faqat transform/opacity — arzon telefonda ham yengil. «Harakatni kamaytirish» yoqilgan bo'lsa, umumiy qoida ularni deyarli bildirmaydi. */
+
+/* 1) Bosilganda poster «ichga» bosiladi va prujinadek qaytadi */
+.grid .card .poster, .rail .card .poster { transition: transform .32s cubic-bezier(.2, 1.35, .4, 1), box-shadow .3s; }
+.rail .card:active .poster, .grid .card:active .poster { transform: scale(.95); transition-duration: .08s; }
+
+/* 2) Kartalar birin-ketin paydo bo'ladi (ro'yxat ochilganda, bo'lim ko'ringanda) */
+@keyframes cardIn { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: none; } }
+.grid > .card, .section:not(.rv) .rail > .card, .rv.in .rail > .card { animation: cardIn .5s cubic-bezier(.2, .8, .2, 1) backwards; }
+  .grid > .card:nth-child(2), .rail > .card:nth-child(2) { animation-delay: 45ms; }
+  .grid > .card:nth-child(3), .rail > .card:nth-child(3) { animation-delay: 90ms; }
+  .grid > .card:nth-child(4), .rail > .card:nth-child(4) { animation-delay: 135ms; }
+  .grid > .card:nth-child(5), .rail > .card:nth-child(5) { animation-delay: 180ms; }
+  .grid > .card:nth-child(6), .rail > .card:nth-child(6) { animation-delay: 225ms; }
+  .grid > .card:nth-child(7), .rail > .card:nth-child(7) { animation-delay: 270ms; }
+  .grid > .card:nth-child(8), .rail > .card:nth-child(8) { animation-delay: 315ms; }
+  .grid > .card:nth-child(9), .rail > .card:nth-child(9) { animation-delay: 360ms; }
+  .grid > .card:nth-child(10), .rail > .card:nth-child(10) { animation-delay: 405ms; }
+  .grid > .card:nth-child(11), .rail > .card:nth-child(11) { animation-delay: 450ms; }
+  .grid > .card:nth-child(12), .rail > .card:nth-child(12) { animation-delay: 495ms; }
+  .grid > .card:nth-child(13), .rail > .card:nth-child(13) { animation-delay: 540ms; }
+  .grid > .card:nth-child(14), .rail > .card:nth-child(14) { animation-delay: 585ms; }
+.grid > .card:nth-child(n+15), .rail > .card:nth-child(n+15) { animation-delay: 0ms; }
+.grid > .card.sk-card { animation: none; }
+
+/* 3) Poster yuklanguncha yorug'lik chizig'i o'tadi (rasm kelgach yo'qoladi) */
+@keyframes posterShine { from { transform: translateX(-110%); } to { transform: translateX(110%); } }
+.poster .ph { position: relative; overflow: hidden; }
+.poster:has(img:not(.ok)) .ph::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .13) 50%, transparent 70%);
+  animation: posterShine 1.4s ease-in-out infinite; }
+
+/* 4) Saqlash (🔖): bosilganda belgi sakrab, oltin rangga o'tadi */
+@keyframes bmPop { 0% { transform: scale(1); } 35% { transform: scale(1.4) rotate(-10deg); } 65% { transform: scale(.9) rotate(4deg); } 100% { transform: scale(1); } }
+.pop svg { animation: bmPop .5s cubic-bezier(.2, 1.4, .4, 1); transform-origin: 50% 60%; }
+.pop.on { color: var(--gold); }

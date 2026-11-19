@@ -150,7 +150,7 @@ class Growth(unittest.TestCase):
         from tests.harness import message
         process_update(self.app, message(100, "/start"))
         for i in range(3):
-            process_update(self.app, message(200 + i, "/start r100"))
+            process_update(self.app, message(200 + i, f"/start r100"))
         self.assertEqual(self.db.referral_count(100), 3)
         # 3 × (+1) + 3-do'st bosqichi (+3) = 6 kun
         left = (self.db.premium_until(100) - int(__import__("time").time())) / 86400

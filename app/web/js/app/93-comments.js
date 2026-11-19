@@ -302,8 +302,7 @@
     if (!sheetOpen) return;                 // ochilish to'xtatilgan (tez yopildi)
     var bg = h("div", "bg" + (it.poster ? "" : " ph"));
     if (it.poster) bg.style.backgroundImage = "url('" + posterUrl(it, innerWidth < 900 ? 720 : 360) + "')";
-    var wide = !mobile;          // kompyuter: kino sahifasi butun oynani egallaydi (yangi sahifa kabi), telefonda — avvalgidek
-    var closeBtn = h("button", "ibtn close", [icon("x"), h("span", "cback", [icon("chev"), "Orqaga"])]);
+    var closeBtn = h("button", "ibtn close", [icon("x")]);
     closeBtn.setAttribute("aria-label", "Yopish");
     closeBtn.onclick = function () { closeSheet(); };
     var chips = h("div", "chips");
@@ -339,7 +338,6 @@
       drow("Ko'rilgan", it.views > 0 ? fmt(it.views) : ""), drow("Qo'shilgan", it.added ? fmtDate(it.added) : "")].filter(Boolean));
     var hasMain = useMain(it);
     s.classList.toggle("hasmain", hasMain);
-    s.classList.toggle("pg", wide);
     var xtra = it.cat === "music" ? null : h("div", "xtra");          // 🎭 aktyorlar, kadrlar (TMDB dan saqlangan bo'lsa)
     var similar = it.cat === "music" ? null : h("div", "similar");
     var also = it.cat === "music" ? null : h("div", "similar");
@@ -364,18 +362,17 @@
       : it.cat === "music" ? "«Tinglash» — shu yerning o'zida eshitasiz. Yonidagi tugma qo'shiqni Telegram botga yuboradi."
       : PUB ? "«Kinoni ko'rish» bosilsa, Telegram'da botimiz ochiladi va kinoni yuboradi."
       : "«Kinoni ko'rish» bosilsa, bot kinoni chatga yuboradi.");
-    var tabList = [{ label: "Umumiy", nodes: [wide ? null : desc, it.glink ? glinkRow(it) : null, it.cat === "music" ? null : rateRow(it), noteNode, xtra, similar, also] }];
+    var tabList = [{ label: "Umumiy", nodes: [desc, it.glink ? glinkRow(it) : null, it.cat === "music" ? null : rateRow(it), noteNode, xtra, similar, also] }];
     if (it.cat !== "music") tabList.push({ label: "Izohlar", lazy: function () { return [commentsSection(it)]; } });   // izohlar yorliq ochilganda quriladi (sahifa ochilishi yengil)
     if (it.trailer || it.turl) {
       var trBtn = h("button", "strailer", [posterNode(it, 720), h("span", "play", [icon("play")]), h("b", null, "Treylerni ko'rish")]);
       trBtn.onclick = function () { haptic(); openTrailer(it); };
       tabList.push({ label: "Treyler", nodes: [trBtn] });
     }
-    if (!wide) tabList.push({ label: "Tafsilotlar", nodes: [details] });
-    if (it.parts > 1 && it.cat !== "music") tabList.unshift({ label: "Qismlar", badge: it.parts, nodes: [episodesSection(it)] });     // 📺 serial: qismlar ro'yxati (birinchi yorliq)
+    tabList.push({ label: "Tafsilotlar", nodes: [details] });
     var tabsEl = h("div", "stabs"), panels = [];
     tabList.forEach(function (t, i) {
-      var tb = h("button", "stab" + (i ? "" : " on"), [t.label, t.badge ? h("em", "sbadge", String(t.badge)) : null]);
+      var tb = h("button", "stab" + (i ? "" : " on"), t.label);
       var pn = h("div", "spanel" + (i ? " hidden" : ""), (t.nodes || []).filter(Boolean));
       tb.onclick = function () {
         haptic();
@@ -386,8 +383,7 @@
       };
       tabsEl.appendChild(tb); panels.push(pn);
     });
-    var topKids = [bg, h("div", "sdim"), h("div", "grip")];
-    if (!wide) topKids.push(closeBtn);
+    var topKids = [bg, h("div", "sdim"), h("div", "grip"), closeBtn];
     var heroVid = null;
     if (it.trailer && !LITE && !REDUCE && !(navigator.connection && navigator.connection.saveData)) {     // muqova ustida treyler jim o'ynaydi (poster qoladi)
       heroVid = document.createElement("video");
@@ -398,37 +394,18 @@
       heroVid.addEventListener("error", function () { heroVid.remove(); });
       topKids.splice(1, 0, heroVid);
     }
-    var infoKids = [h("h3", null, it.title), metaLine, ratingBadges(it), chips, stats.childNodes.length ? stats : null];
-    var resumeN = typeof resumeBox !== "undefined" ? resumeBox : null;
-    var parts;
-    if (wide) {
-      // 🖥 to'liq sahifa: tepada orqaga tugmasi, ustida katta muqova; chapda yorliqlar (Qismlar / Umumiy / Izohlar), o'ngda «Ma'lumot» kartasi
-      if (desc) infoKids.push(desc);
-      infoKids.push(acts);
-      if (resumeN) infoKids.push(resumeN);
-      var side = h("aside", "pgside", [h("div", "pgcard", [h("h4", null, "Ma'lumot"), details])]);
-      parts = [
-        h("div", "pgbar", [closeBtn, h("span", "pgbrand", [h("b", null, "MARVARID"), " MEDIA"])]),
-        h("div", "sheet-top", topKids),
-        h("div", "sbody", [
-          h("div", "stint"),
-          h("div", "sheet-main", [posterNode(it, 720), h("div", "info", infoKids)]),
-          me.admin ? adminBar(it) : null,
-          h("div", "pgcols", [h("div", "pgmain", [tabsEl].concat(panels)), side])
-        ].filter(Boolean))
-      ];
-    } else parts = [
+    var parts = [
       h("div", "sheet-top", topKids),
       h("div", "sbody", [      // poster joyida turadi, shu qism (matn, tugmalar, yorliqlar) surilganda uning ustiga chiqadi
         h("div", "stint"),
-        h("div", "sheet-main", [posterNode(it, 720), h("div", "info", infoKids)]),
+        h("div", "sheet-main", [posterNode(it, 720), h("div", "info", [h("h3", null, it.title), metaLine, ratingBadges(it), chips, stats.childNodes.length ? stats : null])]),
         acts,
-        resumeN,
+        typeof resumeBox !== "undefined" ? resumeBox : null,
         me.admin ? adminBar(it) : null,
         tabsEl
       ].concat(panels).filter(Boolean))
     ];
-    var bar = (hasMain || it.cat === "music" || wide) ? null : stickyBar(it, acts);
+    var bar = (hasMain || it.cat === "music") ? null : stickyBar(it, acts);
     if (bar) parts.push(bar);
     s.replaceChildren.apply(s, parts.filter(Boolean));          // null qiymatlar «null» matni bo'lib chiqmasin
     if (similar) {

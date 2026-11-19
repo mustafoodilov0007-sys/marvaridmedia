@@ -74,7 +74,7 @@ def make_app(channels: str = "", webapp_url: str = "https://site.test", admins: 
     import sys
     sys.path.insert(0, str(ROOT))
     from app.config import Config
-    from app import handlers as _handlers  # noqa: F401  — hamma buyruq va tugmalarni ro'yxatdan o'tkazadi
+    import app.handlers  # noqa: F401  — hamma buyruq va tugmalarni ro'yxatdan o'tkazadi
     from app.core import App
     app = App(Config())
     app.set_setting("trial_days", "0")      # sinov Premium testlarda standart bo'yicha o'chiq (alohida testlanadi)

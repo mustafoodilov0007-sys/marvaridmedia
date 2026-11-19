@@ -1,0 +1,25 @@
+/* 🔎 Tezkor qidiruv oynasi (kompyuter) */
+.qsveil { position: fixed; inset: 0; z-index: 80; background: rgba(0, 0, 0, .55); opacity: 0; transition: opacity .18s; }
+.qsveil.in { opacity: 1; }
+.qsbox { position: fixed; z-index: 81; left: 50%; top: 84px; width: min(640px, 92vw); transform: translate(-50%, -10px) scale(.98); opacity: 0;
+  background: var(--bg-soft, var(--surface)); border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 28px 80px rgba(0, 0, 0, .65);
+  display: flex; flex-direction: column; max-height: min(560px, 80vh); overflow: hidden; transition: opacity .18s, transform .22s cubic-bezier(.2, .8, .2, 1); }
+.qsbox.in { opacity: 1; transform: translate(-50%, 0); }
+.qshead { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.qshead svg { width: 20px; height: 20px; color: var(--muted); flex: none; }
+.qsin { flex: 1; min-width: 0; height: 36px; border: 0; background: none; outline: 0; color: var(--text); font: inherit; font-size: 17px; font-weight: 600; }
+.qsin::placeholder { color: var(--muted); font-weight: 500; }
+.qslist { overflow-y: auto; padding: 8px; }
+.qsrow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 10px; border-radius: 14px; text-align: left; color: var(--text); }
+.qsrow.on, .qsrow:hover { background: var(--surface-2); }
+.qsrow > svg { width: 16px; height: 16px; color: var(--gold); flex: none; }
+.qsth { width: 42px; height: 63px; border-radius: 8px; overflow: hidden; background: var(--surface-2); flex: none; display: grid; place-items: center; color: var(--muted); }
+.qsth img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.qsth svg { width: 20px; height: 20px; }
+.qstx { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.qstx b { font-size: 15.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qstx span { font-size: 12.5px; color: var(--muted); }
+.qsempty { padding: 26px; text-align: center; color: var(--muted); font-size: 14.5px; }
+.qsall { padding: 12px 18px; border-top: 1px solid var(--line); text-align: center; font-weight: 700; font-size: 14px; color: var(--gold); }
+.qsall:hover { background: var(--surface-2); }
+@media (max-width: 899px) { .qsveil, .qsbox { display: none; } }

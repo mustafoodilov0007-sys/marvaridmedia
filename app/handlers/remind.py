@@ -12,7 +12,7 @@ from ..core import Ctx, router
 from ..keyboards import PRIMARY, SUCCESS, btn, ikb
 from ..telegram import Forbidden, TelegramError
 from ..texts import title_icon
-from ..utils import TZ, esc, now
+from ..utils import TZ, esc, now, truncate
 
 log = logging.getLogger("remind")
 

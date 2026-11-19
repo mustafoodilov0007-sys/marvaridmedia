@@ -1,0 +1,16 @@
+/* 👆 Ishoralar: sarlavha yashirinishi, yangilash belgisi, Shorts yuragi, parallaks */
+.top { transition: transform .32s cubic-bezier(.2, .8, .2, 1), background-color .2s; }
+.top.hide { transform: translateY(-115%); }
+.sheet-top .bg { will-change: transform; }
+
+.ptr { position: fixed; z-index: 60; left: 50%; top: calc(54px + env(safe-area-inset-top)); width: 38px; height: 38px; margin-left: -19px; margin-top: -48px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--surface); border: 1px solid var(--line); color: var(--muted); box-shadow: 0 8px 22px rgba(0, 0, 0, .45);
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .25s cubic-bezier(.2, .8, .2, 1), color .2s; }
+.ptr svg { width: 19px; height: 19px; }
+.ptr.ready { color: var(--gold); border-color: var(--gold); }
+@keyframes ptrSpin { to { transform: translateY(64px) rotate(360deg); } }
+.ptr.spin { animation: ptrSpin .8s linear infinite; color: var(--gold); }
+
+.sheart { position: absolute; z-index: 9; font-size: 92px; line-height: 1; margin: -46px 0 0 -46px; pointer-events: none; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, .5)); animation: sHeart .85s cubic-bezier(.2, .8, .2, 1) forwards; }
+@keyframes sHeart { 0% { opacity: 0; transform: scale(.3) rotate(-14deg); } 18% { opacity: 1; transform: scale(1.18) rotate(6deg); } 40% { transform: scale(.95) rotate(-3deg); }
+  75% { opacity: 1; transform: scale(1) translateY(-14px); } 100% { opacity: 0; transform: scale(1.05) translateY(-60px); } }

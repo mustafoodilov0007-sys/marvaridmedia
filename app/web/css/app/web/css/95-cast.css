@@ -1,0 +1,38 @@
+/* 🎭 Aktyorlar tarkibi, Kadrlar va rasmni katta ko'rish (TMDB) */
+.xtra { margin-top: 22px; }
+.xsec { margin-bottom: 24px; }
+.xsec .sec-head h2 { font-size: 17px; }
+.xall { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--muted); padding: 6px 10px; border-radius: 999px; transition: color .15s, background .15s; }
+.xall i { font-style: normal; font-size: 11.5px; background: var(--surface-2); padding: 2px 7px; border-radius: 999px; }
+.xall::after { content: "›"; font-size: 15px; line-height: 1; transition: transform .2s; }
+.xall.on::after { transform: rotate(90deg); }
+@media (hover: hover) { .xall:hover { color: var(--text); background: var(--surface-2); } }
+
+.cast { display: flex; gap: 12px; overflow-x: auto; padding: 0 16px 4px; scroll-snap-type: x proximity; scrollbar-width: none; }
+.cast::-webkit-scrollbar { display: none; }
+.cast.grid { flex-wrap: wrap; overflow: visible; }
+.cperson { flex: none; width: 104px; scroll-snap-align: start; }
+.cph { width: 104px; aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden; background: var(--surface-2); display: grid; place-items: center; font-weight: 800; font-size: 22px; color: var(--muted); }
+.cph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cperson b { display: block; margin-top: 8px; font-size: 13.5px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.cperson span { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); line-height: 1.25; overflow-wrap: anywhere; }
+
+.stills { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 0 16px; }
+.still { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: var(--surface-2); padding: 0; cursor: zoom-in; }
+.still img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s cubic-bezier(.2, .8, .2, 1); }
+@media (hover: hover) { .still:hover img { transform: scale(1.04); } }
+.still.extra { display: none; }
+.stills.all .still.extra { display: block; }
+@media (min-width: 700px) { .stills { grid-template-columns: repeat(3, 1fr); } .cperson, .cph { width: 124px; } }
+@media (min-width: 900px) { .cast, .stills { padding-left: 32px; padding-right: 32px; } }
+
+.lbox { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(0, 0, 0, .92); opacity: 0; transition: opacity .18s; touch-action: pan-y; }
+.lbox.in { opacity: 1; }
+.lbox img { max-width: 96vw; max-height: 88vh; object-fit: contain; border-radius: 8px; user-select: none; }
+.lbx, .lbnav { position: absolute; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: rgba(255, 255, 255, .12); color: #fff; font-size: 22px; line-height: 1; }
+.lbx { top: calc(12px + env(safe-area-inset-top)); right: 12px; font-size: 18px; }
+.lbnav { top: 50%; margin-top: -22px; font-size: 28px; padding-bottom: 3px; }
+.lbnav.prev { left: 10px; } .lbnav.next { right: 10px; }
+@media (hover: hover) { .lbx:hover, .lbnav:hover { background: rgba(255, 255, 255, .24); } }
+.lbcnt { position: absolute; bottom: calc(14px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); color: rgba(255, 255, 255, .75); font-size: 13px; font-weight: 600; }
+@media (max-width: 600px) { .lbnav { display: none !important; } }
