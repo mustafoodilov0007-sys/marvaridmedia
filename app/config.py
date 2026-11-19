@@ -55,7 +55,7 @@ class Config:
         ads = os.getenv("YANDEX_ADS_ID", "20369723").strip()                # Yandex avto-joylashtirish (bo'sh yoki «off» — o'chiq)
         self.yandex_ads_id = ads if ads.isdigit() else ""
         self.tmdb_key = os.getenv("TMDB_API_KEY", "").strip()
-        self.tmdb_lang = os.getenv("TMDB_LANG", "").strip() or "ru-RU"
+        self.tmdb_lang = os.getenv("TMDB_LANG", "").strip() or "uz-UZ,en-US"
         self.omdb_key = os.getenv("OMDB_API_KEY", "").strip()
         self.tmdb_base = os.getenv("TMDB_BASE", "").strip()      # (sinov uchun)
         self.omdb_base = os.getenv("OMDB_BASE", "").strip()
