@@ -118,16 +118,24 @@
       wrap.appendChild(s);
       return wrap;
     }
-    if (items.some(function (x) { return !!x.bd; })) wrap.classList.add("hw");      // keng rasmli karta (CSS: 99-zzzzz-wide.css)
+    if (items.some(function (x) { return !!(x.bd || x.poster); })) wrap.classList.add("hw");      // butun ekranga yoyiladigan hero (CSS: 99-zzzzz-wide.css)
     items.forEach(function (it, i) {
       var bg = h("div", "bg" + (it.poster ? "" : " ph"));
       if (it.poster) bg.style.backgroundImage = "url('" + posterUrl(it, 720) + "')";
       var s = h("div", "slide" + (i === 0 ? " on" : ""), [bg]);
       s._it = it;
-      if (it.bd) {       // 🖼 TMDB keng rasmi: yuklansagina «wide» ko'rinishga o'tadi, yuklanmasa poster ko'rinishi qoladi
-        var bgw = h("div", "bgw"), bdu = bdUrl(it), pre = new Image();
-        pre.onload = function () { bgw.style.backgroundImage = "url('" + bdu + "')"; s.classList.add("wide"); };
-        pre.src = bdu;
+      var wideSrc = bdUrl(it) || posterUrl(it, 0);      // 🖼 avval TMDB keng rasmi; yo'q bo'lsa — posterning o'zi butun enga yoyiladi
+      if (wideSrc) {
+        var bgw = h("div", "bgw"), pre = new Image();
+        if (!it.bd) s.classList.add("pfill");
+        pre.onload = function () { bgw.style.backgroundImage = "url('" + wideSrc + "')"; s.classList.add("wide"); };
+        pre.onerror = function () {       // keng rasm ochilmasa — poster bilan almashtiramiz
+          var alt = it.bd ? posterUrl(it, 0) : null;
+          if (!alt) return;
+          s.classList.add("pfill");
+          var p2 = new Image(); p2.onload = function () { bgw.style.backgroundImage = "url('" + alt + "')"; s.classList.add("wide"); }; p2.src = alt;
+        };
+        pre.src = wideSrc;
         s.style.setProperty("--hc", hue(it.title || "") % 360);
         s.appendChild(bgw);
       }
