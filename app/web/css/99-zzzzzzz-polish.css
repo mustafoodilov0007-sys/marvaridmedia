@@ -62,3 +62,12 @@ html { font-optical-sizing: auto; -webkit-font-smoothing: antialiased; }
   .hero-title { font-size: clamp(40px, 4.6vw, 66px); line-height: 1.04; letter-spacing: -0.035em; }
 }
 .badge, .tag, .tvtag, .chip { letter-spacing: .02em; }
+
+
+/* 🖼 Keng rasm yo'q kinoda posterning o'zi butun enga yoyiladi (yuzlar o'rtada qoladi) */
+@media (min-width: 600px) {
+  .hero.hw .slide.wide.pfill .bgw { background-position: center 26%; filter: saturate(1.08) contrast(1.04); }
+  .hero.hw .slide.wide.pfill .shade { background:
+    linear-gradient(90deg, rgba(8,7,10,.96) 0%, rgba(8,7,10,.78) 36%, rgba(8,7,10,.22) 66%, rgba(8,7,10,.05) 100%),
+    linear-gradient(0deg, rgba(8,7,10,.78) 0%, rgba(8,7,10,0) 40%); }
+}
