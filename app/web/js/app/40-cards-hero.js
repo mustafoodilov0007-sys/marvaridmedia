@@ -166,7 +166,7 @@
       s.onclick = function (e) {
         if (e.target.closest("button, a")) return;
         haptic();
-        var hpEl = s.querySelector(".hp"), src = s.classList.contains("wide") ? s.querySelector(".bgw") : (hpEl && getComputedStyle(hpEl).display !== "none" ? hpEl : s.querySelector(".bg:not(.ph)"));
+        var hpEl = s.querySelector(".hp"), src = hpEl && getComputedStyle(hpEl).display !== "none" ? hpEl : (s.classList.contains("wide") ? null : s.querySelector(".bg:not(.ph)"));      // keng fon rasmidan «uchib chiqish» yo'q — u yashirinib ketardi
         openSheet(it, false, src);
       };
       wrap.appendChild(s);

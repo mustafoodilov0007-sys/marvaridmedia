@@ -62,6 +62,11 @@
       tmBox.appendChild(tmRes);
       var IMDB_NOTE = { no_key: "IMDb bali olinmadi: OMDB_API_KEY ulanmagan.", bad_key: "IMDb bali olinmadi: OMDb kaliti noto'g'ri yoki emailda faollashtirilmagan.",
         none: "IMDb da bu film uchun baho yo'q.", error: "OMDb javob bermadi, IMDb bali olinmadi.", no_id: "Bu film uchun IMDb ID topilmadi." };
+      // «Failed to fetch» — haqiqiy tarmoq xatosi; boshqa xabar — sahifa kodidagi nosozlik (internetga aloqasi yo'q)
+      function errWhy(e) {
+        var m = (e && e.message) || "";
+        return /failed to fetch|networkerror|load failed/i.test(m) ? "Server bilan aloqa uzildi — internet yoki server tekshirilsin" : "Xatolik: " + (m || "noma'lum").slice(0, 80);
+      }
       function tmFill(d) {
         if (d.year) year.value = d.year;
         if (d.duration_min) dur.value = d.duration_min;
@@ -104,11 +109,11 @@
               if (tmBusy) return;
               tmRes.replaceChildren(h("div", "note", "Yuklanmoqda..."));
               tmApi("/api/admin/tmdb?kind=" + x.kind + "&id=" + x.id, "Yuklanmoqda.").then(function (dd) { if (dd.ok) { tmPick = { kind: x.kind, id: x.id }; tmFill(dd.data); } else toast("⚠️ " + (dd.message || "Xatolik")); })
-                .catch(function (e) { tmRes.replaceChildren(); toast(e && e.message === "timeout" ? "⚠️ Javob juda kech keldi, qaytadan urinib ko'ring" : "⚠️ Ulanishda xatolik"); });
+                .catch(function (e) { tmRes.replaceChildren(); toast(e && e.message === "timeout" ? "⚠️ Javob juda kech keldi, qaytadan urinib ko'ring" : "⚠️ " + errWhy(e)); });
             };
             tmRes.appendChild(it);
           });
-        }).catch(function (e) { tmRes.replaceChildren(h("div", "note", e && e.message === "timeout" ? "⚠️ Javob juda kech keldi. Qaytadan «Qidirish» ni bosing." : "⚠️ Ulanishda xatolik")); });
+        }).catch(function (e) { tmRes.replaceChildren(h("div", "note", e && e.message === "timeout" ? "⚠️ Javob juda kech keldi. Qaytadan «Qidirish» ni bosing." : "⚠️ " + errWhy(e))); });
       }
       tmGo.onclick = tmSearch;
       tmQ.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.keyCode === 13) { e.preventDefault(); tmQ.blur(); tmSearch(); } });
@@ -130,7 +135,7 @@
             if (!r.ok) { toast({ title: "⚠️ Nom bo'sh bo'lmasin", year: "⚠️ Yil noto'g'ri", link: "⚠️ Havola https:// bilan boshlansin", wlink: "⚠️ Sayt linki https:// bilan boshlansin",
               imdb: "⚠️ IMDb 0 dan 10 gacha bo'lsin", duration: "⚠️ Davomiylik noto'g'ri" }[r.reason] || "⚠️ Saqlanmadi"); return; }
             toast(r.warn === "tmdb" ? "✅ Saqlandi (aktyor va kadrlar TMDB dan olinmadi)" : "✅ Saqlandi"); closeSheet(); show(current);
-          }).catch(function () { save.disabled = false; toast("⚠️ Internet xatosi"); });
+          }).catch(function (e) { save.disabled = false; toast("⚠️ " + errWhy(e)); });
       };
       del.onclick = function () {
         if (!confirm("«" + m.title + "» butunlay o'chirilsinmi? Bu qaytarilmaydi.")) return;
@@ -144,7 +149,7 @@
       kids.push(h("div", "gchips", [prem]), h("div", "eactions", [cancel, save, del]));
       s.replaceChildren(h("div", "ed", kids));
       s.scrollTop = 0;
-    }).catch(function () { toast("⚠️ Internet xatosi"); openSheet(it); });
+    }).catch(function (e) { toast("⚠️ " + errWhy(e)); openSheet(it); });
   }
 
   // ───── 🎬 treyler (admin shorts sifatida qo'shgan video) ─────
