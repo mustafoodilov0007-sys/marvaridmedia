@@ -1209,13 +1209,20 @@ class Database:
         order = {"top": "m.views DESC, m.id DESC",
                  "rating": "(likes + 1.0) / (likes + dislikes + 2.0) DESC, likes DESC, m.views DESC, m.id DESC"
                  }.get(sort, "m.created_at DESC, m.id DESC")
+        rel, rel_params = "", []
+        if tokens:      # 🔎 moslik: nomi aynan mos → nomi shu so'z bilan boshlanadi → nomida hamma so'z bor → faqat izohida bor
+            full = " ".join(tokens)
+            title_all = " AND ".join("m.norm_title LIKE ? ESCAPE '\\'" for _ in tokens)
+            rel = f"CASE WHEN m.norm_title = ? THEN 0 WHEN m.norm_title LIKE ? ESCAPE '\\' THEN 1 WHEN {title_all} THEN 2 ELSE 3 END, "
+            rel_params = [full, f"{escape_like(full)}%"] + [f"%{escape_like(t)}%" for t in tokens]
+        order = rel + order
         if sort == "rating":
             sql = (_CATALOG_ROW + f" WHERE {' AND '.join(where)} ORDER BY {order} LIMIT ? OFFSET ?")
-            return self.q(sql, params + [limit, offset])
+            return self.q(sql, params + rel_params + [limit, offset])
         # avval faqat id larni tanlaymiz (tez), keyin faqat shu sahifadagilar uchun og'ir ustunlarni hisoblaymiz
         sql = (_CATALOG_ROW + f" WHERE m.id IN (SELECT m.id FROM movies m WHERE {' AND '.join(where)}"
                f" ORDER BY {order} LIMIT ? OFFSET ?) ORDER BY {order}")
-        return self.q(sql, params + [limit, offset])
+        return self.q(sql, params + rel_params + [limit, offset] + rel_params)
 
     def catalog_rows(self, ids: List[int]) -> List[sqlite3.Row]:
         if not ids:

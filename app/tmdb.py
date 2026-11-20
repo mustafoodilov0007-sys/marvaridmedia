@@ -146,9 +146,24 @@ class Tmdb:
         q = (query or "").strip()
         if not q:
             return []
-        d = self._tmdb("/search/multi", query=q, language="en-US", include_adult="false")
+        results: list = []
+        # inglizcha topilmasa — o'zbekcha va ruscha ham; qavs ichidagi nom ham alohida qidiriladi: «Senga atalgan orzu (Mening orzuyimsan)»
+        paren = [x.strip() for x in re.findall(r"\(([^)]*)\)", q) if len(x.strip()) >= 2]
+        plain = re.sub(r"\([^)]*\)", " ", q).strip() or q
+        for qq in dict.fromkeys([q, plain, *paren]):
+            for lang in dict.fromkeys(["en-US", *self.langs, "ru-RU"]):
+                try:
+                    results = self._tmdb("/search/multi", query=qq, language=lang, include_adult="false").get("results", [])
+                except TmdbError:
+                    if lang == "en-US" and qq == q:
+                        raise
+                    continue
+                if any(r.get("media_type") in ("movie", "tv") for r in results):
+                    break
+            if any(r.get("media_type") in ("movie", "tv") for r in results):
+                break
         out = []
-        for r in d.get("results", []):
+        for r in results:
             kind = r.get("media_type")
             if kind not in ("movie", "tv"):
                 continue
@@ -345,7 +360,6 @@ def match_images(tm: "Tmdb", title: str, year: int, description: str) -> Optiona
             c["backdrop"] = img_path(r.get("backdrop_path")) or c.get("backdrop", "")
             c["title"] = r.get("title") or r.get("name") or c.get("title", "")
     best, best_score = None, 0.0
-    nq = normalize(q)
     nqs = {normalize(x) for x in queries}
     for c in cands.values():
         sim = overview_similarity(description, c["ov"])

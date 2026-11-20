@@ -1253,6 +1253,10 @@ def api_admin_save(app: App, user: dict, body: dict) -> dict:
             td = tmdb.get(app).details(str(pick.get("kind", "")), int(pick.get("id")))
             if td.get("extra"):
                 f["extra"] = json.dumps(td["extra"], ensure_ascii=False, separators=(",", ":"))
+                if td["extra"].get("stills"):
+                    f["backdrop"] = td["extra"]["stills"][0]          # 🖼 bosh sahifa hero'si uchun keng rasm
+            if td.get("poster_path") and not m["tposter"] and _tg_poster_width(app, m) < 800:
+                f["tposter"] = td["poster_path"]                      # Telegram posteri past sifatli/yo'q bo'lsa — TMDB posteri
         except (tmdb.TmdbError, TypeError, ValueError):
             warn = "tmdb"
     db.update_movie(m["id"], **f)
@@ -1505,6 +1509,18 @@ def share_card_bytes(app: App, movie_id: int, cache_dir: Path) -> Optional[bytes
 
 
 POSTER_REV = "_r2"      # kodlash sifati o'zgarganda oshiriladi: eski keshlangan nusxalar o'rniga yangisi yasaladi
+
+
+def _tg_poster_width(app: App, movie) -> int:
+    """Hozirgi (Telegram) poster kengligi, px. Poster yo'q yoki o'qilmasa — 0."""
+    if not movie["poster_id"] or _PIL is None:
+        return 0
+    try:
+        import io
+        data = poster_bytes(app, movie["id"], Path(app.config.db_path).parent / "posters", 0)
+        return _PIL.open(io.BytesIO(data)).width if data else 0
+    except Exception:       # noqa: BLE001
+        return 0
 
 
 _bd_tried: dict = {}                # hero kinosi uchun keng rasm qidirilgan vaqt (6 soatda bir martadan ko'p emas)
