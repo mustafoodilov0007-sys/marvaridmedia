@@ -182,3 +182,17 @@ class KoreanCollectionTests(unittest.TestCase):
         cols = [c for c in app.db.list_collections() if c["title"] == "Koreys dramalari"]
         self.assertEqual(len(cols), 1)
         self.assertEqual(cols[0]["n"], 1)
+
+
+class SearchRelevanceTests(unittest.TestCase):
+    def test_title_match_ranks_above_description_match(self):
+        from tests.harness import make_app, add_movie
+        app = make_app(admins="1")
+        a = add_movie(app, 1, "Zootropolis", desc="Bu multfilmda Maya ham bor")      # faqat izohida «maya»
+        b = add_movie(app, 2, "Asal ari Maya", desc="Ari haqida")                    # nomida «maya»
+        c = add_movie(app, 3, "Maya", desc="Kichik ari")                              # nomi aynan «maya»
+        app.db.update_movie(a, views=900)       # izohda topilgan kino eng ko'p ko'rilgan — baribir pastda bo'lishi kerak
+        for sort in ("top", "new", "rating"):
+            ids = [r["id"] for r in app.db.catalog("video", sort, ["maya"], 10)]
+            self.assertEqual(ids[:2], [c, b], sort)
+            self.assertEqual(ids[-1], a, sort)

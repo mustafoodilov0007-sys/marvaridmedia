@@ -215,6 +215,7 @@ class TmdbCase(unittest.TestCase):
             self.assertEqual(d["cast"][0]["n"], "Robert Downey Jr.")
             self.assertEqual(d["stills"], ["/notext12.jpg", "/withtext1.jpg"])
             self.assertEqual(d["revenue"], 2797800564)
+            self.assertEqual(self.app.db.get_movie(mid)["backdrop"], "/notext12.jpg")     # hero uchun keng rasm ham saqlandi
             # bazadagi ma'lumotga begona manzil tushib qolgan bo'lsa ham javobga chiqmaydi
             self.app.db.update_movie(mid, extra=json.dumps({"cast": [{"n": "Z", "r": "r", "p": "https://evil.example/p.jpg"}],
                                                             "stills": ["https://evil.example/s.jpg", "/ok12345.jpg"], "budget": "x"}))
